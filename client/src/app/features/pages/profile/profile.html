@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Perfil — Asiento Libre</title>
+  <meta name="description" content="Administra tus datos personales, información de vehículo y configuración de tu cuenta en Asiento Libre." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/app/features/pages/profile/profile.css" />
+</head>
+
+<body>
+
+  <!-- ===== Encabezado ===== -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="/index.html" aria-label="Asiento Libre — inicio">
+        <img 
+          src="/images/logo.png" 
+          alt="Logo Asiento Libre" 
+          class="logo-img" 
+          id="site-logo"
+          onload="const fb = this.parentElement.querySelector('.logo-fallback'); if(fb) fb.style.display='none';"
+          onerror="this.style.display='none';" 
+        />
+        <svg class="logo-mark logo-fallback" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17 2C10.4 2 5 7.2 5 13.6 5 22 17 32 17 32s12-10 12-18.4C29 7.2 23.6 2 17 2Z" fill="#0B1E3B" />
+          <path d="M9 15c3 6 8 9 8 9s8.5-4.5 8.5-11" stroke="#17BFAC" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        </svg>
+        <span>Asiento Libre</span>
+      </a>
+      
+      <nav class="main-nav" aria-label="Navegación principal">
+        <a href="/index.html#publicar">Publicar ruta</a>
+        <a href="/index.html#buscar">Buscar asiento</a>
+
+        <!-- Botón Iniciar sesión (para no autenticados) -->
+        <a href="/login.html" class="btn btn-primary btn-login" id="btn-login" style="display: none;">Iniciar sesión</a>
+
+        <!-- Apartado de Perfil de Usuario -->
+        <div class="user-profile-menu" id="user-profile-menu">
+          <button class="user-profile-btn" id="user-profile-btn" type="button" aria-expanded="false" aria-haspopup="true">
+            <span class="user-avatar" id="header-user-avatar">US</span>
+            <span class="user-name" id="header-user-name">Usuario</span>
+            <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <!-- Menú desplegable del Perfil -->
+          <div class="profile-dropdown" id="profile-dropdown" hidden>
+            <div class="dropdown-header">
+              <p class="dropdown-user-fullname" id="dropdown-user-name">Usuario Nombre</p>
+              <span class="dropdown-user-role" id="dropdown-user-role">Pasajero</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="/profile.html" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Mi Perfil
+            </a>
+            <a href="/index.html#buscar" class="dropdown-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              Mis Viajes
+            </a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-item-danger" id="btn-logout" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ===== Contenido Principal del Perfil ===== -->
+  <main class="profile-main">
+    <div class="container">
+      <div class="profile-layout">
+
+        <!-- Sidebar de Resumen -->
+        <aside class="profile-sidebar">
+          <div class="profile-avatar-large" id="profile-card-avatar">US</div>
+          <h1 class="profile-sidebar-name" id="profile-card-name">Cargando...</h1>
+          <p class="profile-sidebar-email" id="profile-card-email">usuario@correo.com</p>
+          <span class="profile-role-badge" id="profile-card-role">👤 Pasajero</span>
+
+          <nav class="profile-nav-links">
+            <a href="#datos-personales" class="profile-nav-btn active">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Datos personales
+            </a>
+            <a href="#vehiculo" class="profile-nav-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"></path>
+                <circle cx="7" cy="17" r="2"></circle>
+                <path d="M9 17h6"></path>
+                <circle cx="17" cy="17" r="2"></circle>
+              </svg>
+              Vehículo
+            </a>
+            <a href="#seguridad" class="profile-nav-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Seguridad
+            </a>
+            <a href="#eliminar-cuenta" class="profile-nav-btn" style="color: var(--danger);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+              </svg>
+              Eliminar cuenta
+            </a>
+          </nav>
+        </aside>
+
+        <!-- Formularios y Secciones de Configuración -->
+        <div class="profile-content">
+
+          <!-- 1. Datos Personales -->
+          <section class="profile-card" id="datos-personales">
+            <div class="profile-card-header">
+              <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                Datos Personales
+              </h2>
+              <p>Actualiza tu información personal y de contacto en Asiento Libre.</p>
+            </div>
+
+            <form class="profile-form" id="form-personal-data">
+              <div class="field-group">
+                <div class="field">
+                  <label for="profile-firstname">Nombre</label>
+                  <div class="input-container">
+                    <input id="profile-firstname" name="firstName" type="text" required />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="profile-lastname">Apellido</label>
+                  <div class="input-container">
+                    <input id="profile-lastname" name="lastName" type="text" required />
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="field">
+                  <label for="profile-national-id">Documento de identidad (Cédula / ID)</label>
+                  <div class="input-container">
+                    <input id="profile-national-id" name="nationalId" type="text" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="profile-email">Correo electrónico</label>
+                  <div class="input-container">
+                    <input id="profile-email" name="email" type="email" required />
+                  </div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="profile-role">Rol en la plataforma</label>
+                <div class="input-container">
+                  <select id="profile-role" name="role">
+                    <option value="pasajero">Pasajero (Busco asientos en viajes)</option>
+                    <option value="conductor">Conductor (Ofrezco rutas y asientos)</option>
+                  </select>
+                </div>
+              </div>
+
+              <button class="btn-save" type="submit">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Guardar cambios
+              </button>
+            </form>
+          </section>
+
+          <!-- 2. Información del Vehículo -->
+          <section class="profile-card" id="vehiculo">
+            <div class="profile-card-header">
+              <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"></path>
+                  <circle cx="7" cy="17" r="2"></circle>
+                  <path d="M9 17h6"></path>
+                  <circle cx="17" cy="17" r="2"></circle>
+                </svg>
+                Información del Vehículo
+              </h2>
+              <p>Administra los detalles del vehículo con el que publicas tus rutas.</p>
+            </div>
+
+            <form class="profile-form" id="form-vehicle-data">
+              <div class="field-group">
+                <div class="field">
+                  <label for="profile-vehicle-brand">Marca</label>
+                  <div class="input-container">
+                    <input id="profile-vehicle-brand" name="brand" type="text" placeholder="Ej: Chevrolet, Renault" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="profile-vehicle-model">Modelo</label>
+                  <div class="input-container">
+                    <input id="profile-vehicle-model" name="model" type="text" placeholder="Ej: Sandero 2022, Spark" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="field">
+                  <label for="profile-vehicle-color">Color</label>
+                  <div class="input-container">
+                    <input id="profile-vehicle-color" name="color" type="text" placeholder="Ej: Gris plata, Blanco" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="profile-vehicle-plate">Placa</label>
+                  <div class="input-container">
+                    <input id="profile-vehicle-plate" name="plate" type="text" placeholder="Ej: ABC 123" style="text-transform: uppercase;" />
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-save" type="submit">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Guardar vehículo
+              </button>
+            </form>
+          </section>
+
+          <!-- 3. Seguridad y Contraseña -->
+          <section class="profile-card" id="seguridad">
+            <div class="profile-card-header">
+              <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Seguridad y Contraseña
+              </h2>
+              <p>Cambia tu contraseña para mantener protegida tu cuenta.</p>
+            </div>
+
+            <form class="profile-form" id="form-security-data">
+              <div class="field">
+                <label for="profile-current-password">Contraseña actual</label>
+                <div class="input-container">
+                  <input id="profile-current-password" name="currentPassword" type="password" placeholder="Tu contraseña actual" required />
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="field">
+                  <label for="profile-new-password">Nueva contraseña</label>
+                  <div class="input-container">
+                    <input id="profile-new-password" name="newPassword" type="password" placeholder="Mínimo 6 caracteres" required />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="profile-confirm-new-password">Confirmar nueva contraseña</label>
+                  <div class="input-container">
+                    <input id="profile-confirm-new-password" name="confirmNewPassword" type="password" placeholder="Repite la nueva contraseña" required />
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-save" type="submit">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Actualizar contraseña
+              </button>
+            </form>
+          </section>
+
+          <!-- 4. Zona de Peligro (Eliminar Cuenta) -->
+          <section class="profile-card danger-card" id="eliminar-cuenta">
+            <div class="profile-card-header">
+              <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                Zona de Peligro
+              </h2>
+              <p>Acciones destructivas e irreversibles sobre tu cuenta de Asiento Libre.</p>
+            </div>
+
+            <div class="danger-box">
+              <div class="danger-info">
+                <h3>Eliminar cuenta permanentemente</h3>
+                <p>Una vez eliminada tu cuenta, se borrarán todos tus datos personales, rutas publicadas y reservas activas. Esta acción no se puede deshacer.</p>
+              </div>
+              <button class="btn-danger" id="btn-open-delete-modal" type="button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                </svg>
+                Eliminar mi cuenta
+              </button>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== Modal de Confirmación: Eliminar Cuenta ===== -->
+  <div class="delete-modal-overlay" id="delete-modal-overlay" hidden>
+    <div class="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+      <div class="delete-modal-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+
+      <h3 id="delete-modal-title">¿Eliminar tu cuenta?</h3>
+      <p>Estás a punto de eliminar tu cuenta de forma permanente. Todos tus datos y registros se perderán. ¿Deseas continuar?</p>
+
+      <div class="delete-modal-actions">
+        <button class="btn-cancel" id="btn-cancel-delete" type="button">Cancelar</button>
+        <button class="btn-danger" id="btn-confirm-delete" type="button">Sí, eliminar cuenta</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="/src/app/features/pages/profile/profile.ts"></script>
+</body>
+
+</html>

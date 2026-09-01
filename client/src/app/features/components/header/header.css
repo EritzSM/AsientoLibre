@@ -1,0 +1,343 @@
+/* =========================================================
+   Header Styles (con soporte de Perfil de Usuario)
+   ========================================================= */
+
+.site-header {
+  background: rgba(242, 249, 248, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border, #E1E6EA);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 76px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--navy, #0B1E3B);
+}
+
+.logo-img {
+  height: 38px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  display: block;
+}
+
+.logo-fallback {
+  flex-shrink: 0;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.main-nav a:not(.btn):not(.dropdown-item) {
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--navy-soft, #3E4A63);
+  font-size: 0.95rem;
+  transition: color 0.15s ease;
+}
+
+.main-nav a:not(.btn):not(.dropdown-item):hover {
+  color: var(--teal-dark, #109E8E);
+}
+
+/* Botón Iniciar sesión en el header */
+.btn-login {
+  background: var(--teal, #17BFAC);
+  color: #FFFFFF !important;
+  padding: 10px 22px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(23, 191, 172, 0.28);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-login:hover {
+  background: var(--teal-dark, #109E8E);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(23, 191, 172, 0.35);
+}
+
+.btn-login:active {
+  transform: translateY(0);
+}
+
+/* =========================================================
+   Apartado de Perfil de Usuario en el Header
+   ========================================================= */
+.user-profile-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.user-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--white, #FFFFFF);
+  border: 1px solid var(--border, #E1E6EA);
+  border-radius: 999px;
+  padding: 5px 14px 5px 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+}
+
+.user-profile-btn:hover {
+  border-color: var(--teal, #17BFAC);
+  box-shadow: 0 2px 10px rgba(11, 30, 59, 0.06);
+}
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--teal-pale, #E3F7F4);
+  color: var(--teal-dark, #109E8E);
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+
+.user-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--navy, #0B1E3B);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron-icon {
+  color: var(--navy-soft, #3E4A63);
+  transition: transform 0.2s ease;
+}
+
+.user-profile-btn[aria-expanded="true"] .chevron-icon {
+  transform: rotate(180deg);
+}
+
+/* Menú Desplegable */
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 210px;
+  background: var(--white, #FFFFFF);
+  border: 1px solid var(--border, #E1E6EA);
+  border-radius: var(--radius-md, 16px);
+  box-shadow: 0 12px 32px rgba(11, 30, 59, 0.12);
+  padding: 8px;
+  z-index: 50;
+  animation: dropdownIn 0.2s ease;
+}
+
+.profile-dropdown[hidden] {
+  display: none;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-header {
+  padding: 8px 12px 6px;
+}
+
+.dropdown-user-fullname {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--navy, #0B1E3B);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-user-role {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--teal-dark, #109E8E);
+  background: var(--teal-pale, #E3F7F4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-top: 4px;
+  text-transform: capitalize;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border, #E1E6EA);
+  margin: 6px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--navy-soft, #3E4A63);
+  text-decoration: none;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: #F4F7F9;
+  color: var(--navy, #0B1E3B);
+}
+
+.dropdown-item svg {
+  color: var(--text-muted, #667085);
+  transition: color 0.15s ease;
+}
+
+.dropdown-item:hover svg {
+  color: var(--teal, #17BFAC);
+}
+
+.dropdown-item-danger {
+  color: #E63946;
+}
+
+.dropdown-item-danger:hover {
+  background: #FDE8EA;
+  color: #C92A2A;
+}
+
+.dropdown-item-danger svg {
+  color: #E63946;
+}
+
+.dropdown-item-danger:hover svg {
+  color: #C92A2A;
+}
+
+/* Modal simple de Perfil */
+.profile-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 30, 59, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
+  animation: fadeIn 0.2s ease;
+}
+.profile-modal[hidden] { display: none; }
+
+.profile-modal-card {
+  background: var(--white, #FFFFFF);
+  border-radius: var(--radius-lg, 22px);
+  padding: 32px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 24px 60px rgba(11, 30, 59, 0.25);
+  position: relative;
+}
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.profile-modal-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--teal-pale, #E3F7F4);
+  color: var(--teal-dark, #109E8E);
+  font-weight: 800;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--navy, #0B1E3B);
+}
+
+.profile-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.profile-info-item {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #E1E6EA);
+  font-size: 0.9rem;
+}
+
+.profile-info-label {
+  color: var(--text-muted, #667085);
+  font-weight: 600;
+}
+
+.profile-info-value {
+  color: var(--navy, #0B1E3B);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .header-inner {
+    height: 68px;
+  }
+  .main-nav {
+    gap: 14px;
+  }
+  .main-nav a:not(.btn) {
+    font-size: 0.88rem;
+  }
+  .btn-login {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+  }
+  .user-name {
+    display: none;
+  }
+}

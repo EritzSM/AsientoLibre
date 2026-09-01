@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asiento Libre — Viaja acompañado</title>
+  <meta name="description" content="Publica tu ruta como conductor o reserva uno de los 4 asientos disponibles en el viaje de alguien más. Simple, claro y directo." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/app/features/pages/home/home.css" />
+</head>
+
+<body>
+
+  <!-- ===== Encabezado ===== -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="#top" aria-label="Asiento Libre — inicio">
+        <!-- 
+          ====================================================
+          ESPACIO PARA EL LOGO:
+          Guarda tu logo en: client/public/images/logo.svg (o logo.png)
+          ====================================================
+        -->
+        <img 
+          src="/images/logo.png" 
+          alt="Logo Asiento Libre" 
+          class="logo-img" 
+          id="site-logo"
+          onload="const fb = this.parentElement.querySelector('.logo-fallback'); if(fb) fb.style.display='none';"
+          onerror="this.style.display='none';" 
+        />
+        <svg class="logo-mark logo-fallback" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17 2C10.4 2 5 7.2 5 13.6 5 22 17 32 17 32s12-10 12-18.4C29 7.2 23.6 2 17 2Z" fill="#0B1E3B" />
+          <path d="M9 15c3 6 8 9 8 9s8.5-4.5 8.5-11" stroke="#17BFAC" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        </svg>
+        <span>Asiento Libre</span>
+      </a>
+      
+      <nav class="main-nav" aria-label="Navegación principal">
+        <a href="#publicar" data-scroll>Publicar ruta</a>
+        <a href="#buscar" data-scroll>Buscar asiento</a>
+        
+        <!-- Botón Iniciar sesión (para usuarios no autenticados) -->
+        <a href="/login.html" class="btn btn-primary btn-login" id="btn-login">Iniciar sesión</a>
+
+        <!-- Apartado de Perfil de Usuario (para usuarios autenticados) -->
+        <div class="user-profile-menu" id="user-profile-menu" style="display: none;">
+          <button class="user-profile-btn" id="user-profile-btn" type="button" aria-expanded="false" aria-haspopup="true">
+            <span class="user-avatar" id="header-user-avatar">US</span>
+            <span class="user-name" id="header-user-name">Usuario</span>
+            <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <!-- Menú desplegable del Perfil -->
+          <div class="profile-dropdown" id="profile-dropdown" hidden>
+            <div class="dropdown-header">
+              <p class="dropdown-user-fullname" id="dropdown-user-name">Usuario Nombre</p>
+              <span class="dropdown-user-role" id="dropdown-user-role">Pasajero</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="/profile.html" class="dropdown-item" id="btn-view-profile">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Mi Perfil
+            </a>
+            <a href="#buscar" class="dropdown-item" data-scroll>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              Mis Viajes
+            </a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-item-danger" id="btn-logout" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ===== Hero ===== -->
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="badge">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"
+                fill="currentColor" />
+            </svg>
+            Comparte el viaje, comparte los gastos
+          </p>
+
+          <h1>Viaja acompañado con <span>Asiento Libre</span></h1>
+
+          <p class="lead">
+            Publica tu ruta como conductor o reserva uno de los 4 asientos disponibles
+            en el viaje de alguien más. Simple, claro y directo.
+          </p>
+
+          <div class="hero-actions">
+            <button class="btn btn-primary" type="button" data-scroll data-target="#publicar">Publicar una ruta</button>
+            <button class="btn btn-secondary" type="button" data-scroll data-target="#buscar">Buscar un asiento</button>
+          </div>
+
+          <ul class="feature-list">
+            <li>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2C7.6 2 4 5.5 4 9.8 4 15.4 12 22 12 22s8-6.6 8-12.2C20 5.5 16.4 2 12 2Zm0 10.5a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4Z" fill="currentColor" />
+              </svg> Rutas de ciudad
+            </li>
+            <li>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z" fill="currentColor" />
+              </svg> Hasta 4 asientos
+            </li>
+            <li>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" />
+              </svg> Conductores verificados
+            </li>
+          </ul>
+        </div>
+
+        <!-- 
+          ====================================================
+          ESPACIO PARA LA IMAGEN DEL CARRO EN LA CARRETERA:
+          Guarda tu imagen en: client/public/images/hero-car.png (o .svg / .webp)
+          ====================================================
+        -->
+        <div class="hero-art" aria-hidden="true">
+          <img 
+            src="/images/hero-car.png" 
+            alt="Viaja en carro con Asiento Libre" 
+            class="hero-image"
+            id="hero-img"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+          />
+          <!-- Placeholder visible mientras guardas la imagen -->
+          <div class="hero-image-placeholder" style="display: none;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+              <circle cx="9" cy="9" r="2"/>
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            </svg>
+            <strong>Espacio para tu imagen</strong>
+            <p>Guarda tu ilustración del carro como:</p>
+            <code>client/public/images/hero-car.png</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Publicar + Buscar ===== -->
+    <section class="app-section">
+      <div class="container app-grid">
+
+        <!-- Publicar ruta -->
+        <div class="card publish-card" id="publicar">
+          <h2>Publica tu ruta</h2>
+          <p class="muted">Eres conductor. Indica desde dónde sales y tu destino. Tu vehículo ofrece 4 asientos.</p>
+
+          <form id="publish-form" novalidate>
+            <div class="field">
+              <label for="driver-name">Nombre del conductor</label>
+              <input id="driver-name" name="driverName" type="text" placeholder="Ej: Mariana Gonzáles" required />
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="origin">Desde</label>
+                <input id="origin" name="origin" type="text" placeholder="Origen" required />
+              </div>
+              <div class="field">
+                <label for="destination">Hasta</label>
+                <input id="destination" name="destination" type="text" placeholder="Destino" required />
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="date">Fecha</label>
+                <input id="date" name="date" type="date" required />
+              </div>
+              <div class="field">
+                <label for="time">Hora de salida</label>
+                <input id="time" name="time" type="time" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="price">Aporte por asiento</label>
+              <input id="price" name="price" type="number" min="0" step="500" placeholder="Ej: 5000" required />
+            </div>
+
+            <div class="field">
+              <label for="note">Nota (opcional)</label>
+              <textarea id="note" name="note" rows="3"
+                placeholder="Detalles útiles: Punto exacto de encuentro, equipaje, etc."></textarea>
+            </div>
+
+            <button class="btn btn-primary btn-block" type="submit">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+              Publicar ruta
+            </button>
+          </form>
+        </div>
+
+        <!-- Rutas disponibles -->
+        <div class="routes-panel" id="buscar">
+          <h2>Rutas disponibles</h2>
+          <p class="muted">Eres pasajero. Reserva uno de los asientos libres en el viaje que prefieras.</p>
+
+          <div class="search-box">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" />
+              <line x1="21" y1="21" x2="16.6" y2="16.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            <input id="search-input" type="text" placeholder="Busca por origen, destino o conductor" />
+          </div>
+
+          <div id="routes-list" class="routes-list" aria-live="polite"></div>
+          <p id="empty-state" class="empty-state" hidden>No encontramos rutas que coincidan con tu búsqueda.</p>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Asiento Libre. Comparte el viaje, comparte los gastos.</p>
+    </div>
+  </footer>
+
+  <!-- ===== Modal: Reservar asiento ===== -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </button>
+
+      <h3 id="modal-title">Reservar asiento</h3>
+      <p class="modal-subtitle" id="modal-subtitle">Viaje con —</p>
+
+      <p class="route-chip" id="modal-route-chip"></p>
+
+      <form id="reserve-form">
+        <div class="field">
+          <label for="passenger-name">Tu nombre</label>
+          <input id="passenger-name" type="text" placeholder="Ej: Mariana Gonzáles" required />
+        </div>
+
+        <div class="field">
+          <label>¿Cuántos asientos?</label>
+          <div class="seat-toggle" id="seat-toggle">
+            <button class="seat-option active" type="button" data-seats="1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 11V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5M4 11h16v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              </svg>
+              1
+            </button>
+            <button class="seat-option" type="button" data-seats="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 11V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5M4 11h16v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+              </svg>
+              2
+            </button>
+          </div>
+          <p class="hint" id="seats-hint">— asientos disponibles en este viaje.</p>
+        </div>
+
+        <button class="btn btn-primary btn-block" type="submit">Confirmar reserva</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="/src/app/features/pages/home/home.ts"></script>
+</body>
+
+</html>

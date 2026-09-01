@@ -1,0 +1,600 @@
+/* =========================================================
+   Asiento Libre — Estilos de Login y Sign-Up (Auth)
+   ========================================================= */
+
+@import "../../components/header/header.css";
+
+:root {
+  --navy: #0B1E3B;
+  --navy-soft: #3E4A63;
+  --teal: #17BFAC;
+  --teal-dark: #109E8E;
+  --teal-pale: #E3F7F4;
+  --orange: #F5A742;
+  --orange-text: #8A5A16;
+  --orange-badge-bg: #FCEBD1;
+  --bg: #F2F9F8;
+  --white: #FFFFFF;
+  --border: #E1E6EA;
+  --text: #16233D;
+  --text-muted: #667085;
+  --text-faint: #98A2B3;
+  --danger: #E63946;
+  --danger-bg: #FDE8EA;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --shadow-card: 0 1px 2px rgba(11, 30, 59, 0.05), 0 12px 32px rgba(11, 30, 59, 0.08);
+  --container-w: 1180px;
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 520px;
+}
+
+.auth-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  box-shadow: var(--shadow-card);
+  animation: authCardIn 0.35s ease;
+}
+
+@keyframes authCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Encabezado de la tarjeta */
+.auth-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-header h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+
+.auth-header h1 span {
+  color: var(--teal);
+}
+
+.auth-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 0;
+}
+
+/* Tabs de cambio Login / Registro */
+.auth-tabs {
+  display: flex;
+  background: #EAEFF2;
+  padding: 5px;
+  border-radius: 999px;
+  margin-bottom: 28px;
+  gap: 4px;
+}
+
+.auth-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 11px 18px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy-soft);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-tab.active {
+  background: var(--white);
+  color: var(--navy);
+  box-shadow: 0 2px 8px rgba(11, 30, 59, 0.08);
+}
+
+/* Formularios */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-form[hidden] {
+  display: none;
+}
+
+.field-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.field label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--navy);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.field-forgot {
+  font-size: 0.82rem;
+  color: var(--teal-dark);
+  text-decoration: none;
+  font-weight: 600;
+}
+.field-forgot:hover {
+  text-decoration: underline;
+}
+
+.input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-container input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-container input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-pale);
+}
+
+.input-container input.is-invalid {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+.btn-toggle-password:hover {
+  color: var(--navy);
+}
+
+/* Selector de Rol (Pasajero / Conductor) */
+.role-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.role-option {
+  border: 1.5px solid var(--border);
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 14px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--navy-soft);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+
+.role-option svg {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.role-option.active {
+  border-color: var(--teal);
+  background: var(--teal-pale);
+  color: var(--teal-dark);
+}
+
+.role-option.active svg {
+  color: var(--teal);
+}
+
+/* ==============================================
+   Sección Desplegable: Registro de Vehículo
+   ============================================== */
+.vehicle-section {
+  background: #F9FBFC;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 4px;
+  animation: slideDownVehicle 0.3s ease;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.vehicle-section[hidden] {
+  display: none;
+}
+
+@keyframes slideDownVehicle {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.vehicle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vehicle-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--navy);
+}
+
+.vehicle-header-title svg {
+  color: var(--teal);
+}
+
+/* Opción: Agregar vehículo después */
+.skip-vehicle-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--teal-dark);
+  background: var(--teal-pale);
+  padding: 6px 14px;
+  border-radius: 999px;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.skip-vehicle-toggle:hover {
+  background: #D2F2EC;
+}
+
+.skip-vehicle-toggle input[type="checkbox"] {
+  accent-color: var(--teal-dark);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.vehicle-fields-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.vehicle-fields-container.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(0.5);
+}
+
+/* Apartado de Documentos (PDF, Word) */
+.documents-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.documents-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.documents-header label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--navy);
+  margin: 0;
+}
+
+.documents-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.file-dropzone {
+  border: 2px dashed #CCD7DE;
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  padding: 22px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-dropzone:hover, .file-dropzone.is-dragover {
+  border-color: var(--teal);
+  background: var(--teal-pale);
+}
+
+.file-dropzone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-dropzone-icon {
+  color: var(--teal);
+  margin-bottom: 2px;
+}
+
+.file-dropzone-text {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--navy);
+}
+
+.file-dropzone-text span {
+  color: var(--teal-dark);
+  text-decoration: underline;
+}
+
+.file-dropzone-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.file-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.file-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.file-badge.pdf { background: #FDE8EA; color: #C92A2A; }
+.file-badge.word { background: #E7F0FD; color: #1971C2; }
+
+/* Lista de archivos subidos */
+.uploaded-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.uploaded-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  gap: 10px;
+  animation: fileItemIn 0.2s ease;
+}
+
+@keyframes fileItemIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-info svg {
+  color: var(--teal);
+  flex-shrink: 0;
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.btn-remove-file {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
+}
+.btn-remove-file:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Botón principal */
+.btn-submit {
+  background: var(--teal);
+  color: var(--white);
+  border: none;
+  border-radius: 999px;
+  padding: 15px 24px;
+  font-weight: 700;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+  box-shadow: 0 8px 20px rgba(23, 191, 172, 0.28);
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-submit:hover {
+  background: var(--teal-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(23, 191, 172, 0.35);
+}
+
+.btn-submit:active {
+  transform: translateY(0);
+}
+
+/* Mensaje de error general */
+.form-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-error[hidden] {
+  display: none;
+}
+
+/* Pie de tarjeta */
+.auth-footer {
+  text-align: center;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.auth-footer a {
+  color: var(--teal-dark);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--navy);
+  color: var(--white);
+  padding: 14px 24px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  box-shadow: 0 12px 30px rgba(11, 30, 59, 0.3);
+  z-index: 60;
+  animation: toast-in 0.25s ease;
+  white-space: nowrap;
+}
+.toast[hidden] { display: none; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 540px) {
+  .auth-card {
+    padding: 30px 22px;
+  }
+  .field-group {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+
