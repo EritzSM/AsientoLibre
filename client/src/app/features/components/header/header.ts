@@ -35,6 +35,7 @@ export function setActiveUser(user: AuthUser): void {
 
 export function logoutUser(): void {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem("asiento_libre_token");
   window.location.reload();
 }
 
@@ -123,7 +124,7 @@ export function initHeader(): void {
 }
 
 // Modal interactivo de información del perfil
-function showProfileModal(user: AuthUser): void {
+export function showProfileModal(user: AuthUser): void {
   const existingModal = document.querySelector("#user-profile-modal-view");
   if (existingModal) existingModal.remove();
 

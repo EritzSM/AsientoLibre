@@ -100,7 +100,12 @@ npm install
 npm run start:dev
 ```
 
-### 3. Base de Datos (PostgreSQL Docker)
-```bash
-docker compose up -d
-```
+### 3. Base de Datos (Supabase)
+1. Crea un proyecto en [Supabase](https://supabase.com).
+2. Ve al **SQL Editor** y ejecuta el script:
+   - [`server/supabase/schema.sql`](server/supabase/schema.sql)
+3. Copia tus credenciales desde **Project Settings → API**:
+   - `Project URL` → `SUPABASE_URL`
+   - `anon public` → `SUPABASE_ANON_KEY`
+   - `service_role secret` → `SUPABASE_SERVICE_ROLE_KEY`
+4. Pega estos valores en `server/.env`.

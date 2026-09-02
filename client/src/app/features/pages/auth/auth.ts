@@ -3,7 +3,7 @@
 // =========================================================
 
 import { setActiveUser } from "../../components/header/header";
-import type { AuthUser } from "../../components/header/header";
+import { authService } from "../../../core/services/auth.service";
 
 interface VehicleData {
   brand: string;
@@ -289,12 +289,15 @@ function bindDocumentUploader(): void {
 }
 
 // ---- Manejo del Login ----
-function handleLoginSubmit(event: Event): void {
+async function handleLoginSubmit(event: Event): Promise<void> {
   event.preventDefault();
   hideError();
 
   const form = $<HTMLFormElement>("#form-login");
   if (!form) return;
+
+  const submitBtn = form.querySelector<HTMLButtonElement>(".btn-submit");
+  const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
 
   const data = new FormData(form);
   const email = String(data.get("email") ?? "").trim();
@@ -311,31 +314,45 @@ function handleLoginSubmit(event: Event): void {
     return;
   }
 
-  // Crear o recuperar usuario de sesión
-  const usernamePart = email.split("@")[0] || "Usuario";
-  const authUser: AuthUser = {
-    id: crypto.randomUUID(),
-    firstName: usernamePart.charAt(0).toUpperCase() + usernamePart.slice(1),
-    lastName: "",
-    email,
-    role: "pasajero",
-  };
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/>
+        </svg>
+        Iniciando sesión...
+      `;
+    }
 
-  setActiveUser(authUser);
+    const response = await authService.login({ email, password });
+    setActiveUser(response.user);
 
-  showToast(`¡Bienvenido de nuevo, ${authUser.firstName}! Redirigiendo...`);
-  setTimeout(() => {
-    window.location.href = "/index.html";
-  }, 1000);
+    showToast(`¡Bienvenido de nuevo, ${response.user.firstName}! Redirigiendo...`);
+    setTimeout(() => {
+      window.location.href = "/index.html";
+    }, 1000);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Error al iniciar sesión.";
+    showError(errorMsg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHtml;
+    }
+  }
 }
 
 // ---- Manejo del Sign-Up ----
-function handleSignUpSubmit(event: Event): void {
+async function handleSignUpSubmit(event: Event): Promise<void> {
   event.preventDefault();
   hideError();
 
   const form = $<HTMLFormElement>("#form-signup");
   if (!form) return;
+
+  const submitBtn = form.querySelector<HTMLButtonElement>(".btn-submit");
+  const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
 
   const data = new FormData(form);
   const role = (String(data.get("role") ?? "pasajero")) as 'pasajero' | 'conductor';
@@ -403,34 +420,52 @@ function handleSignUpSubmit(event: Event): void {
     }
   }
 
-  // Guardar sesión activa automáticamente
-  const authUser: AuthUser = {
-    id: crypto.randomUUID(),
-    firstName: payload.firstName,
-    lastName: payload.lastName,
-    nationalId: payload.nationalId,
-    email: payload.email,
-    role: payload.role,
-    skipVehicle: payload.skipVehicle,
-    vehicle: vehicleData ? {
-      brand: vehicleData.brand,
-      model: vehicleData.model,
-      color: vehicleData.color,
-      plate: vehicleData.plate,
-    } : undefined,
-  };
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/>
+        </svg>
+        Creando cuenta...
+      `;
+    }
 
-  setActiveUser(authUser);
+    const response = await authService.register({
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      nationalId: payload.nationalId,
+      email: payload.email,
+      password: payload.password,
+      role: payload.role,
+      skipVehicle: payload.skipVehicle,
+      vehicle: vehicleData ? {
+        brand: vehicleData.brand,
+        model: vehicleData.model,
+        color: vehicleData.color,
+        plate: vehicleData.plate,
+      } : undefined,
+    });
 
-  // Simulación de registro exitoso y auto-login
-  const roleMsg = role === 'conductor' 
-    ? (skipVehicle ? " (Conductor - Vehículo pendiente)" : " (Conductor verificado)") 
-    : " (Pasajero)";
+    setActiveUser(response.user);
 
-  showToast(`¡Cuenta creada con éxito! Iniciando sesión como ${payload.firstName}${roleMsg}...`);
-  setTimeout(() => {
-    window.location.href = "/index.html";
-  }, 1200);
+    const roleMsg = role === 'conductor' 
+      ? (skipVehicle ? " (Conductor - Vehículo pendiente)" : " (Conductor verificado)") 
+      : " (Pasajero)";
+
+    showToast(`¡Cuenta creada con éxito! Bienvenido ${response.user.firstName}${roleMsg}...`);
+    setTimeout(() => {
+      window.location.href = "/index.html";
+    }, 1200);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Error al registrar la cuenta.";
+    showError(errorMsg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnHtml;
+    }
+  }
 }
 
 // ---- Inicialización ----

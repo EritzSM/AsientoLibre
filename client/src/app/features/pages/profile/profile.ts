@@ -2,7 +2,7 @@
 // Asiento Libre — Lógica de la Página de Perfil (Profile)
 // =========================================================
 
-import { getActiveUser, setActiveUser, logoutUser, initHeader } from "../../components/header/header";
+import { getActiveUser, setActiveUser, initHeader } from "../../components/header/header";
 import type { AuthUser } from "../../components/header/header";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -197,6 +197,7 @@ function bindDeleteAccount(): void {
   if (confirmBtn) {
     confirmBtn.addEventListener("click", () => {
       localStorage.removeItem("asiento_libre_user");
+      localStorage.removeItem("asiento_libre_token");
       showToast("Tu cuenta ha sido eliminada permanentemente.");
       setTimeout(() => {
         window.location.href = "/index.html";

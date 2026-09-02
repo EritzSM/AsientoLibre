@@ -527,6 +527,18 @@ body {
   transform: translateY(0);
 }
 
+.btn-submit:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Mensaje de error general */
 .form-error {
   background: var(--danger-bg);
