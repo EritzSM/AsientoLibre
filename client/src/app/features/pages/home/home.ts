@@ -15,6 +15,16 @@ interface Ride {
   note: string;
   totalSeats: number;
   availableSeats: number;
+  completed: boolean;
+}
+
+interface Survey {
+  role: "pasajero" | "conductor";
+  rating: number;
+  experience: string;
+  comment: string;
+  counterpart: string;
+  createdAt: string;
 }
 
 const TOTAL_SEATS = 4;
@@ -32,6 +42,7 @@ let rides: Ride[] = [
     note: "Salgo puntual desde el parque de las luces.",
     totalSeats: TOTAL_SEATS,
     availableSeats: 2,
+    completed: false,
   },
   {
     id: crypto.randomUUID(),
@@ -44,12 +55,14 @@ let rides: Ride[] = [
     note: "Ruta directa por la 33.",
     totalSeats: TOTAL_SEATS,
     availableSeats: 2,
+    completed: false,
   },
 ];
 
 let activeRideId: string | null = null;
 let selectedSeats = 1;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let activeSurveyRideId: string | null = null;
 
 // ---- Utilidades ----
 function $<T extends HTMLElement>(selector: string): T {
@@ -91,6 +104,21 @@ function showToast(message: string): void {
   }, 2600);
 }
 
+function getSurveys(): Survey[] {
+  try {
+    return JSON.parse(localStorage.getItem("asiento-libre-surveys") ?? "[]") as Survey[];
+  } catch {
+    return [];
+  }
+}
+
+function averageRating(counterpart: string): number | null {
+  const ratings = getSurveys()
+    .filter((survey) => survey.counterpart === counterpart)
+    .map((survey) => survey.rating);
+  return ratings.length ? ratings.reduce((total, rating) => total + rating, 0) / ratings.length : null;
+}
+
 // ---- Render de asientos ----
 function seatBoxesHtml(ride: Ride): string {
   const boxes: string[] = [];
@@ -110,6 +138,7 @@ function seatBoxesHtml(ride: Ride): string {
 // ---- Render de tarjetas de ruta ----
 function rideCardHtml(ride: Ride): string {
   const soldOut = ride.availableSeats <= 0;
+  const rating = averageRating(ride.driverName);
   return `
     <article class="route-card" data-id="${ride.id}">
       <div class="route-card-top">
@@ -117,7 +146,7 @@ function rideCardHtml(ride: Ride): string {
           <span class="avatar">${initials(ride.driverName)}</span>
           <div>
             <div class="driver-name">${ride.driverName}</div>
-            <div class="driver-role">Conductor${ride.driverName.endsWith("a") ? "a" : ""}</div>
+            <div class="driver-role">Conductor${ride.driverName.endsWith("a") ? "a" : ""}${rating ? ` · ${rating.toFixed(1)} ★` : ""}</div>
           </div>
         </div>
         <span class="price-pill">${formatPrice(ride.price)}</span>
@@ -169,9 +198,14 @@ function rideCardHtml(ride: Ride): string {
           <div class="seat-boxes">${seatBoxesHtml(ride)}</div>
           <span class="seats-label">${ride.availableSeats} de ${ride.totalSeats} asientos libres</span>
         </div>
-        <button class="btn-reserve" type="button" data-reserve="${ride.id}" ${soldOut ? "disabled" : ""}>
-          ${soldOut ? "Sin asientos" : "Reservar asiento"}
-        </button>
+        <div class="route-actions">
+          <button class="btn-reserve" type="button" data-reserve="${ride.id}" ${soldOut ? "disabled" : ""}>
+            ${soldOut ? "Sin asientos" : "Reservar asiento"}
+          </button>
+          <button class="btn-complete" type="button" data-complete="${ride.id}">
+            ${ride.completed ? "Evaluar viaje" : "Finalizar viaje"}
+          </button>
+        </div>
       </div>
     </article>
   `;
@@ -195,6 +229,9 @@ function renderRides(filter = ""): void {
   list.querySelectorAll<HTMLButtonElement>("[data-reserve]").forEach((btn) => {
     btn.addEventListener("click", () => openModal(btn.dataset.reserve!));
   });
+  list.querySelectorAll<HTMLButtonElement>("[data-complete]").forEach((btn) => {
+    btn.addEventListener("click", () => openSurvey(btn.dataset.complete!));
+  });
 }
 
 // ---- Publicar ruta ----
@@ -214,6 +251,7 @@ function handlePublish(event: SubmitEvent): void {
     note: String(data.get("note") ?? "").trim(),
     totalSeats: TOTAL_SEATS,
     availableSeats: TOTAL_SEATS,
+    completed: false,
   };
 
   if (!newRide.driverName || !newRide.origin || !newRide.destination) return;
@@ -284,6 +322,56 @@ function handleReserve(event: SubmitEvent): void {
   showToast(`¡Reserva confirmada para ${name}!`);
 }
 
+function openSurvey(rideId: string): void {
+  const ride = rides.find((item) => item.id === rideId);
+  if (!ride) return;
+
+  activeSurveyRideId = rideId;
+  $<HTMLParagraphElement>("#survey-subtitle").textContent = `Evalúa tu viaje con ${ride.driverName}.`;
+  $<HTMLFormElement>("#survey-form").reset();
+  $<HTMLInputElement>("#survey-counterpart").value = ride.driverName;
+  $<HTMLDivElement>("#survey-overlay").hidden = false;
+  $<HTMLSelectElement>("#survey-role").focus();
+}
+
+function closeSurvey(): void {
+  $<HTMLDivElement>("#survey-overlay").hidden = true;
+  activeSurveyRideId = null;
+}
+
+function handleSurvey(event: SubmitEvent): void {
+  event.preventDefault();
+  if (!activeSurveyRideId) return;
+
+  const ride = rides.find((item) => item.id === activeSurveyRideId);
+  if (!ride) return;
+
+  const form = event.currentTarget as HTMLFormElement;
+  const data = new FormData(form);
+  const rating = Number(data.get("rating"));
+  const experience = String(data.get("experience") ?? "");
+  const counterpart = String(data.get("counterpart") ?? "").trim();
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5 || !experience || counterpart.length < 2) {
+    form.reportValidity();
+    return;
+  }
+
+  const surveys = getSurveys();
+  surveys.push({
+    role: String(data.get("role")) as Survey["role"],
+    rating,
+    experience,
+    comment: String(data.get("comment") ?? "").trim(),
+    counterpart,
+    createdAt: new Date().toISOString(),
+  });
+  localStorage.setItem("asiento-libre-surveys", JSON.stringify(surveys));
+  ride.completed = true;
+  renderRides(($<HTMLInputElement>("#search-input")).value);
+  closeSurvey();
+  showToast(`Encuesta enviada. La calificación de ${counterpart} fue actualizada.`);
+}
+
 // ---- Scroll suave ----
 function bindScrollLinks(): void {
   document.querySelectorAll<HTMLElement>("[data-scroll]").forEach((el) => {
@@ -304,6 +392,7 @@ function init(): void {
 
   $<HTMLFormElement>("#publish-form").addEventListener("submit", handlePublish);
   $<HTMLFormElement>("#reserve-form").addEventListener("submit", handleReserve);
+  $<HTMLFormElement>("#survey-form").addEventListener("submit", handleSurvey);
 
   $<HTMLInputElement>("#search-input").addEventListener("input", (event) => {
     renderRides((event.target as HTMLInputElement).value);
@@ -317,11 +406,18 @@ function init(): void {
   });
 
   $<HTMLButtonElement>("#modal-close").addEventListener("click", closeModal);
+  $<HTMLButtonElement>("#survey-close").addEventListener("click", closeSurvey);
   $<HTMLDivElement>("#modal-overlay").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeModal();
   });
+  $<HTMLDivElement>("#survey-overlay").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeSurvey();
+  });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeModal();
+    if (event.key === "Escape") {
+      closeModal();
+      closeSurvey();
+    }
   });
 }
 
