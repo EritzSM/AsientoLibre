@@ -300,6 +300,59 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="survey-overlay" hidden>
+    <div class="modal survey-modal" role="dialog" aria-modal="true" aria-labelledby="survey-title">
+      <button class="modal-close" id="survey-close" type="button" aria-label="Cerrar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </button>
+      <p class="survey-kicker">Viaje finalizado</p>
+      <h3 id="survey-title">Cuéntanos cómo te fue</h3>
+      <p class="modal-subtitle" id="survey-subtitle">Tu opinión ayuda a mejorar cada viaje.</p>
+      <form id="survey-form" novalidate>
+        <div class="field">
+          <label for="survey-role">Tu rol en el viaje</label>
+          <select id="survey-role" name="role" required>
+            <option value="pasajero">Pasajero</option>
+            <option value="conductor">Conductor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="survey-counterpart">Nombre de la contraparte</label>
+          <input id="survey-counterpart" name="counterpart" type="text" minlength="2" maxlength="80" required />
+        </div>
+        <fieldset class="field rating-field">
+          <legend>Calificación de la contraparte <span aria-hidden="true">*</span></legend>
+          <div class="star-rating" role="radiogroup" aria-label="Calificación de 1 a 5 estrellas">
+            <label><input type="radio" name="rating" value="1" required /><span aria-hidden="true">★</span><span class="sr-only">1 estrella</span></label>
+            <label><input type="radio" name="rating" value="2" /><span aria-hidden="true">★</span><span class="sr-only">2 estrellas</span></label>
+            <label><input type="radio" name="rating" value="3" /><span aria-hidden="true">★</span><span class="sr-only">3 estrellas</span></label>
+            <label><input type="radio" name="rating" value="4" /><span aria-hidden="true">★</span><span class="sr-only">4 estrellas</span></label>
+            <label><input type="radio" name="rating" value="5" /><span aria-hidden="true">★</span><span class="sr-only">5 estrellas</span></label>
+          </div>
+          <p class="hint">Selecciona una calificación entre 1 y 5.</p>
+        </fieldset>
+        <div class="field">
+          <label for="survey-experience">Experiencia general</label>
+          <select id="survey-experience" name="experience" required>
+            <option value="">Selecciona una opción</option>
+            <option value="excelente">Excelente</option>
+            <option value="buena">Buena</option>
+            <option value="regular">Regular</option>
+            <option value="mala">Mala</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="survey-comment">Comentarios adicionales <span class="optional">(opcional)</span></label>
+          <textarea id="survey-comment" name="comment" rows="3" maxlength="500" placeholder="Comparte un detalle de tu experiencia"></textarea>
+          <p class="hint">Máximo 500 caracteres.</p>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Enviar encuesta</button>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
   <script type="module" src="/src/app/features/pages/home/home.ts"></script>
