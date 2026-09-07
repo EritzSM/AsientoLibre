@@ -2,7 +2,7 @@
 // Asiento Libre — lógica del home
 // =========================================================
 
-import { initHeader } from "../../components/header/header";
+import { initHeader, getActiveUser } from "../../components/header/header";
 
 interface Ride {
   id: string;
@@ -386,6 +386,13 @@ function bindScrollLinks(): void {
 
 // ---- Inicialización ----
 function init(): void {
+  // Protección: si el usuario existe pero no está verificado, redirigir a verificación
+  const user = getActiveUser();
+  if (user && !user.isActive) {
+    window.location.href = '/login.html';
+    return;
+  }
+
   initHeader();
   renderRides();
   bindScrollLinks();

@@ -16,9 +16,25 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     last_name TEXT NOT NULL,
     national_id TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('pasajero', 'conductor')),
+    is_active BOOLEAN DEFAULT false NOT NULL,
+    activation_token TEXT,
+    token_expires_at TIMESTAMP WITH TIME ZONE,
+    pending_email TEXT,
+    email_change_code TEXT,
+    email_change_expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ==============================================================================
+-- Migración para bases de datos existentes (ejecutar si la tabla profiles ya existe):
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false NOT NULL;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS activation_token TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP WITH TIME ZONE;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_email TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_code TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_expires_at TIMESTAMP WITH TIME ZONE;
+-- ==============================================================================
 
 -- 3. Tabla: Vehículos (vehicles)
 -- Asociada a los usuarios con rol 'conductor'
@@ -36,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
 
 -- 4. Índices para optimizar consultas frecuentes
 CREATE INDEX IF NOT EXISTS idx_profiles_national_id ON public.profiles(national_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_activation_token ON public.profiles(activation_token);
 CREATE INDEX IF NOT EXISTS idx_vehicles_user_id ON public.vehicles(user_id);
 CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON public.vehicles(plate);
 
@@ -65,41 +82,47 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para 'profiles'
--- Lectura: Cualquier usuario autenticado puede ver perfiles (necesario para ver conductores y pasajeros en viajes)
-CREATE POLICY "Permitir lectura de perfiles a usuarios autenticados" 
+DROP POLICY IF EXISTS "Permitir lectura de perfiles a usuarios autenticados" ON public.profiles;
+DROP POLICY IF EXISTS "Permitir lectura de perfiles" ON public.profiles;
+CREATE POLICY "Permitir lectura de perfiles" 
     ON public.profiles FOR SELECT 
-    TO authenticated 
     USING (true);
 
--- Inserción: Permitir a un usuario insertar su propio perfil o al rol de servicio
-CREATE POLICY "Permitir inserción de propio perfil" 
+DROP POLICY IF EXISTS "Permitir inserción de propio perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Permitir inserción de perfiles" ON public.profiles;
+CREATE POLICY "Permitir inserción de perfiles" 
     ON public.profiles FOR INSERT 
-    WITH CHECK (auth.uid() = id);
+    WITH CHECK (true);
 
--- Actualización: Cada usuario puede actualizar solo su propio perfil
-CREATE POLICY "Permitir actualizar propio perfil" 
+DROP POLICY IF EXISTS "Permitir actualizar propio perfil" ON public.profiles;
+DROP POLICY IF EXISTS "Permitir actualización de perfiles" ON public.profiles;
+CREATE POLICY "Permitir actualización de perfiles" 
     ON public.profiles FOR UPDATE 
-    USING (auth.uid() = id);
+    USING (true)
+    WITH CHECK (true);
 
 -- Políticas para 'vehicles'
--- Lectura: Cualquier usuario autenticado puede ver datos de vehículos (para ver el auto del viaje)
-CREATE POLICY "Permitir lectura de vehículos a usuarios autenticados" 
+DROP POLICY IF EXISTS "Permitir lectura de vehículos a usuarios autenticados" ON public.vehicles;
+DROP POLICY IF EXISTS "Permitir lectura de vehículos" ON public.vehicles;
+CREATE POLICY "Permitir lectura de vehículos" 
     ON public.vehicles FOR SELECT 
-    TO authenticated 
     USING (true);
 
--- Inserción: Permitir insertar el vehículo si coincide con su user_id
-CREATE POLICY "Permitir insertar propio vehículo" 
+DROP POLICY IF EXISTS "Permitir insertar propio vehículo" ON public.vehicles;
+DROP POLICY IF EXISTS "Permitir inserción de vehículos" ON public.vehicles;
+CREATE POLICY "Permitir inserción de vehículos" 
     ON public.vehicles FOR INSERT 
-    WITH CHECK (auth.uid() = user_id);
+    WITH CHECK (true);
 
--- Actualización: Cada usuario puede actualizar solo su propio vehículo
-CREATE POLICY "Permitir actualizar propio vehículo" 
+DROP POLICY IF EXISTS "Permitir actualizar propio vehículo" ON public.vehicles;
+DROP POLICY IF EXISTS "Permitir actualización de vehículos" ON public.vehicles;
+CREATE POLICY "Permitir actualización de vehículos" 
     ON public.vehicles FOR UPDATE 
-    USING (auth.uid() = user_id);
+    USING (true);
 
--- Borrado: Cada usuario puede eliminar solo su propio vehículo
-CREATE POLICY "Permitir eliminar propio vehículo" 
+DROP POLICY IF EXISTS "Permitir eliminar propio vehículo" ON public.vehicles;
+DROP POLICY IF EXISTS "Permitir eliminación de vehículos" ON public.vehicles;
+CREATE POLICY "Permitir eliminación de vehículos" 
     ON public.vehicles FOR DELETE 
-    USING (auth.uid() = user_id);
+    USING (true);
 

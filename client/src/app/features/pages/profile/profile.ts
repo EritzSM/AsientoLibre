@@ -4,8 +4,11 @@
 
 import { getActiveUser, setActiveUser, initHeader } from "../../components/header/header";
 import type { AuthUser } from "../../components/header/header";
+import { authService } from "../../../core/services/auth.service";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let resendInterval: ReturnType<typeof setInterval> | undefined;
+let originalEmail = "";
 
 // ---- Utilidades DOM ----
 function $<T extends HTMLElement>(selector: string): T | null {
@@ -20,7 +23,7 @@ function showToast(message: string): void {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     toast.hidden = true;
-  }, 3200);
+  }, 3500);
 }
 
 function getInitials(name: string): string {
@@ -32,8 +35,25 @@ function getInitials(name: string): string {
     .join("");
 }
 
+// ---- Visibilidad según el Rol (Conductor vs Pasajero) ----
+function updateRoleVisibility(role: 'pasajero' | 'conductor'): void {
+  const navVehiculo = $<HTMLAnchorElement>("#nav-vehiculo");
+  const sectionVehiculo = $<HTMLElement>("#vehiculo");
+
+  const isDriver = role === 'conductor';
+
+  if (navVehiculo) {
+    navVehiculo.style.display = isDriver ? "" : "none";
+  }
+
+  if (sectionVehiculo) {
+    sectionVehiculo.style.display = isDriver ? "" : "none";
+  }
+}
+
 // ---- Cargar datos en la UI ----
 function populateProfileUI(user: AuthUser): void {
+  originalEmail = user.email || "";
   const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email;
   const initials = getInitials(fullName);
 
@@ -63,6 +83,9 @@ function populateProfileUI(user: AuthUser): void {
   if (inputEmail) inputEmail.value = user.email || "";
   if (selectRole) selectRole.value = user.role || "pasajero";
 
+  // Controlar visibilidad del vehículo según el rol
+  updateRoleVisibility(user.role || "pasajero");
+
   // Formulario 2: Vehículo
   const inputBrand = $<HTMLInputElement>("#profile-vehicle-brand");
   const inputModel = $<HTMLInputElement>("#profile-vehicle-model");
@@ -77,66 +100,299 @@ function populateProfileUI(user: AuthUser): void {
   }
 }
 
+// ---- Modal de Verificación de Cambio de Correo ----
+function openEmailChangeModal(pendingEmail: string): void {
+  const modal = $<HTMLDivElement>("#email-change-modal");
+  const targetLabel = $<HTMLElement>("#email-modal-target");
+  const errorBox = $<HTMLDivElement>("#email-modal-error");
+  const inputCode = $<HTMLInputElement>("#input-email-code");
+
+  if (targetLabel) targetLabel.textContent = pendingEmail;
+  if (errorBox) {
+    errorBox.textContent = "";
+    errorBox.hidden = true;
+  }
+  if (inputCode) {
+    inputCode.value = "";
+    setTimeout(() => inputCode.focus(), 150);
+  }
+  if (modal) modal.hidden = false;
+
+  startResendCooldown(60);
+}
+
+function closeEmailChangeModal(): void {
+  const modal = $<HTMLDivElement>("#email-change-modal");
+  if (modal) modal.hidden = true;
+  clearInterval(resendInterval);
+}
+
+function startResendCooldown(seconds: number): void {
+  const resendBtn = $<HTMLButtonElement>("#btn-resend-email-code");
+  if (!resendBtn) return;
+
+  clearInterval(resendInterval);
+  let remaining = seconds;
+  resendBtn.disabled = true;
+  resendBtn.textContent = `Reenviar en ${remaining}s`;
+
+  resendInterval = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(resendInterval);
+      resendBtn.disabled = false;
+      resendBtn.textContent = "Reenviar código";
+    } else {
+      resendBtn.textContent = `Reenviar en ${remaining}s`;
+    }
+  }, 1000);
+}
+
 // ---- Guardar Datos Personales ----
-function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): void {
+async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Promise<void> {
   event.preventDefault();
   const form = $<HTMLFormElement>("#form-personal-data");
   if (!form) return;
 
+  const submitBtn = form.querySelector<HTMLButtonElement>("button[type='submit']");
   const data = new FormData(form);
   const firstName = String(data.get("firstName") ?? "").trim();
   const lastName = String(data.get("lastName") ?? "").trim();
   const nationalId = String(data.get("nationalId") ?? "").trim();
-  const email = String(data.get("email") ?? "").trim();
+  const newEmail = String(data.get("email") ?? "").trim().toLowerCase();
   const role = (String(data.get("role") ?? "pasajero")) as 'pasajero' | 'conductor';
 
-  if (!firstName || !email) {
+  if (!firstName || !newEmail) {
     showToast("Nombre y correo electrónico son obligatorios.");
     return;
   }
 
-  const updatedUser: AuthUser = {
-    ...currentUser,
-    firstName,
-    lastName,
-    nationalId,
-    email,
-    role,
-  };
+  const isEmailChanged = newEmail !== originalEmail.toLowerCase();
 
-  setActiveUser(updatedUser);
-  populateProfileUI(updatedUser);
-  initHeader();
-  showToast("¡Tus datos personales fueron actualizados con éxito!");
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Guardando...";
+    }
+
+    // 1. Si el correo cambió, solicitar validación con código de 6 dígitos
+    if (isEmailChanged) {
+      await authService.requestEmailChange(originalEmail, newEmail);
+
+      // Guardar cambios de otros campos (nombre, apellido, rol) en BD
+      await authService.updateProfile({
+        userId: currentUser.id,
+        firstName,
+        lastName,
+        nationalId,
+        role,
+        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+      });
+
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        firstName,
+        lastName,
+        nationalId,
+        role,
+        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+      };
+      setActiveUser(updatedUser);
+      populateProfileUI(updatedUser);
+      // Revertir el input al original temporalmente hasta verificar
+      const inputEmail = $<HTMLInputElement>("#profile-email");
+      if (inputEmail) inputEmail.value = originalEmail;
+
+      openEmailChangeModal(newEmail);
+      showToast(`Código de verificación enviado a ${newEmail}`);
+    } else {
+      // 2. Si no cambió el correo, actualizar datos normalmente en Supabase
+      await authService.updateProfile({
+        userId: currentUser.id,
+        firstName,
+        lastName,
+        nationalId,
+        role,
+        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+      });
+
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        firstName,
+        lastName,
+        nationalId,
+        role,
+        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+      };
+
+      setActiveUser(updatedUser);
+      populateProfileUI(updatedUser);
+      initHeader();
+      showToast("¡Tus datos personales fueron actualizados con éxito!");
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    showToast(msg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        Guardar cambios
+      `;
+    }
+  }
+}
+
+// ---- Confirmar Código de Cambio de Correo ----
+async function handleConfirmEmailCode(event: Event): Promise<void> {
+  event.preventDefault();
+  const inputCode = $<HTMLInputElement>("#input-email-code");
+  const errorBox = $<HTMLDivElement>("#email-modal-error");
+  const confirmBtn = $<HTMLButtonElement>("#btn-confirm-email-code");
+
+  const code = inputCode?.value.trim() || "";
+
+  if (!code || code.length !== 6) {
+    if (errorBox) {
+      errorBox.textContent = "El código debe tener exactamente 6 dígitos.";
+      errorBox.hidden = false;
+    }
+    return;
+  }
+
+  try {
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Verificando...";
+    }
+    if (errorBox) errorBox.hidden = true;
+
+    const res = await authService.confirmEmailChange(originalEmail, code);
+
+    const currentUser = getActiveUser();
+    if (currentUser) {
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        email: res.newEmail,
+      };
+      setActiveUser(updatedUser);
+      populateProfileUI(updatedUser);
+      initHeader();
+    }
+
+    closeEmailChangeModal();
+    showToast("¡Correo electrónico actualizado con éxito!");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (errorBox) {
+      errorBox.textContent = msg;
+      errorBox.hidden = false;
+    }
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Confirmar y cambiar correo
+      `;
+    }
+  }
+}
+
+// ---- Cancelar Cambio de Correo ----
+async function handleCancelEmailChange(): Promise<void> {
+  try {
+    await authService.cancelEmailChange(originalEmail);
+  } catch {
+    // Ignorar si ya estaba limpio
+  } finally {
+    closeEmailChangeModal();
+    const inputEmail = $<HTMLInputElement>("#profile-email");
+    if (inputEmail) inputEmail.value = originalEmail;
+    showToast("Solicitud de cambio de correo cancelada.");
+  }
+}
+
+// ---- Reenviar Código de Cambio de Correo ----
+async function handleResendEmailChangeCode(): Promise<void> {
+  try {
+    const res = await authService.resendEmailChangeCode(originalEmail);
+    startResendCooldown(60);
+    showToast(res.message || "Nuevo código de verificación enviado.");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    showToast(msg);
+  }
 }
 
 // ---- Guardar Datos del Vehículo ----
-function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): void {
+async function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): Promise<void> {
   event.preventDefault();
   const form = $<HTMLFormElement>("#form-vehicle-data");
   if (!form) return;
 
+  const submitBtn = form.querySelector<HTMLButtonElement>("button[type='submit']");
   const data = new FormData(form);
   const brand = String(data.get("brand") ?? "").trim();
   const model = String(data.get("model") ?? "").trim();
   const color = String(data.get("color") ?? "").trim();
   const plate = String(data.get("plate") ?? "").trim().toUpperCase();
 
-  const updatedUser: AuthUser = {
-    ...currentUser,
-    role: "conductor", // Al guardar vehículo se asegura el rol de conductor
-    vehicle: {
-      brand,
-      model,
-      color,
-      plate,
-    },
-  };
+  if (!brand || !model || !plate) {
+    showToast("Marca, modelo y placa son obligatorios.");
+    return;
+  }
 
-  setActiveUser(updatedUser);
-  populateProfileUI(updatedUser);
-  initHeader();
-  showToast("¡Los datos de tu vehículo fueron guardados con éxito!");
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Guardando...";
+    }
+
+    const vehicleData = { brand, model, color, plate };
+
+    await authService.updateProfile({
+      userId: currentUser.id,
+      firstName: currentUser.firstName,
+      lastName: currentUser.lastName,
+      nationalId: currentUser.nationalId,
+      role: "conductor",
+      vehicle: vehicleData,
+    });
+
+    const updatedUser: AuthUser = {
+      ...currentUser,
+      role: "conductor",
+      vehicle: vehicleData,
+    };
+
+    setActiveUser(updatedUser);
+    populateProfileUI(updatedUser);
+    initHeader();
+    showToast("¡Los datos de tu vehículo fueron guardados con éxito!");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    showToast(msg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        Guardar vehículo
+      `;
+    }
+  }
 }
 
 // ---- Guardar Contraseña ----
@@ -229,6 +485,12 @@ function initProfile(): void {
     return;
   }
 
+  // Si el usuario existe pero no ha verificado su correo, redirigir a verificación
+  if (!user.isActive) {
+    window.location.href = "/login.html";
+    return;
+  }
+
   populateProfileUI(user);
 
   // Formulario 1: Datos Personales
@@ -236,8 +498,33 @@ function initProfile(): void {
   if (formPersonal) {
     formPersonal.addEventListener("submit", (e) => {
       const currentUser = getActiveUser() ?? user;
-      handlePersonalDataSubmit(e, currentUser);
+      void handlePersonalDataSubmit(e, currentUser);
     });
+  }
+
+  // Cambio dinámico de rol en el select de datos personales
+  const selectRole = $<HTMLSelectElement>("#profile-role");
+  if (selectRole) {
+    selectRole.addEventListener("change", () => {
+      const selectedRole = (selectRole.value || "pasajero") as 'pasajero' | 'conductor';
+      updateRoleVisibility(selectedRole);
+    });
+  }
+
+  // Modal de Confirmación de Código de Correo
+  const formConfirmEmail = $<HTMLFormElement>("#form-confirm-email-code");
+  if (formConfirmEmail) {
+    formConfirmEmail.addEventListener("submit", (e) => void handleConfirmEmailCode(e));
+  }
+
+  const btnCancelEmail = $<HTMLButtonElement>("#btn-cancel-email-change");
+  if (btnCancelEmail) {
+    btnCancelEmail.addEventListener("click", () => void handleCancelEmailChange());
+  }
+
+  const btnResendEmail = $<HTMLButtonElement>("#btn-resend-email-code");
+  if (btnResendEmail) {
+    btnResendEmail.addEventListener("click", () => void handleResendEmailChangeCode());
   }
 
   // Formulario 2: Vehículo
@@ -245,7 +532,7 @@ function initProfile(): void {
   if (formVehicle) {
     formVehicle.addEventListener("submit", (e) => {
       const currentUser = getActiveUser() ?? user;
-      handleVehicleDataSubmit(e, currentUser);
+      void handleVehicleDataSubmit(e, currentUser);
     });
   }
 

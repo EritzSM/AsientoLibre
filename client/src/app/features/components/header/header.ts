@@ -9,6 +9,7 @@ export interface AuthUser {
   nationalId?: string;
   email: string;
   role: 'pasajero' | 'conductor';
+  isActive: boolean;
   skipVehicle?: boolean;
   vehicle?: {
     brand: string;

@@ -5,15 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 import { Module } from '@nestjs/common';
-import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
+import { AuthService } from './auth.service.js';
+import { SupabaseModule } from '../supabase/supabase.module.js';
+import { EmailModule } from '../email/email.module.js';
 let AuthModule = class AuthModule {
 };
 AuthModule = __decorate([
     Module({
+        imports: [SupabaseModule, EmailModule],
         controllers: [AuthController],
         providers: [AuthService],
-        exports: [AuthService],
     })
 ], AuthModule);
 export { AuthModule };

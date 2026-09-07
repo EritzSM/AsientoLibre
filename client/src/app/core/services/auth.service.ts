@@ -14,6 +14,7 @@ export interface AuthUser {
 	nationalId?: string;
 	email: string;
 	role: UserRole;
+	isActive: boolean;
 	skipVehicle?: boolean;
 	vehicle?: Vehicle;
 }
@@ -81,7 +82,10 @@ class AuthService {
 			method: 'POST',
 			body: JSON.stringify(payload),
 		});
-		this.saveToken(response.access_token);
+		// Solo guardamos token si el usuario está activo
+		if (response.user.isActive) {
+			this.saveToken(response.access_token);
+		}
 		return response;
 	}
 
@@ -90,7 +94,7 @@ class AuthService {
 			method: 'POST',
 			body: JSON.stringify(payload),
 		});
-		this.saveToken(response.access_token);
+		// No guardamos token: el usuario debe verificar su correo primero
 		return response;
 	}
 
@@ -102,6 +106,62 @@ class AuthService {
 
 		return this.request<AuthUser>('/auth/me', {
 			headers: { Authorization: `Bearer ${token}` },
+		});
+	}
+
+	async resendVerification(email: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>('/auth/resend-verification', {
+			method: 'POST',
+			body: JSON.stringify({ email }),
+		});
+	}
+
+	async changeUnverifiedEmail(currentEmail: string, newEmail: string): Promise<{ message: string }> {
+		return this.request<{ message: string }>('/auth/change-unverified-email', {
+			method: 'POST',
+			body: JSON.stringify({ currentEmail, newEmail }),
+		});
+	}
+
+	async requestEmailChange(currentEmail: string, newEmail: string): Promise<{ success: boolean; message: string; pendingEmail: string }> {
+		return this.request<{ success: boolean; message: string; pendingEmail: string }>('/auth/request-email-change', {
+			method: 'POST',
+			body: JSON.stringify({ currentEmail, newEmail }),
+		});
+	}
+
+	async confirmEmailChange(currentEmail: string, code: string): Promise<{ success: boolean; message: string; newEmail: string }> {
+		return this.request<{ success: boolean; message: string; newEmail: string }>('/auth/confirm-email-change', {
+			method: 'POST',
+			body: JSON.stringify({ currentEmail, code }),
+		});
+	}
+
+	async cancelEmailChange(currentEmail: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>('/auth/cancel-email-change', {
+			method: 'POST',
+			body: JSON.stringify({ currentEmail }),
+		});
+	}
+
+	async resendEmailChangeCode(currentEmail: string): Promise<{ success: boolean; message: string; pendingEmail: string }> {
+		return this.request<{ success: boolean; message: string; pendingEmail: string }>('/auth/resend-email-change-code', {
+			method: 'POST',
+			body: JSON.stringify({ currentEmail }),
+		});
+	}
+
+	async updateProfile(data: {
+		userId: string;
+		firstName: string;
+		lastName: string;
+		nationalId?: string;
+		role: UserRole;
+		vehicle?: Vehicle;
+	}): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>('/auth/update-profile', {
+			method: 'POST',
+			body: JSON.stringify(data),
 		});
 	}
 
