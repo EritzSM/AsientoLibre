@@ -9,6 +9,8 @@ import {
   HttpStatus,
   UnauthorizedException,
   Redirect,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService, AuthResponse } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
@@ -19,8 +21,9 @@ import { ChangeUnverifiedEmailDto } from './dto/change-email.dto.js';
 
 import { RequestEmailChangeDto } from './dto/request-email-change.dto.js';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
-import { CancelEmailChangeDto } from './dto/cancel-email-change.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
+import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 
 @Controller('auth')
 export class AuthController {
@@ -100,6 +103,7 @@ export class AuthController {
     return this.authService.changeUnverifiedEmail(
       changeEmailDto.currentEmail,
       changeEmailDto.newEmail,
+      changeEmailDto.password,
     );
   }
 
@@ -109,8 +113,9 @@ export class AuthController {
    */
   @Post('request-email-change')
   @HttpCode(HttpStatus.OK)
-  async requestEmailChange(@Body() dto: RequestEmailChangeDto) {
-    return this.authService.requestEmailChange(dto.currentEmail, dto.newEmail);
+  @UseGuards(SupabaseAuthGuard)
+  async requestEmailChange(@Req() req: AuthenticatedRequest, @Body() dto: RequestEmailChangeDto) {
+    return this.authService.requestEmailChange(req.actorId, dto.newEmail);
   }
 
   /**
@@ -119,8 +124,9 @@ export class AuthController {
    */
   @Post('confirm-email-change')
   @HttpCode(HttpStatus.OK)
-  async confirmEmailChange(@Body() dto: ConfirmEmailChangeDto) {
-    return this.authService.confirmEmailChange(dto.currentEmail, dto.code);
+  @UseGuards(SupabaseAuthGuard)
+  async confirmEmailChange(@Req() req: AuthenticatedRequest, @Body() dto: ConfirmEmailChangeDto) {
+    return this.authService.confirmEmailChange(req.actorId, dto.code);
   }
 
   /**
@@ -129,8 +135,9 @@ export class AuthController {
    */
   @Post('cancel-email-change')
   @HttpCode(HttpStatus.OK)
-  async cancelEmailChange(@Body() dto: CancelEmailChangeDto) {
-    return this.authService.cancelEmailChange(dto.currentEmail);
+  @UseGuards(SupabaseAuthGuard)
+  async cancelEmailChange(@Req() req: AuthenticatedRequest) {
+    return this.authService.cancelEmailChange(req.actorId);
   }
 
   /**
@@ -139,8 +146,9 @@ export class AuthController {
    */
   @Post('resend-email-change-code')
   @HttpCode(HttpStatus.OK)
-  async resendEmailChangeCode(@Body() dto: CancelEmailChangeDto) {
-    return this.authService.resendEmailChangeCode(dto.currentEmail);
+  @UseGuards(SupabaseAuthGuard)
+  async resendEmailChangeCode(@Req() req: AuthenticatedRequest) {
+    return this.authService.resendEmailChangeCode(req.actorId);
   }
 
   /**
@@ -149,13 +157,12 @@ export class AuthController {
    */
   @Post('update-profile')
   @HttpCode(HttpStatus.OK)
-  async updateProfile(@Body() dto: UpdateProfileDto) {
-    return this.authService.updateProfile(dto.userId, {
+  @UseGuards(SupabaseAuthGuard)
+  async updateProfile(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.actorId, {
       firstName: dto.firstName,
       lastName: dto.lastName,
-      nationalId: dto.nationalId || '',
-      role: dto.role,
-      vehicle: dto.vehicle,
+      nationalId: dto.nationalId,
     });
   }
 

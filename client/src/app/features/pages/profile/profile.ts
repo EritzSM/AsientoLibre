@@ -5,6 +5,7 @@
 import { getActiveUser, setActiveUser, initHeader } from "../../components/header/header";
 import type { AuthUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
+import { routesService } from "../../../core/services/routes.service";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resendInterval: ReturnType<typeof setInterval> | undefined;
@@ -91,12 +92,14 @@ function populateProfileUI(user: AuthUser): void {
   const inputModel = $<HTMLInputElement>("#profile-vehicle-model");
   const inputColor = $<HTMLInputElement>("#profile-vehicle-color");
   const inputPlate = $<HTMLInputElement>("#profile-vehicle-plate");
+  const inputCapacity = $<HTMLInputElement>("#profile-vehicle-capacity");
 
   if (user.vehicle) {
     if (inputBrand) inputBrand.value = user.vehicle.brand || "";
     if (inputModel) inputModel.value = user.vehicle.model || "";
     if (inputColor) inputColor.value = user.vehicle.color || "";
     if (inputPlate) inputPlate.value = user.vehicle.plate || "";
+    if (inputCapacity) inputCapacity.value = String(user.vehicle.capacity ?? "");
   }
 }
 
@@ -160,7 +163,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
   const lastName = String(data.get("lastName") ?? "").trim();
   const nationalId = String(data.get("nationalId") ?? "").trim();
   const newEmail = String(data.get("email") ?? "").trim().toLowerCase();
-  const role = (String(data.get("role") ?? "pasajero")) as 'pasajero' | 'conductor';
+  const role = currentUser.role;
 
   if (!firstName || !newEmail) {
     showToast("Nombre y correo electrónico son obligatorios.");
@@ -177,16 +180,13 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
 
     // 1. Si el correo cambió, solicitar validación con código de 6 dígitos
     if (isEmailChanged) {
-      await authService.requestEmailChange(originalEmail, newEmail);
+      await authService.requestEmailChange(newEmail);
 
       // Guardar cambios de otros campos (nombre, apellido, rol) en BD
       await authService.updateProfile({
-        userId: currentUser.id,
         firstName,
         lastName,
         nationalId,
-        role,
-        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
       });
 
       const updatedUser: AuthUser = {
@@ -208,12 +208,9 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
     } else {
       // 2. Si no cambió el correo, actualizar datos normalmente en Supabase
       await authService.updateProfile({
-        userId: currentUser.id,
         firstName,
         lastName,
         nationalId,
-        role,
-        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
       });
 
       const updatedUser: AuthUser = {
@@ -272,7 +269,7 @@ async function handleConfirmEmailCode(event: Event): Promise<void> {
     }
     if (errorBox) errorBox.hidden = true;
 
-    const res = await authService.confirmEmailChange(originalEmail, code);
+    const res = await authService.confirmEmailChange(code);
 
     const currentUser = getActiveUser();
     if (currentUser) {
@@ -309,7 +306,7 @@ async function handleConfirmEmailCode(event: Event): Promise<void> {
 // ---- Cancelar Cambio de Correo ----
 async function handleCancelEmailChange(): Promise<void> {
   try {
-    await authService.cancelEmailChange(originalEmail);
+    await authService.cancelEmailChange();
   } catch {
     // Ignorar si ya estaba limpio
   } finally {
@@ -323,7 +320,7 @@ async function handleCancelEmailChange(): Promise<void> {
 // ---- Reenviar Código de Cambio de Correo ----
 async function handleResendEmailChangeCode(): Promise<void> {
   try {
-    const res = await authService.resendEmailChangeCode(originalEmail);
+    const res = await authService.resendEmailChangeCode();
     startResendCooldown(60);
     showToast(res.message || "Nuevo código de verificación enviado.");
   } catch (err: unknown) {
@@ -344,9 +341,18 @@ async function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): Pro
   const model = String(data.get("model") ?? "").trim();
   const color = String(data.get("color") ?? "").trim();
   const plate = String(data.get("plate") ?? "").trim().toUpperCase();
+  const capacity = Number(data.get("capacity"));
 
-  if (!brand || !model || !plate) {
-    showToast("Marca, modelo y placa son obligatorios.");
+  if (!brand || !model || !color || !plate) {
+    showToast("Marca, modelo, color y placa son obligatorios.");
+    return;
+  }
+  if (!/^[A-Z]{3}\d{3}$/.test(plate)) {
+    showToast("La placa debe usar el formato ABC123.");
+    return;
+  }
+  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 8) {
+    showToast("La capacidad debe estar entre 1 y 8 pasajeros.");
     return;
   }
 
@@ -356,20 +362,11 @@ async function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): Pro
       submitBtn.textContent = "Guardando...";
     }
 
-    const vehicleData = { brand, model, color, plate };
-
-    await authService.updateProfile({
-      userId: currentUser.id,
-      firstName: currentUser.firstName,
-      lastName: currentUser.lastName,
-      nationalId: currentUser.nationalId,
-      role: "conductor",
-      vehicle: vehicleData,
-    });
+    const saved = await routesService.saveVehicle({ brand, model, color, plate, capacity });
+    const vehicleData = { brand: saved.brand, model: saved.model, color: saved.color, plate: saved.plate, capacity: saved.capacity ?? capacity };
 
     const updatedUser: AuthUser = {
       ...currentUser,
-      role: "conductor",
       vehicle: vehicleData,
     };
 
@@ -421,8 +418,7 @@ function handleSecuritySubmit(event: Event): void {
     return;
   }
 
-  form.reset();
-  showToast("¡Contraseña actualizada correctamente!");
+  showToast("El cambio de contraseña estará disponible en una próxima historia de usuario.");
 }
 
 // ---- Eliminar Cuenta ----
@@ -452,12 +448,8 @@ function bindDeleteAccount(): void {
 
   if (confirmBtn) {
     confirmBtn.addEventListener("click", () => {
-      localStorage.removeItem("asiento_libre_user");
-      localStorage.removeItem("asiento_libre_token");
-      showToast("Tu cuenta ha sido eliminada permanentemente.");
-      setTimeout(() => {
-        window.location.href = "/index.html";
-      }, 1200);
+      showToast("La eliminación de cuenta estará disponible en una próxima historia de usuario.");
+      if (modalOverlay) modalOverlay.hidden = true;
     });
   }
 }
@@ -474,17 +466,18 @@ function bindSidebarNav(): void {
 }
 
 // ---- Inicialización Principal ----
-function initProfile(): void {
-  initHeader();
-
-  const user = getActiveUser();
-
-  // Si no hay usuario autenticado, redirigir a Login
-  if (!user) {
+async function initProfile(): Promise<void> {
+  let user: AuthUser;
+  try {
+    user = await authService.getMe();
+    setActiveUser(user);
+    await initHeader(user);
+  } catch {
     window.location.href = "/login.html";
     return;
   }
 
+  // Si no hay usuario autenticado, redirigir a Login
   // Si el usuario existe pero no ha verificado su correo, redirigir a verificación
   if (!user.isActive) {
     window.location.href = "/login.html";
@@ -505,10 +498,7 @@ function initProfile(): void {
   // Cambio dinámico de rol en el select de datos personales
   const selectRole = $<HTMLSelectElement>("#profile-role");
   if (selectRole) {
-    selectRole.addEventListener("change", () => {
-      const selectedRole = (selectRole.value || "pasajero") as 'pasajero' | 'conductor';
-      updateRoleVisibility(selectedRole);
-    });
+    selectRole.disabled = true;
   }
 
   // Modal de Confirmación de Código de Correo
@@ -548,7 +538,7 @@ function initProfile(): void {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initProfile);
+  document.addEventListener("DOMContentLoaded", () => { void initProfile(); });
 } else {
-  initProfile();
+  void initProfile();
 }

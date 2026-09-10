@@ -4,12 +4,20 @@ import {
   UnauthorizedException,
   NotFoundException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { EmailService } from '../email/email.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
-import { randomUUID } from 'crypto';
+import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+
+const hashCode = (code: string) => createHash('sha256').update(code).digest('hex');
+const sameDigest = (left: string, right: string) => {
+  const first = Buffer.from(left, 'hex');
+  const second = Buffer.from(right, 'hex');
+  return first.length === second.length && timingSafeEqual(first, second);
+};
 
 export interface AuthResponse {
   message: string;
@@ -25,10 +33,12 @@ export interface AuthResponse {
     isActive: boolean;
     skipVehicle?: boolean;
     vehicle?: {
+      id?: string;
       brand: string;
       model: string;
       color: string;
       plate: string;
+      capacity: number | null;
     };
   };
 }
@@ -42,101 +52,29 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  /**
-   * Registra un nuevo usuario: valida correo, verifica unicidad, genera token
-   * de activación y guarda el usuario con is_active = false
-   */
   async register(registerDto: RegisterDto): Promise<AuthResponse> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException(
-        'Supabase no está configurado en el servidor. Por favor configura SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_ANON_KEY) en server/.env',
-      );
+    const admin = this.supabaseService.getClient();
+    if (registerDto.role === 'conductor' && !registerDto.skipVehicle && !registerDto.vehicle) {
+      throw new BadRequestException('Registra tu vehículo o selecciona agregarlo después.');
     }
-
-    // 1. Validar formato de correo (class-validator ya valida en el DTO, pero doble verificación)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(registerDto.email)) {
-      throw new BadRequestException('El correo electrónico no tiene un formato válido');
-    }
-
-    const supabase = this.supabaseService.getClient();
-    let userId: string | null = null;
-
-    // 2. Verificar si el correo ya existe en auth.users
-    try {
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      if (existingUsers?.users?.some((u) => u.email === registerDto.email)) {
-        throw new BadRequestException('El correo electrónico ya se encuentra registrado');
-      }
-    } catch (err) {
-      if (err instanceof BadRequestException) throw err;
-      this.logger.debug('No se pudo verificar correo existente vía admin, continuando...');
-    }
-
-    // 3. Generar token de activación y fecha de expiración (24 horas)
     const activationToken = randomUUID();
     const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-    // 4. Crear usuario en Supabase Auth (sin confirmación automática, se gestiona manualmente)
+    const { data, error } = await admin.auth.admin.createUser({
+      email: registerDto.email,
+      password: registerDto.password,
+      email_confirm: true,
+      user_metadata: { firstName: registerDto.firstName, lastName: registerDto.lastName },
+    });
+    if (error || !data.user) {
+      if (error?.code === 'email_exists' || error?.code === 'user_already_exists') {
+        throw new BadRequestException('El correo electrónico ya se encuentra registrado.');
+      }
+      if (error?.status && error.status < 500) throw new BadRequestException('No se pudo registrar la cuenta. Verifica el correo y la contraseña.');
+      throw new ServiceUnavailableException('No se pudo conectar con el servicio de autenticación.');
+    }
+    const userId = data.user.id;
     try {
-      const { data: adminData, error: adminError } = await supabase.auth.admin.createUser({
-        email: registerDto.email,
-        password: registerDto.password,
-        email_confirm: true, // Supabase auth confirma, la activación custom es en profiles
-        user_metadata: {
-          firstName: registerDto.firstName,
-          lastName: registerDto.lastName,
-          nationalId: registerDto.nationalId,
-          role: registerDto.role,
-        },
-      });
-
-      if (!adminError && adminData.user) {
-        userId = adminData.user.id;
-        this.logger.log(`Usuario creado vía Supabase Admin API: ${userId}`);
-      } else if (adminError) {
-        this.logger.debug(`Fallo createUser admin (${adminError.message}), intentando signUp público...`);
-      }
-    } catch {
-      this.logger.debug('Admin API no disponible, usando signUp público...');
-    }
-
-    // Fallback: signUp tradicional
-    if (!userId) {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: registerDto.email,
-        password: registerDto.password,
-        options: {
-          data: {
-            firstName: registerDto.firstName,
-            lastName: registerDto.lastName,
-            nationalId: registerDto.nationalId,
-            role: registerDto.role,
-          },
-        },
-      });
-
-      if (signUpError) {
-        this.logger.error(`Error en signUp: ${signUpError.message}`);
-        if (
-          signUpError.message.toLowerCase().includes('already registered') ||
-          signUpError.message.toLowerCase().includes('duplicate')
-        ) {
-          throw new BadRequestException('El correo electrónico ya se encuentra registrado');
-        }
-        throw new BadRequestException(`Error al registrar el usuario: ${signUpError.message}`);
-      }
-
-      if (!signUpData.user) {
-        throw new BadRequestException('No se pudo crear la cuenta de usuario');
-      }
-
-      userId = signUpData.user.id;
-    }
-
-    // 5. Guardar en public.profiles con is_active = false, token y expiración
-    const { error: profileError } = await supabase.from('profiles').upsert(
-      {
+      const { error: profileError } = await admin.from('profiles').insert({
         id: userId,
         first_name: registerDto.firstName,
         last_name: registerDto.lastName,
@@ -145,51 +83,29 @@ export class AuthService {
         is_active: false,
         activation_token: activationToken,
         token_expires_at: tokenExpiresAt,
-      },
-      { onConflict: 'id' },
-    );
-
-    if (profileError) {
-      this.logger.error(`Error al crear perfil en public.profiles: ${profileError.message}`);
-    }
-
-    // 6. Si es conductor y proporcionó datos del vehículo
-    let vehicleData = undefined;
-    if (registerDto.role === 'conductor' && !registerDto.skipVehicle && registerDto.vehicle) {
-      const { error: vehicleError } = await supabase.from('vehicles').upsert(
-        {
+      });
+      if (profileError) throw profileError;
+      if (registerDto.role === 'conductor' && !registerDto.skipVehicle && registerDto.vehicle) {
+        const { error: vehicleError } = await admin.from('vehicles').insert({
           user_id: userId,
           brand: registerDto.vehicle.brand,
           model: registerDto.vehicle.model,
           color: registerDto.vehicle.color,
           plate: registerDto.vehicle.plate.toUpperCase(),
-        },
-        { onConflict: 'user_id' },
-      );
-
-      if (vehicleError) {
-        this.logger.error(`Error al registrar vehículo en public.vehicles: ${vehicleError.message}`);
-      } else {
-        vehicleData = {
-          brand: registerDto.vehicle.brand,
-          model: registerDto.vehicle.model,
-          color: registerDto.vehicle.color,
-          plate: registerDto.vehicle.plate.toUpperCase(),
-        };
+          capacity: registerDto.vehicle.capacity,
+        });
+        if (vehicleError) throw vehicleError;
       }
+      await this.emailService.sendActivationEmail(registerDto.email, registerDto.firstName, activationToken);
+    } catch {
+      const { error: cleanupError } = await admin.auth.admin.deleteUser(userId);
+      if (cleanupError) this.logger.error(`No se pudo revertir el registro incompleto ${userId}.`);
+      throw new ServiceUnavailableException('No se pudo completar el registro. Verifica la configuración e inténtalo nuevamente.');
     }
 
-    // 7. Enviar correo de activación con Resend
-    await this.emailService.sendActivationEmail(
-      registerDto.email,
-      registerDto.firstName,
-      activationToken,
-    );
-
     return {
-      message:
-        'Cuenta creada exitosamente. Hemos enviado un correo de verificación a tu dirección de email. Por favor revisa tu bandeja de entrada y spam.',
-      access_token: null, // No se da acceso hasta verificar el correo
+      message: 'Cuenta creada. Revisa tu correo para activarla.',
+      access_token: null,
       refresh_token: null,
       user: {
         id: userId,
@@ -200,7 +116,7 @@ export class AuthService {
         role: registerDto.role,
         isActive: false,
         skipVehicle: registerDto.skipVehicle,
-        vehicle: vehicleData ?? registerDto.vehicle,
+        vehicle: registerDto.vehicle ? { ...registerDto.vehicle, plate: registerDto.vehicle.plate.toUpperCase() } : undefined,
       },
     };
   }
@@ -363,87 +279,46 @@ export class AuthService {
   /**
    * Permite a un usuario no verificado corregir su correo electrónico
    */
-  async changeUnverifiedEmail(currentEmail: string, newEmail: string): Promise<{ message: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
-    }
-
-    // Validar formato del nuevo correo
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail)) {
-      throw new BadRequestException('El nuevo correo electrónico no tiene un formato válido');
-    }
-
+  async changeUnverifiedEmail(currentEmail: string, newEmail: string, password: string): Promise<{ message: string }> {
     if (currentEmail.toLowerCase() === newEmail.toLowerCase()) {
-      throw new BadRequestException('El nuevo correo debe ser diferente al actual');
+      throw new BadRequestException('El nuevo correo debe ser diferente al actual.');
     }
-
-    const supabase = this.supabaseService.getClient();
-
-    // Buscar usuario por correo actual
-    let userId: string | null = null;
-    try {
-      const { data: users } = await supabase.auth.admin.listUsers();
-      const found = users?.users?.find((u) => u.email === currentEmail);
-      if (found) userId = found.id;
-    } catch {
-      this.logger.debug('No se pudo verificar correo vía admin API');
+    const { data: authData, error: authError } = await this.supabaseService.createAuthClient().auth
+      .signInWithPassword({ email: currentEmail, password });
+    if (authError || !authData.user) {
+      throw new UnauthorizedException('El correo actual o la contraseña no son correctos.');
     }
-
-    if (!userId) {
-      throw new NotFoundException('No se encontró una cuenta con ese correo electrónico');
-    }
-
-    // Verificar que el usuario no esté ya activo
-    const { data: profile } = await supabase
+    const userId = authData.user.id;
+    const admin = this.supabaseService.getClient();
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('is_active, first_name')
       .eq('id', userId)
       .maybeSingle();
-
-    if (profile?.is_active) {
+    if (profileError || !profile) throw new NotFoundException('No se encontró el perfil de la cuenta.');
+    if (profile.is_active) {
       throw new BadRequestException('Esta cuenta ya está verificada. No es posible cambiar el correo de esta manera.');
     }
-
-    // Verificar que el nuevo correo no esté ya en uso
-    try {
-      const { data: users } = await supabase.auth.admin.listUsers();
-      if (users?.users?.some((u) => u.email === newEmail)) {
-        throw new BadRequestException('El nuevo correo electrónico ya está registrado en otra cuenta');
-      }
-    } catch (err) {
-      if (err instanceof BadRequestException) throw err;
-    }
-
-    // Actualizar correo en Supabase Auth
-    const { error: authUpdateError } = await supabase.auth.admin.updateUserById(userId, {
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
       email: newEmail,
+      email_confirm: true,
     });
-
     if (authUpdateError) {
-      this.logger.error(`Error al actualizar correo en auth: ${authUpdateError.message}`);
-      throw new BadRequestException('No se pudo actualizar el correo. Por favor intenta nuevamente.');
+      throw new BadRequestException('El nuevo correo no está disponible o no pudo actualizarse.');
     }
-
-    // Generar nuevo token y expiración
     const newToken = randomUUID();
     const newExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    const firstName = profile?.first_name || 'Usuario';
-
-    const { error: profileUpdateError } = await supabase
+    const { error: profileUpdateError } = await admin
       .from('profiles')
       .update({
         activation_token: newToken,
         token_expires_at: newExpiry,
       })
       .eq('id', userId);
-
     if (profileUpdateError) {
-      this.logger.error(`Error al actualizar token tras cambio de correo: ${profileUpdateError.message}`);
+      throw new ServiceUnavailableException('El correo cambió, pero no se pudo generar el nuevo enlace de activación.');
     }
-
-    await this.emailService.sendActivationEmail(newEmail, firstName, newToken);
-
+    await this.emailService.sendActivationEmail(newEmail, profile.first_name || 'Usuario', newToken);
     return {
       message: `Correo actualizado a ${newEmail}. Hemos enviado un nuevo enlace de verificación a tu nueva dirección.`,
     };
@@ -453,15 +328,8 @@ export class AuthService {
    * Inicia sesión con correo y contraseña
    */
   async login(loginDto: LoginDto): Promise<AuthResponse> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException(
-        'Supabase no está configurado en el servidor. Por favor configura SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_ANON_KEY) en server/.env',
-      );
-    }
-
-    const supabase = this.supabaseService.getClient();
-
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    const admin = this.supabaseService.getClient();
+    const { data: authData, error: authError } = await this.supabaseService.createAuthClient().auth.signInWithPassword({
       email: loginDto.email,
       password: loginDto.password,
     });
@@ -475,18 +343,22 @@ export class AuthService {
     const session = authData.session;
 
     // Obtener perfil de public.profiles (incluye is_active)
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
 
     // Obtener vehículo si existe
-    const { data: vehicle } = await supabase
+    const { data: vehicle, error: vehicleError } = await admin
       .from('vehicles')
-      .select('brand, model, color, plate')
+      .select('id, brand, model, color, plate, capacity')
       .eq('user_id', user.id)
       .maybeSingle();
+
+    if (profileError || vehicleError || !profile) {
+      throw new ServiceUnavailableException('No se pudo consultar el perfil del usuario.');
+    }
 
     const firstName =
       profile?.first_name ||
@@ -512,9 +384,11 @@ export class AuthService {
         vehicle: vehicle
           ? {
               brand: vehicle.brand,
+              id: vehicle.id,
               model: vehicle.model,
               color: vehicle.color,
               plate: vehicle.plate,
+              capacity: vehicle.capacity,
             }
           : undefined,
       },
@@ -529,8 +403,8 @@ export class AuthService {
       throw new BadRequestException('Supabase no está configurado en el servidor');
     }
 
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase.auth.getUser(token);
+    const admin = this.supabaseService.getClient();
+    const { data, error } = await admin.auth.getUser(token);
 
     if (error || !data.user) {
       throw new UnauthorizedException('Token no válido o sesión expirada');
@@ -538,17 +412,21 @@ export class AuthService {
 
     const user = data.user;
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await admin
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .maybeSingle();
 
-    const { data: vehicle } = await supabase
+    const { data: vehicle, error: vehicleError } = await admin
       .from('vehicles')
-      .select('brand, model, color, plate')
+      .select('id, brand, model, color, plate, capacity')
       .eq('user_id', user.id)
       .maybeSingle();
+
+    if (profileError || vehicleError || !profile) {
+      throw new ServiceUnavailableException('No se pudo consultar el perfil del usuario.');
+    }
 
     return {
       id: user.id,
@@ -559,11 +437,13 @@ export class AuthService {
       role: profile?.role || user.user_metadata?.role || 'pasajero',
       isActive: profile?.is_active ?? false,
       vehicle: vehicle
-        ? {
+          ? {
+            id: vehicle.id,
             brand: vehicle.brand,
             model: vehicle.model,
             color: vehicle.color,
             plate: vehicle.plate,
+            capacity: vehicle.capacity,
           }
         : undefined,
     };
@@ -574,315 +454,93 @@ export class AuthService {
    * Valida que el nuevo correo no esté ya en uso en otra cuenta.
    */
   async requestEmailChange(
-    currentEmail: string,
+    actorId: string,
     newEmail: string,
   ): Promise<{ success: boolean; message: string; pendingEmail: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
-    }
+    const admin = this.supabaseService.getClient();
+    const { data: userResult, error: userError } = await admin.auth.admin.getUserById(actorId);
+    const currentEmail = userResult.user?.email?.toLowerCase();
+    const targetEmail = newEmail.trim().toLowerCase();
+    if (userError || !currentEmail) throw new NotFoundException('No se encontró la cuenta autenticada.');
+    if (currentEmail === targetEmail) throw new BadRequestException('El nuevo correo debe ser diferente al actual.');
 
-    const curr = currentEmail.trim().toLowerCase();
-    const next = newEmail.trim().toLowerCase();
-
-    if (curr === next) {
-      throw new BadRequestException('El nuevo correo electrónico es idéntico al actual.');
-    }
-
-    const supabase = this.supabaseService.getClient();
-
-    // 1. Verificar si el nuevo correo ya existe en Supabase Auth
-    const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) {
-      this.logger.error(`Error al listar usuarios para validación de correo: ${listError.message}`);
-    }
-
-    const users = listData?.users || [];
-    const existingTarget = users.find((u) => u.email?.toLowerCase() === next);
-    if (existingTarget) {
-      throw new BadRequestException('El correo electrónico ingresado ya se encuentra registrado por otro usuario.');
-    }
-
-    // 2. Localizar al usuario actual
-    const currentUser = users.find((u) => u.email?.toLowerCase() === curr);
-    if (!currentUser) {
-      throw new NotFoundException('No se encontró el usuario actual en el sistema.');
-    }
-
-    // 3. Generar código de 6 dígitos numérico y expiración de 15 minutos
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
-    // 4. Guardar solicitud pendiente en public.profiles
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        pending_email: next,
-        email_change_code: code,
-        email_change_expires_at: expiresAt,
-      })
-      .eq('id', currentUser.id);
-
-    if (updateError) {
-      this.logger.error(`Error al guardar solicitud de cambio de correo: ${updateError.message}`);
-      throw new BadRequestException(`No se pudo registrar la solicitud: ${updateError.message}`);
-    }
-
-    // 5. Obtener nombre del usuario y enviar código por Brevo
-    const firstName = currentUser.user_metadata?.firstName || 'Usuario';
-    await this.emailService.sendEmailChangeCode(next, firstName, code);
-
-    this.logger.log(`Código de cambio de correo enviado a ${next} para el usuario ${currentUser.id}`);
-
-    return {
-      success: true,
-      message: `Hemos enviado un código de 6 dígitos a ${next}. Por favor ingrésalo para confirmar el cambio.`,
-      pendingEmail: next,
-    };
+    const { data: profile, error } = await admin.from('profiles')
+      .update({ pending_email: targetEmail, email_change_code: hashCode(code), email_change_expires_at: expiresAt })
+      .eq('id', actorId).select('first_name').single();
+    if (error) throw new ServiceUnavailableException('No se pudo registrar la solicitud de cambio de correo.');
+    await this.emailService.sendEmailChangeCode(targetEmail, profile.first_name || 'Usuario', code);
+    return { success: true, message: `Enviamos un código de 6 dígitos a ${targetEmail}.`, pendingEmail: targetEmail };
   }
 
-  /**
-   * Confirma el cambio de correo electrónico verificando el código de 6 dígitos.
-   */
   async confirmEmailChange(
-    currentEmail: string,
+    actorId: string,
     code: string,
   ): Promise<{ success: boolean; message: string; newEmail: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
+    const admin = this.supabaseService.getClient();
+    const { data: profile, error } = await admin.from('profiles')
+      .select('pending_email,email_change_code,email_change_expires_at')
+      .eq('id', actorId).maybeSingle();
+    if (error || !profile) throw new NotFoundException('Perfil de usuario no encontrado.');
+    if (!profile.pending_email || !profile.email_change_code || !profile.email_change_expires_at) {
+      throw new BadRequestException('No existe una solicitud de cambio de correo pendiente.');
     }
-
-    const curr = currentEmail.trim().toLowerCase();
-    const cleanCode = code.trim();
-
-    const supabase = this.supabaseService.getClient();
-
-    // 1. Localizar usuario actual
-    const { data: listData } = await supabase.auth.admin.listUsers();
-    const users = listData?.users || [];
-    const currentUser = users.find((u) => u.email?.toLowerCase() === curr);
-
-    if (!currentUser) {
-      throw new NotFoundException('No se encontró el usuario actual en el sistema.');
+    if (new Date(profile.email_change_expires_at).getTime() <= Date.now()) {
+      throw new BadRequestException('El código de verificación expiró. Solicita uno nuevo.');
     }
-
-    // 2. Obtener datos pendientes de profiles
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, first_name, pending_email, email_change_code, email_change_expires_at')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (profileError || !profile) {
-      throw new NotFoundException('Perfil de usuario no encontrado.');
-    }
-
-    if (!profile.pending_email || !profile.email_change_code) {
-      throw new BadRequestException('No existe ninguna solicitud de cambio de correo pendiente.');
-    }
-
-    // 3. Validar código
-    if (profile.email_change_code !== cleanCode) {
+    if (!/^\d{6}$/.test(code) || !sameDigest(profile.email_change_code, hashCode(code))) {
       throw new BadRequestException('El código de verificación es incorrecto.');
     }
 
-    // 4. Validar expiración
-    if (!profile.email_change_expires_at || new Date(profile.email_change_expires_at) < new Date()) {
-      throw new BadRequestException('El código de verificación ha expirado. Por favor solicita un nuevo código.');
-    }
-
-    const targetEmail = profile.pending_email.trim().toLowerCase();
-
-    // 5. Verificar que el correo no fue tomado mientras tanto
-    const alreadyTaken = users.some(
-      (u) => u.id !== currentUser.id && u.email?.toLowerCase() === targetEmail,
-    );
-    if (alreadyTaken) {
-      throw new BadRequestException('El nuevo correo electrónico ya fue registrado por otra cuenta.');
-    }
-
-    // 6. Actualizar el email en Supabase Auth
-    const { error: updateAuthError } = await supabase.auth.admin.updateUserById(
-      currentUser.id,
-      {
-        email: targetEmail,
-        email_confirm: true,
-      },
-    );
-
-    if (updateAuthError) {
-      this.logger.error(`Error al actualizar email en Supabase Auth: ${updateAuthError.message}`);
-      throw new BadRequestException(`Error al actualizar el correo en autenticación: ${updateAuthError.message}`);
-    }
-
-    // 7. Limpiar campos de solicitud pendiente en public.profiles
-    const { error: clearError } = await supabase
-      .from('profiles')
-      .update({
-        pending_email: null,
-        email_change_code: null,
-        email_change_expires_at: null,
-      })
-      .eq('id', currentUser.id);
-
-    if (clearError) {
-      this.logger.error(`Error al limpiar solicitud pendiente en profiles: ${clearError.message}`);
-    }
-
-    this.logger.log(`Correo del usuario ${currentUser.id} actualizado exitosamente a ${targetEmail}`);
-
-    return {
-      success: true,
-      message: '¡Tu correo electrónico ha sido actualizado exitosamente!',
-      newEmail: targetEmail,
-    };
+    const targetEmail = profile.pending_email;
+    const { error: authError } = await admin.auth.admin.updateUserById(actorId, { email: targetEmail, email_confirm: true });
+    if (authError) throw new BadRequestException('El nuevo correo no está disponible o no pudo actualizarse.');
+    const { error: clearError } = await admin.from('profiles').update({
+      pending_email: null, email_change_code: null, email_change_expires_at: null,
+    }).eq('id', actorId);
+    if (clearError) throw new ServiceUnavailableException('El correo cambió, pero no se pudo cerrar la solicitud pendiente.');
+    return { success: true, message: 'Tu correo electrónico fue actualizado.', newEmail: targetEmail };
   }
 
-  /**
-   * Cancela la solicitud pendiente de cambio de correo electrónico.
-   */
-  async cancelEmailChange(
-    currentEmail: string,
-  ): Promise<{ success: boolean; message: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
-    }
-
-    const curr = currentEmail.trim().toLowerCase();
-    const supabase = this.supabaseService.getClient();
-
-    const { data: listData } = await supabase.auth.admin.listUsers();
-    const users = listData?.users || [];
-    const currentUser = users.find((u) => u.email?.toLowerCase() === curr);
-
-    if (!currentUser) {
-      throw new NotFoundException('No se encontró el usuario actual en el sistema.');
-    }
-
-    // Limpiar campos pendientes
-    await supabase
-      .from('profiles')
-      .update({
-        pending_email: null,
-        email_change_code: null,
-        email_change_expires_at: null,
-      })
-      .eq('id', currentUser.id);
-
-    this.logger.log(`Solicitud de cambio de correo cancelada para el usuario ${currentUser.id}`);
-
-    return {
-      success: true,
-      message: 'La solicitud de cambio de correo ha sido cancelada.',
-    };
+  async cancelEmailChange(actorId: string): Promise<{ success: boolean; message: string }> {
+    const { error } = await this.supabaseService.getClient().from('profiles').update({
+      pending_email: null, email_change_code: null, email_change_expires_at: null,
+    }).eq('id', actorId);
+    if (error) throw new ServiceUnavailableException('No se pudo cancelar la solicitud de cambio de correo.');
+    return { success: true, message: 'La solicitud de cambio de correo fue cancelada.' };
   }
 
-  /**
-   * Reenvía un nuevo código de 6 dígitos al correo pendiente.
-   */
   async resendEmailChangeCode(
-    currentEmail: string,
+    actorId: string,
   ): Promise<{ success: boolean; message: string; pendingEmail: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
+    const admin = this.supabaseService.getClient();
+    const { data: profile, error: profileError } = await admin.from('profiles')
+      .select('pending_email,first_name').eq('id', actorId).maybeSingle();
+    if (profileError || !profile?.pending_email) {
+      throw new BadRequestException('No hay una solicitud de cambio de correo pendiente.');
     }
-
-    const curr = currentEmail.trim().toLowerCase();
-    const supabase = this.supabaseService.getClient();
-
-    const { data: listData } = await supabase.auth.admin.listUsers();
-    const users = listData?.users || [];
-    const currentUser = users.find((u) => u.email?.toLowerCase() === curr);
-
-    if (!currentUser) {
-      throw new NotFoundException('No se encontró el usuario actual en el sistema.');
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('pending_email, first_name')
-      .eq('id', currentUser.id)
-      .maybeSingle();
-
-    if (!profile?.pending_email) {
-      throw new BadRequestException('No hay ninguna solicitud de cambio de correo pendiente.');
-    }
-
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
-    await supabase
-      .from('profiles')
-      .update({
-        email_change_code: newCode,
-        email_change_expires_at: expiresAt,
-      })
-      .eq('id', currentUser.id);
-
-    const firstName = profile.first_name || currentUser.user_metadata?.firstName || 'Usuario';
-    await this.emailService.sendEmailChangeCode(profile.pending_email, firstName, newCode);
-
-    return {
-      success: true,
-      message: `Nuevo código de verificación enviado a ${profile.pending_email}.`,
-      pendingEmail: profile.pending_email,
-    };
+    const { error } = await admin.from('profiles').update({
+      email_change_code: hashCode(code), email_change_expires_at: expiresAt,
+    }).eq('id', actorId);
+    if (error) throw new ServiceUnavailableException('No se pudo generar un nuevo código.');
+    await this.emailService.sendEmailChangeCode(profile.pending_email, profile.first_name || 'Usuario', code);
+    return { success: true, message: `Enviamos un nuevo código a ${profile.pending_email}.`, pendingEmail: profile.pending_email };
   }
 
-  /**
-   * Actualiza los datos del perfil (nombre, cédula, rol y vehículo) en Supabase.
-   */
   async updateProfile(
-    userId: string,
-    data: {
-      firstName: string;
-      lastName: string;
-      nationalId: string;
-      role: 'pasajero' | 'conductor';
-      vehicle?: { brand: string; model: string; color: string; plate: string };
-    },
+    actorId: string,
+    data: { firstName: string; lastName: string; nationalId: string },
   ): Promise<{ success: boolean; message: string }> {
-    if (!this.supabaseService.isConfigured()) {
-      throw new BadRequestException('Supabase no está configurado en el servidor');
-    }
-
-    const supabase = this.supabaseService.getClient();
-
-    // 1. Actualizar public.profiles
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        first_name: data.firstName,
-        last_name: data.lastName,
-        national_id: data.nationalId,
-        role: data.role,
-      })
-      .eq('id', userId);
-
-    if (profileError) {
-      throw new BadRequestException(`Error al actualizar perfil: ${profileError.message}`);
-    }
-
-    // 2. Gestionar vehículo si aplica
-    if (data.role === 'conductor' && data.vehicle) {
-      await supabase.from('vehicles').upsert(
-        {
-          user_id: userId,
-          brand: data.vehicle.brand,
-          model: data.vehicle.model,
-          color: data.vehicle.color,
-          plate: data.vehicle.plate.toUpperCase(),
-        },
-        { onConflict: 'user_id' },
-      );
-    } else if (data.role === 'pasajero') {
-      // Si es pasajero, eliminar vehículo existente si lo tenía
-      await supabase.from('vehicles').delete().eq('user_id', userId);
-    }
-
-    return {
-      success: true,
-      message: 'Perfil actualizado exitosamente en la base de datos.',
-    };
+    const { error } = await this.supabaseService.getClient().from('profiles').update({
+      first_name: data.firstName.trim(),
+      last_name: data.lastName.trim(),
+      national_id: data.nationalId.trim(),
+    }).eq('id', actorId);
+    if (error) throw new BadRequestException('No se pudieron actualizar los datos del perfil.');
+    return { success: true, message: 'Perfil actualizado exitosamente.' };
   }
-}
 
+}

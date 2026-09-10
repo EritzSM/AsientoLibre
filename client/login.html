@@ -257,6 +257,11 @@
                   </div>
                 </div>
               </div>
+              <div class="field">
+                <label for="vehicle-capacity">Capacidad de pasajeros (sin incluir al conductor)</label>
+                <div class="input-container"><input id="vehicle-capacity" name="vehicleCapacity" type="number" min="1" max="8" step="1" placeholder="Ej: 4" /></div>
+              </div>
+
 
               <!-- Apartado de Documentos (PDF, Word) -->
               <div class="documents-box">
@@ -265,7 +270,7 @@
                   <span class="documents-subtitle">Sube tu SOAT, licencia o tarjeta de propiedad en formato PDF o Word</span>
                 </div>
 
-                <div class="file-dropzone" id="file-dropzone">
+                <p id="documents-note" class="hint">Los documentos seleccionados solo se previsualizan en este dispositivo; su envío estará disponible en una próxima entrega.</p><div class="file-dropzone" id="file-dropzone" aria-describedby="documents-note">
                   <input 
                     type="file" 
                     id="vehicle-documents" 

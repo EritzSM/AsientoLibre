@@ -1,55 +1,43 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+const authOptions = { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false };
 
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
-  private client: SupabaseClient | null = null;
-  private isProperlyConfigured = false;
+  private readonly url: string;
+  private readonly publicKey: string;
+  private readonly admin: SupabaseClient | null;
 
-  constructor(private readonly configService: ConfigService) {
-    const url = this.configService.get<string>('SUPABASE_URL') || process.env.SUPABASE_URL;
-    const serviceRoleKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anonKey = this.configService.get<string>('SUPABASE_ANON_KEY') || process.env.SUPABASE_ANON_KEY;
-
-    const key = serviceRoleKey || anonKey;
-
-    if (
-      url &&
-      key &&
-      !url.includes('your-project') &&
-      !url.includes('tu-proyecto') &&
-      !key.includes('your-') &&
-      !key.includes('tu-')
-    ) {
-      this.client = createClient(url, key, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      });
-      this.isProperlyConfigured = true;
-      this.logger.log(`Cliente de Supabase inicializado correctamente para: ${url}`);
-    } else {
-      this.logger.warn(
-        'Supabase no está configurado o contiene valores de ejemplo en el archivo .env. ' +
-        'Por favor ingresa tu SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY.',
-      );
-    }
+  constructor(config: ConfigService) {
+    this.url = config.get<string>('SUPABASE_URL') ?? '';
+    this.publicKey = config.get<string>('SUPABASE_PUBLISHABLE_KEY')
+      ?? config.get<string>('SUPABASE_ANON_KEY')
+      ?? '';
+    const serviceKey = config.get<string>('SUPABASE_SECRET_KEY')
+      ?? config.get<string>('SUPABASE_SERVICE_ROLE_KEY')
+      ?? '';
+    const configured = this.url.startsWith('https://') && Boolean(this.publicKey && serviceKey)
+      && ![this.url, this.publicKey, serviceKey].some(value => /tu-proyecto|tu-.*-key|your-project|your-.*-key/.test(value));
+    this.admin = configured ? createClient(this.url, serviceKey, { auth: authOptions }) : null;
+    if (!this.admin) this.logger.warn('Configura las credenciales de Supabase en server/.env.');
   }
 
-  public getClient(): SupabaseClient {
-    if (!this.client || !this.isProperlyConfigured) {
-      throw new Error(
-        'Supabase no está configurado. Por favor configura SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_ANON_KEY) en server/.env',
-      );
-    }
-    return this.client;
+  /** Cliente administrativo: nunca iniciar una sesión de usuario sobre esta instancia. */
+  getClient(): SupabaseClient {
+    if (!this.admin) throw new ServiceUnavailableException('El servicio de datos no está configurado.');
+    return this.admin;
   }
 
-  public isConfigured(): boolean {
-    return this.isProperlyConfigured;
+  /** Cada solicitud de autenticación recibe un cliente independiente. */
+  createAuthClient(): SupabaseClient {
+    this.getClient();
+    return createClient(this.url, this.publicKey, { auth: authOptions });
+  }
+
+  isConfigured(): boolean {
+    return this.admin !== null;
   }
 }
-

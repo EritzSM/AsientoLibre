@@ -4,6 +4,10 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { SupabaseModule } from './supabase/supabase.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { RoutesModule } from './routes/routes.module.js';
+import { VehiclesModule } from './vehicles/vehicles.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
+import { HealthController } from './health.controller.js';
 
 @Module({
   imports: [
@@ -13,8 +17,11 @@ import { AuthModule } from './auth/auth.module.js';
     }),
     SupabaseModule,
     AuthModule,
+    RoutesModule,
+    VehiclesModule,
+    NotificationsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}

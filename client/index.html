@@ -5,8 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Asiento Libre — Viaja acompañado</title>
-  <meta name="description" content="Publica tu ruta como conductor o reserva uno de los 4 asientos disponibles en el viaje de alguien más. Simple, claro y directo." />
-  <link rel="icon" type="image/png" href="/logo.png" />
+  <meta name="description" content="Publica tu ruta como conductor o reserva un asiento disponible en el viaje de alguien más. Simple, claro y directo." />
+  <link rel="icon" type="image/png" href="/images/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -71,7 +71,7 @@
               </svg>
               Mi Perfil
             </a>
-            <a href="#buscar" class="dropdown-item" data-scroll>
+            <a href="#mis-rutas" class="dropdown-item" data-scroll>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -112,7 +112,7 @@
           <h1>Viaja acompañado con <span>Asiento Libre</span></h1>
 
           <p class="lead">
-            Publica tu ruta como conductor o reserva uno de los 4 asientos disponibles
+            Publica tu ruta como conductor o reserva un asiento disponible
             en el viaje de alguien más. Simple, claro y directo.
           </p>
 
@@ -130,13 +130,13 @@
             <li>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z" fill="currentColor" />
-              </svg> Hasta 4 asientos
+              </svg> Cupos según tu vehículo
             </li>
             <li>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" />
-              </svg> Conductores verificados
+              </svg> Conductores registrados
             </li>
           </ul>
         </div>
@@ -153,7 +153,7 @@
             alt="Viaja en carro con Asiento Libre" 
             class="hero-image"
             id="hero-img"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" 
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
           />
           <!-- Placeholder visible mientras guardas la imagen -->
           <div class="hero-image-placeholder" style="display: none;">
@@ -170,80 +170,101 @@
       </div>
     </section>
 
-    <!-- ===== Publicar + Buscar ===== -->
     <section class="app-section">
       <div class="container app-grid">
-
-        <!-- Publicar ruta -->
-        <div class="card publish-card" id="publicar">
-          <h2>Publica tu ruta</h2>
-          <p class="muted">Eres conductor. Indica desde dónde sales y tu destino. Tu vehículo ofrece 4 asientos.</p>
-
+        <section class="card publish-card" id="publicar" aria-labelledby="publish-title">
+          <h2 id="publish-title">Publica tu ruta</h2>
+          <p class="muted">Comparte los cupos de tu vehículo. Fecha y hora de salida en Colombia (UTC−5).</p>
+          <p id="publish-access" class="notice" role="status">Verificando sesión…</p>
+          <a id="publish-access-link" href="/login.html" hidden>Iniciar sesión</a>
           <form id="publish-form" novalidate>
-            <div class="field">
-              <label for="driver-name">Nombre del conductor</label>
-              <input id="driver-name" name="driverName" type="text" placeholder="Ej: Mariana Gonzáles" required />
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="origin">Desde</label>
-                <input id="origin" name="origin" type="text" placeholder="Origen" required />
+            <fieldset id="publish-fields" disabled>
+              <legend class="sr-only">Datos del viaje</legend>
+              <p id="vehicle-summary" class="hint"></p>
+              <div class="field-row">
+                <div class="field">
+                  <label for="origin">Origen</label>
+                  <input id="origin" name="origin" type="text" placeholder="Punto de encuentro" maxlength="160" required aria-describedby="origin-error" />
+                  <p id="origin-error" class="field-error" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="destination">Destino</label>
+                  <input id="destination" name="destination" type="text" placeholder="Lugar de llegada" maxlength="160" required aria-describedby="destination-error" />
+                  <p id="destination-error" class="field-error" hidden></p>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="date">Fecha</label>
+                  <input id="date" name="date" type="date" required aria-describedby="date-error" />
+                  <p id="date-error" class="field-error" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="time">Hora de salida</label>
+                  <input id="time" name="time" type="time" required aria-describedby="time-error" />
+                  <p id="time-error" class="field-error" hidden></p>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="seats">Cupos disponibles</label>
+                  <input id="seats" name="seats" type="number" min="1" max="8" step="1" value="1" required aria-describedby="capacity-hint seats-error" />
+                  <p id="capacity-hint" class="hint">Sin incluir al conductor.</p>
+                  <p id="seats-error" class="field-error" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="price">Aporte por asiento (COP)</label>
+                  <input id="price" name="price" type="number" min="0" max="1000000" step="0.01" placeholder="Opcional: 0" aria-describedby="price-error" />
+                  <p id="price-error" class="field-error" hidden></p>
+                </div>
               </div>
               <div class="field">
-                <label for="destination">Hasta</label>
-                <input id="destination" name="destination" type="text" placeholder="Destino" required />
+                <label for="note">Nota (opcional)</label>
+                <textarea id="note" name="note" rows="3" maxlength="500" placeholder="Punto exacto de encuentro, equipaje?" aria-describedby="note-error"></textarea>
+                <p id="note-error" class="field-error" hidden></p>
               </div>
-            </div>
-
-            <div class="field-row">
-              <div class="field">
-                <label for="date">Fecha</label>
-                <input id="date" name="date" type="date" required />
-              </div>
-              <div class="field">
-                <label for="time">Hora de salida</label>
-                <input id="time" name="time" type="time" required />
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="price">Aporte por asiento</label>
-              <input id="price" name="price" type="number" min="0" step="500" placeholder="Ej: 5000" required />
-            </div>
-
-            <div class="field">
-              <label for="note">Nota (opcional)</label>
-              <textarea id="note" name="note" rows="3"
-                placeholder="Detalles útiles: Punto exacto de encuentro, equipaje, etc."></textarea>
-            </div>
-
-            <button class="btn btn-primary btn-block" type="submit">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-              </svg>
-              Publicar ruta
-            </button>
+              <p id="publish-error" class="form-error" role="alert" hidden></p>
+              <button id="publish-submit" class="btn btn-primary btn-block" type="submit">Publicar ruta</button>
+            </fieldset>
           </form>
-        </div>
+        </section>
 
-        <!-- Rutas disponibles -->
-        <div class="routes-panel" id="buscar">
-          <h2>Rutas disponibles</h2>
-          <p class="muted">Eres pasajero. Reserva uno de los asientos libres en el viaje que prefieras.</p>
-
-          <div class="search-box">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" />
-              <line x1="21" y1="21" x2="16.6" y2="16.6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-            <input id="search-input" type="text" placeholder="Busca por origen, destino o conductor" />
-          </div>
-
-          <div id="routes-list" class="routes-list" aria-live="polite"></div>
-          <p id="empty-state" class="empty-state" hidden>No encontramos rutas que coincidan con tu búsqueda.</p>
-        </div>
-
+        <section class="routes-panel" id="buscar" aria-labelledby="search-title">
+          <h2 id="search-title">Rutas disponibles</h2>
+          <p class="muted">Encuentra un viaje que coincida con tu camino. Horarios de Colombia.</p>
+          <form id="search-form" class="search-filters">
+            <div class="field"><label for="search-origin">Origen</label><input id="search-origin" name="origin" placeholder="Cualquier origen" maxlength="160" /></div>
+            <div class="field"><label for="search-destination">Destino</label><input id="search-destination" name="destination" placeholder="Cualquier destino" maxlength="160" /></div>
+            <div class="field"><label for="search-date">Fecha</label><input id="search-date" name="date" type="date" /></div>
+            <button class="btn btn-secondary" id="search-submit" type="submit">Buscar</button>
+          </form>
+          <p id="routes-error" class="form-error" role="alert" hidden></p>
+          <p id="routes-loading" class="hint" role="status">Cargando rutas…</p>
+          <div id="routes-list" class="routes-list"></div>
+          <p id="empty-state" class="empty-state" hidden>No hay rutas disponibles para estos filtros.</p>
+        </section>
+      </div>
+      <div class="container account-panels">
+        <section id="mis-rutas" class="routes-panel" hidden aria-labelledby="my-routes-title">
+          <div class="panel-heading"><h2 id="my-routes-title">Mis rutas</h2><button id="refresh-mine" type="button" class="btn btn-secondary">Actualizar</button></div>
+          <p class="muted">Gestiona tus publicaciones. Si hay pasajeros confirmados, deberás confirmar la cancelación.</p>
+          <p id="mine-error" class="form-error" role="alert" hidden></p>
+          <div id="mine-list" class="routes-list"></div>
+          <p id="mine-empty" class="empty-state" hidden>Todavía no has publicado rutas.</p>
+        </section>
+        <section id="mis-reservas" class="routes-panel" hidden aria-labelledby="bookings-title">
+          <h2 id="bookings-title">Mis reservas</h2>
+          <p id="bookings-error" class="form-error" role="alert" hidden></p>
+          <div id="bookings-list" class="routes-list"></div>
+          <p id="bookings-empty" class="empty-state" hidden>Todavía no tienes reservas.</p>
+        </section>
+        <section id="notificaciones" class="card" hidden aria-labelledby="notifications-title">
+          <div class="panel-heading"><h2 id="notifications-title">Notificaciones</h2><button id="refresh-notifications" type="button" class="btn btn-secondary">Actualizar</button></div>
+          <p class="muted">Aquí recibirás los avisos de cancelación de tus viajes.</p>
+          <p id="notifications-error" class="form-error" role="alert" hidden></p>
+          <div id="notifications-list" aria-live="polite"></div>
+          <p id="notifications-empty" class="hint" hidden>No tienes notificaciones.</p>
+        </section>
       </div>
     </section>
   </main>
@@ -254,106 +275,32 @@
     </div>
   </footer>
 
-  <!-- ===== Modal: Reservar asiento ===== -->
-  <div class="modal-overlay" id="modal-overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <button class="modal-close" id="modal-close" type="button" aria-label="Cerrar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-        </svg>
-      </button>
-
-      <h3 id="modal-title">Reservar asiento</h3>
-      <p class="modal-subtitle" id="modal-subtitle">Viaje con —</p>
-
-      <p class="route-chip" id="modal-route-chip"></p>
-
-      <form id="reserve-form">
-        <div class="field">
-          <label for="passenger-name">Tu nombre</label>
-          <input id="passenger-name" type="text" placeholder="Ej: Mariana Gonzáles" required />
-        </div>
-
-        <div class="field">
-          <label>¿Cuántos asientos?</label>
-          <div class="seat-toggle" id="seat-toggle">
-            <button class="seat-option active" type="button" data-seats="1">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M5 11V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5M4 11h16v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z"
-                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-              </svg>
-              1
-            </button>
-            <button class="seat-option" type="button" data-seats="2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M5 11V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5M4 11h16v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6Z"
-                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-              </svg>
-              2
-            </button>
-          </div>
-          <p class="hint" id="seats-hint">— asientos disponibles en este viaje.</p>
-        </div>
-
-        <button class="btn btn-primary btn-block" type="submit">Confirmar reserva</button>
-      </form>
+  <dialog id="reserve-dialog" class="action-dialog" aria-labelledby="reserve-title" aria-describedby="reserve-route">
+    <h3 id="reserve-title">Reservar asiento</h3>
+    <p id="reserve-route" class="route-chip"></p>
+    <form id="reserve-form" novalidate>
+      <div class="field">
+        <label for="reserve-seats">¿Cuántos asientos necesitas?</label>
+        <input id="reserve-seats" type="number" value="1" min="1" step="1" required aria-describedby="reserve-hint" />
+        <p id="reserve-hint" class="hint"></p>
+      </div>
+      <p id="reserve-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="reserve-close" class="btn btn-secondary" type="button">Volver</button>
+        <button id="reserve-submit" class="btn btn-primary" type="submit">Confirmar reserva</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="remove-dialog" class="action-dialog" aria-labelledby="remove-title" aria-describedby="remove-description">
+    <h3 id="remove-title">Eliminar ruta</h3>
+    <p id="remove-description"></p>
+    <p id="remove-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button id="remove-close" class="btn btn-secondary" type="button" autofocus>Conservar ruta</button>
+      <button id="remove-confirm" class="btn btn-danger" type="button">Eliminar ruta</button>
     </div>
-  </div>
-
-  <div class="modal-overlay" id="survey-overlay" hidden>
-    <div class="modal survey-modal" role="dialog" aria-modal="true" aria-labelledby="survey-title">
-      <button class="modal-close" id="survey-close" type="button" aria-label="Cerrar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-        </svg>
-      </button>
-      <p class="survey-kicker">Viaje finalizado</p>
-      <h3 id="survey-title">Cuéntanos cómo te fue</h3>
-      <p class="modal-subtitle" id="survey-subtitle">Tu opinión ayuda a mejorar cada viaje.</p>
-      <form id="survey-form" novalidate>
-        <div class="field">
-          <label for="survey-role">Tu rol en el viaje</label>
-          <select id="survey-role" name="role" required>
-            <option value="pasajero">Pasajero</option>
-            <option value="conductor">Conductor</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="survey-counterpart">Nombre de la contraparte</label>
-          <input id="survey-counterpart" name="counterpart" type="text" minlength="2" maxlength="80" required />
-        </div>
-        <fieldset class="field rating-field">
-          <legend>Calificación de la contraparte <span aria-hidden="true">*</span></legend>
-          <div class="star-rating" role="radiogroup" aria-label="Calificación de 1 a 5 estrellas">
-            <label><input type="radio" name="rating" value="1" required /><span aria-hidden="true">★</span><span class="sr-only">1 estrella</span></label>
-            <label><input type="radio" name="rating" value="2" /><span aria-hidden="true">★</span><span class="sr-only">2 estrellas</span></label>
-            <label><input type="radio" name="rating" value="3" /><span aria-hidden="true">★</span><span class="sr-only">3 estrellas</span></label>
-            <label><input type="radio" name="rating" value="4" /><span aria-hidden="true">★</span><span class="sr-only">4 estrellas</span></label>
-            <label><input type="radio" name="rating" value="5" /><span aria-hidden="true">★</span><span class="sr-only">5 estrellas</span></label>
-          </div>
-          <p class="hint">Selecciona una calificación entre 1 y 5.</p>
-        </fieldset>
-        <div class="field">
-          <label for="survey-experience">Experiencia general</label>
-          <select id="survey-experience" name="experience" required>
-            <option value="">Selecciona una opción</option>
-            <option value="excelente">Excelente</option>
-            <option value="buena">Buena</option>
-            <option value="regular">Regular</option>
-            <option value="mala">Mala</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="survey-comment">Comentarios adicionales <span class="optional">(opcional)</span></label>
-          <textarea id="survey-comment" name="comment" rows="3" maxlength="500" placeholder="Comparte un detalle de tu experiencia"></textarea>
-          <p class="hint">Máximo 500 caracteres.</p>
-        </div>
-        <button class="btn btn-primary btn-block" type="submit">Enviar encuesta</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="toast" id="toast" hidden></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
 
   <script type="module" src="/src/app/features/pages/home/home.ts"></script>
 </body>

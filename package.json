@@ -1,0 +1,14 @@
+{
+  "name": "asiento-libre",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "setup": "npm --prefix server ci && npm --prefix client ci",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "lint": "npm --prefix server run lint && npm --prefix client run lint",
+    "test": "npm --prefix server test && npm --prefix server run test:e2e && npm --prefix client test",
+    "test:db": "npm --prefix server run test:db"
+  }
+}

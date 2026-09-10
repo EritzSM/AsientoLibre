@@ -26,15 +26,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- ==============================================================================
--- Migración para bases de datos existentes (ejecutar si la tabla profiles ya existe):
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false NOT NULL;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS activation_token TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP WITH TIME ZONE;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_email TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_code TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_expires_at TIMESTAMP WITH TIME ZONE;
--- ==============================================================================
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false NOT NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS activation_token TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_email TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_code TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_expires_at TIMESTAMP WITH TIME ZONE;
 
 -- 3. Tabla: Vehículos (vehicles)
 -- Asociada a los usuarios con rol 'conductor'
@@ -52,7 +49,7 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
 
 -- 4. Índices para optimizar consultas frecuentes
 CREATE INDEX IF NOT EXISTS idx_profiles_national_id ON public.profiles(national_id);
-CREATE INDEX IF NOT EXISTS idx_profiles_activation_token ON public.profiles(activation_token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_activation_token ON public.profiles(activation_token) WHERE activation_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_vehicles_user_id ON public.vehicles(user_id);
 CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON public.vehicles(plate);
 
@@ -81,48 +78,23 @@ CREATE TRIGGER tr_vehicles_updated_at
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 
--- Políticas para 'profiles'
+-- El frontend accede a perfiles y vehículos exclusivamente mediante el backend.
+-- Esto impide modificar role, is_active o tokens desde una sesión cliente.
 DROP POLICY IF EXISTS "Permitir lectura de perfiles a usuarios autenticados" ON public.profiles;
 DROP POLICY IF EXISTS "Permitir lectura de perfiles" ON public.profiles;
-CREATE POLICY "Permitir lectura de perfiles" 
-    ON public.profiles FOR SELECT 
-    USING (true);
-
 DROP POLICY IF EXISTS "Permitir inserción de propio perfil" ON public.profiles;
 DROP POLICY IF EXISTS "Permitir inserción de perfiles" ON public.profiles;
-CREATE POLICY "Permitir inserción de perfiles" 
-    ON public.profiles FOR INSERT 
-    WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Permitir actualizar propio perfil" ON public.profiles;
 DROP POLICY IF EXISTS "Permitir actualización de perfiles" ON public.profiles;
-CREATE POLICY "Permitir actualización de perfiles" 
-    ON public.profiles FOR UPDATE 
-    USING (true)
-    WITH CHECK (true);
-
--- Políticas para 'vehicles'
 DROP POLICY IF EXISTS "Permitir lectura de vehículos a usuarios autenticados" ON public.vehicles;
 DROP POLICY IF EXISTS "Permitir lectura de vehículos" ON public.vehicles;
-CREATE POLICY "Permitir lectura de vehículos" 
-    ON public.vehicles FOR SELECT 
-    USING (true);
-
 DROP POLICY IF EXISTS "Permitir insertar propio vehículo" ON public.vehicles;
 DROP POLICY IF EXISTS "Permitir inserción de vehículos" ON public.vehicles;
-CREATE POLICY "Permitir inserción de vehículos" 
-    ON public.vehicles FOR INSERT 
-    WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Permitir actualizar propio vehículo" ON public.vehicles;
 DROP POLICY IF EXISTS "Permitir actualización de vehículos" ON public.vehicles;
-CREATE POLICY "Permitir actualización de vehículos" 
-    ON public.vehicles FOR UPDATE 
-    USING (true);
-
 DROP POLICY IF EXISTS "Permitir eliminar propio vehículo" ON public.vehicles;
 DROP POLICY IF EXISTS "Permitir eliminación de vehículos" ON public.vehicles;
-CREATE POLICY "Permitir eliminación de vehículos" 
-    ON public.vehicles FOR DELETE 
-    USING (true);
+
+REVOKE ALL ON public.profiles, public.vehicles FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles, public.vehicles TO service_role;
 

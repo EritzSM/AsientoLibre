@@ -7,10 +7,18 @@ import {
   MinLength,
   ValidateNested,
   IsBoolean,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class VehicleDto {
+  @IsInt({ message: 'La capacidad debe ser un número entero' })
+  @Min(1, { message: 'El vehículo debe tener al menos un cupo para pasajeros' })
+  @Max(8, { message: 'El máximo admitido es 8 cupos para pasajeros' })
+  capacity: number;
+
   @IsString({ message: 'La marca del vehículo es requerida' })
   @IsNotEmpty({ message: 'La marca del vehículo no puede estar vacía' })
   brand: string;

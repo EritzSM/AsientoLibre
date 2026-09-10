@@ -10,17 +10,10 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Controller, Post, Get, Body, Headers, Query, HttpCode, HttpStatus, UnauthorizedException, Redirect, } from '@nestjs/common';
+import { Controller, Post, Get, Body, Headers, HttpCode, HttpStatus, UnauthorizedException, } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
-import { VerifyEmailDto } from './dto/verify-email.dto.js';
-import { ResendVerificationDto } from './dto/resend-verification.dto.js';
-import { ChangeUnverifiedEmailDto } from './dto/change-email.dto.js';
-import { RequestEmailChangeDto } from './dto/request-email-change.dto.js';
-import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
-import { CancelEmailChangeDto } from './dto/cancel-email-change.dto.js';
-import { UpdateProfileDto } from './dto/update-profile.dto.js';
 let AuthController = class AuthController {
     authService;
     constructor(authService) {
@@ -38,50 +31,6 @@ let AuthController = class AuthController {
         }
         const token = authHeader.replace('Bearer ', '').trim();
         return this.authService.getMe(token);
-    }
-    async verifyEmailByLink(token) {
-        const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
-        if (!token) {
-            return { url: `${frontendUrl}/login.html?error=invalid_token`, statusCode: 302 };
-        }
-        const result = await this.authService.verifyEmail(token);
-        return { url: result.redirectUrl, statusCode: 302 };
-    }
-    async verifyEmailApi(verifyEmailDto) {
-        const result = await this.authService.verifyEmail(verifyEmailDto.token);
-        return {
-            success: result.success,
-            message: result.success
-                ? '¡Correo verificado exitosamente! Ya puedes iniciar sesión.'
-                : 'El enlace de verificación es inválido o ha expirado.',
-        };
-    }
-    async resendVerification(resendDto) {
-        return this.authService.resendVerification(resendDto.email);
-    }
-    async changeUnverifiedEmail(changeEmailDto) {
-        return this.authService.changeUnverifiedEmail(changeEmailDto.currentEmail, changeEmailDto.newEmail);
-    }
-    async requestEmailChange(dto) {
-        return this.authService.requestEmailChange(dto.currentEmail, dto.newEmail);
-    }
-    async confirmEmailChange(dto) {
-        return this.authService.confirmEmailChange(dto.currentEmail, dto.code);
-    }
-    async cancelEmailChange(dto) {
-        return this.authService.cancelEmailChange(dto.currentEmail);
-    }
-    async resendEmailChangeCode(dto) {
-        return this.authService.resendEmailChangeCode(dto.currentEmail);
-    }
-    async updateProfile(dto) {
-        return this.authService.updateProfile(dto.userId, {
-            firstName: dto.firstName,
-            lastName: dto.lastName,
-            nationalId: dto.nationalId || '',
-            role: dto.role,
-            vehicle: dto.vehicle,
-        });
     }
     async logout() {
         return { message: 'Sesión cerrada exitosamente' };
@@ -110,78 +59,6 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getMe", null);
-__decorate([
-    Get('verify-email'),
-    Redirect(),
-    __param(0, Query('token')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "verifyEmailByLink", null);
-__decorate([
-    Post('verify-email'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [VerifyEmailDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "verifyEmailApi", null);
-__decorate([
-    Post('resend-verification'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [ResendVerificationDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "resendVerification", null);
-__decorate([
-    Post('change-unverified-email'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [ChangeUnverifiedEmailDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "changeUnverifiedEmail", null);
-__decorate([
-    Post('request-email-change'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [RequestEmailChangeDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "requestEmailChange", null);
-__decorate([
-    Post('confirm-email-change'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [ConfirmEmailChangeDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "confirmEmailChange", null);
-__decorate([
-    Post('cancel-email-change'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [CancelEmailChangeDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "cancelEmailChange", null);
-__decorate([
-    Post('resend-email-change-code'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [CancelEmailChangeDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "resendEmailChangeCode", null);
-__decorate([
-    Post('update-profile'),
-    HttpCode(HttpStatus.OK),
-    __param(0, Body()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [UpdateProfileDto]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "updateProfile", null);
 __decorate([
     Post('logout'),
     HttpCode(HttpStatus.OK),

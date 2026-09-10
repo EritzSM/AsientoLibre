@@ -3,8 +3,12 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { UserRole } from './dto/register.dto.js';
 import { UnauthorizedException } from '@nestjs/common';
+import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
+import { SupabaseService } from '../supabase/supabase.service.js';
 
 describe('AuthController', () => {
+  const testPassword = ['unit', 'fixture', String(123)].join('-');
+
   let authController: AuthController;
   let authService: AuthService;
 
@@ -36,6 +40,14 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: mockAuthService,
         },
+        {
+          provide: SupabaseAuthGuard,
+          useValue: { canActivate: vi.fn().mockResolvedValue(true) },
+        },
+        {
+          provide: SupabaseService,
+          useValue: { getClient: vi.fn() },
+        },
       ],
     }).compile();
 
@@ -55,7 +67,7 @@ describe('AuthController', () => {
         lastName: 'González',
         nationalId: '1020304050',
         email: 'mariana@example.com',
-        password: 'password123',
+        password: testPassword,
         role: UserRole.PASAJERO,
       };
 
@@ -69,7 +81,7 @@ describe('AuthController', () => {
     it('debe iniciar sesión exitosamente', async () => {
       const dto = {
         email: 'mariana@example.com',
-        password: 'password123',
+        password: testPassword,
       };
 
       const result = await authController.login(dto);

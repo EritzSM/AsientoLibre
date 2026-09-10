@@ -1,6 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] ?? character);
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -11,10 +21,6 @@ export class EmailService {
   private backendUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const rawApiKey =
-      this.configService.get<string>('BREVO_API_KEY') ||
-      process.env.BREVO_API_KEY;
-
     this.senderEmail =
       this.configService.get<string>('BREVO_SENDER_EMAIL') ||
       process.env.BREVO_SENDER_EMAIL ||
@@ -67,6 +73,8 @@ export class EmailService {
     token: string,
   ): Promise<{ success: boolean; messageId?: string }> {
     const verificationUrl = `${this.backendUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
+    const safeFirstName = escapeHtml(firstName || 'viajero/a');
+    const safeVerificationUrl = escapeHtml(verificationUrl);
     const currentApiKey = this.getApiKey();
     const currentSenderEmail =
       this.configService.get<string>('BREVO_SENDER_EMAIL') ||
@@ -179,12 +187,12 @@ export class EmailService {
         <h1>Asiento <span class="accent">Libre</span> 🚗</h1>
       </div>
       <div class="content">
-        <h2>¡Hola, ${firstName || 'viajero/a'}! 👋</h2>
+        <h2>¡Hola, ${safeFirstName}! 👋</h2>
         <p>Gracias por unirte a <strong>Asiento Libre</strong>, la comunidad para compartir viajes y moverte de forma más económica, segura y sostenible.</p>
         <p>Para activar tu cuenta y comenzar a publicar rutas o reservar asientos, por favor confirma tu dirección de correo haciendo clic en el siguiente botón:</p>
-        
+
         <div class="btn-container">
-          <a href="${verificationUrl}" class="btn" target="_blank">Verificar mi correo electrónico</a>
+          <a href="${safeVerificationUrl}" class="btn" target="_blank">Verificar mi correo electrónico</a>
         </div>
 
         <div class="info-box">
@@ -193,7 +201,7 @@ export class EmailService {
 
         <p style="font-size: 13px; color: #94A3B8; word-break: break-all;">
           ¿El botón no funciona? Copia y pega este enlace en tu navegador:<br>
-          <a href="${verificationUrl}" style="color: #17BFAC;">${verificationUrl}</a>
+          <a href="${safeVerificationUrl}" style="color: #17BFAC;">${safeVerificationUrl}</a>
         </p>
       </div>
       <div class="footer">
@@ -290,6 +298,8 @@ export class EmailService {
     firstName: string,
     code: string,
   ): Promise<{ success: boolean; messageId?: string }> {
+    const safeFirstName = escapeHtml(firstName || 'viajero/a');
+    const safeEmail = escapeHtml(toEmail);
     const currentApiKey = this.getApiKey();
     const currentSenderEmail =
       this.configService.get<string>('BREVO_SENDER_EMAIL') ||
@@ -403,10 +413,10 @@ export class EmailService {
       </div>
       <div class="content">
         <h2>Verificación de nuevo correo 🔐</h2>
-        <p>¡Hola, ${firstName || 'viajero/a'}! 👋</p>
-        <p>Has solicitado cambiar tu correo electrónico en <strong>Asiento Libre</strong> a esta dirección (<code>${toEmail}</code>).</p>
+        <p>¡Hola, ${safeFirstName}! 👋</p>
+        <p>Has solicitado cambiar tu correo electrónico en <strong>Asiento Libre</strong> a esta dirección (<code>${safeEmail}</code>).</p>
         <p>Introduce el siguiente código de 6 dígitos en tu perfil para confirmar el cambio:</p>
-        
+
         <div class="code-box">${code}</div>
 
         <div class="info-box">

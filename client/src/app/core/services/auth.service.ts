@@ -5,6 +5,7 @@ export interface Vehicle {
 	model: string;
 	color: string;
 	plate: string;
+	capacity: number;
 }
 
 export interface AuthUser {
@@ -40,7 +41,7 @@ export interface RegisterPayload extends LoginPayload {
 	vehicle?: Vehicle;
 }
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const TOKEN_KEY = 'asiento_libre_token';
 
 interface ApiErrorBody {
@@ -49,16 +50,20 @@ interface ApiErrorBody {
 }
 
 class AuthService {
-	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+	private async request<T>(path: string, options: RequestInit = {}, authenticated = false): Promise<T> {
 		let response: Response;
+		const headers = new Headers(options.headers);
+		headers.set('Content-Type', 'application/json');
+		if (authenticated) {
+			const token = this.getToken();
+			if (!token) throw new Error('No hay una sesión activa.');
+			headers.set('Authorization', `Bearer ${token}`);
+		}
 
 		try {
 			response = await fetch(`${API_URL}${path}`, {
 				...options,
-				headers: {
-					'Content-Type': 'application/json',
-					...options.headers,
-				},
+				headers,
 			});
 		} catch {
 			throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté ejecutándose.');
@@ -116,53 +121,48 @@ class AuthService {
 		});
 	}
 
-	async changeUnverifiedEmail(currentEmail: string, newEmail: string): Promise<{ message: string }> {
+	async changeUnverifiedEmail(currentEmail: string, newEmail: string, password: string): Promise<{ message: string }> {
 		return this.request<{ message: string }>('/auth/change-unverified-email', {
 			method: 'POST',
-			body: JSON.stringify({ currentEmail, newEmail }),
+			body: JSON.stringify({ currentEmail, newEmail, password }),
 		});
 	}
 
-	async requestEmailChange(currentEmail: string, newEmail: string): Promise<{ success: boolean; message: string; pendingEmail: string }> {
+	async requestEmailChange(newEmail: string): Promise<{ success: boolean; message: string; pendingEmail: string }> {
 		return this.request<{ success: boolean; message: string; pendingEmail: string }>('/auth/request-email-change', {
 			method: 'POST',
-			body: JSON.stringify({ currentEmail, newEmail }),
-		});
+			body: JSON.stringify({ newEmail }),
+		}, true);
 	}
 
-	async confirmEmailChange(currentEmail: string, code: string): Promise<{ success: boolean; message: string; newEmail: string }> {
+	async confirmEmailChange(code: string): Promise<{ success: boolean; message: string; newEmail: string }> {
 		return this.request<{ success: boolean; message: string; newEmail: string }>('/auth/confirm-email-change', {
 			method: 'POST',
-			body: JSON.stringify({ currentEmail, code }),
-		});
+			body: JSON.stringify({ code }),
+		}, true);
 	}
 
-	async cancelEmailChange(currentEmail: string): Promise<{ success: boolean; message: string }> {
+	async cancelEmailChange(): Promise<{ success: boolean; message: string }> {
 		return this.request<{ success: boolean; message: string }>('/auth/cancel-email-change', {
 			method: 'POST',
-			body: JSON.stringify({ currentEmail }),
-		});
+		}, true);
 	}
 
-	async resendEmailChangeCode(currentEmail: string): Promise<{ success: boolean; message: string; pendingEmail: string }> {
+	async resendEmailChangeCode(): Promise<{ success: boolean; message: string; pendingEmail: string }> {
 		return this.request<{ success: boolean; message: string; pendingEmail: string }>('/auth/resend-email-change-code', {
 			method: 'POST',
-			body: JSON.stringify({ currentEmail }),
-		});
+		}, true);
 	}
 
 	async updateProfile(data: {
-		userId: string;
 		firstName: string;
 		lastName: string;
-		nationalId?: string;
-		role: UserRole;
-		vehicle?: Vehicle;
+		nationalId: string;
 	}): Promise<{ success: boolean; message: string }> {
 		return this.request<{ success: boolean; message: string }>('/auth/update-profile', {
 			method: 'POST',
 			body: JSON.stringify(data),
-		});
+		}, true);
 	}
 
 	async logout(): Promise<void> {

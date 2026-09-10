@@ -5,12 +5,14 @@
 import { setActiveUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
 import type { AuthUser } from "../../../core/services/auth.service";
+import { escapeHtml } from "../../../core/dom";
 
 interface VehicleData {
   brand: string;
   model: string;
   color: string;
   plate: string;
+  capacity: number;
   documents: File[];
 }
 
@@ -92,14 +94,14 @@ export function showVerificationPending(user: AuthUser): void {
 
       <h1 class="verification-title">Verifica tu correo</h1>
       <p class="verification-subtitle">
-        ¡Ya casi, <strong>${user.firstName}</strong>! Hemos enviado un enlace de activación a:
+        ¡Ya casi, <strong>${escapeHtml(user.firstName)}</strong>! Hemos enviado un enlace de activación a:
       </p>
       <div class="verification-email-chip" id="verification-email-display">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
           <polyline points="22,6 12,13 2,6"/>
         </svg>
-        <span>${user.email}</span>
+        <span>${escapeHtml(user.email)}</span>
       </div>
 
       <p class="verification-hint">
@@ -148,6 +150,12 @@ export function showVerificationPending(user: AuthUser): void {
               placeholder="nuevo@correo.com"
               autocomplete="email"
             />
+          </div>
+        </div>
+        <div class="field">
+          <label for="change-email-password">Confirma tu contraseña</label>
+          <div class="input-container">
+            <input id="change-email-password" type="password" autocomplete="current-password" />
           </div>
         </div>
         <div class="change-email-actions">
@@ -264,12 +272,14 @@ async function handleResendVerification(email: string, btn: HTMLButtonElement): 
 
 async function handleChangeEmail(user: AuthUser): Promise<void> {
   const newEmailInput = $<HTMLInputElement>("#new-email-input");
+  const passwordInput = $<HTMLInputElement>("#change-email-password");
   const errorEl = $<HTMLDivElement>("#change-email-error");
   const confirmBtn = $<HTMLButtonElement>("#btn-confirm-change-email");
 
-  if (!newEmailInput) return;
+  if (!newEmailInput || !passwordInput) return;
 
   const newEmail = newEmailInput.value.trim();
+  const password = passwordInput.value;
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!newEmail || !emailRegex.test(newEmail)) {
@@ -287,6 +297,13 @@ async function handleChangeEmail(user: AuthUser): Promise<void> {
     }
     return;
   }
+  if (password.length < 6) {
+    if (errorEl) {
+      errorEl.textContent = "Ingresa la contraseña actual de la cuenta.";
+      errorEl.hidden = false;
+    }
+    return;
+  }
 
   if (errorEl) errorEl.hidden = true;
   if (confirmBtn) {
@@ -295,7 +312,7 @@ async function handleChangeEmail(user: AuthUser): Promise<void> {
   }
 
   try {
-    const result = await authService.changeUnverifiedEmail(user.email, newEmail);
+    const result = await authService.changeUnverifiedEmail(user.email, newEmail, password);
     showToast(result.message || "Correo actualizado. Revisa tu nueva bandeja de entrada.");
 
     // Actualizar la UI con el nuevo correo
@@ -769,18 +786,24 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
     const model = String(data.get("vehicleModel") ?? "").trim();
     const color = String(data.get("vehicleColor") ?? "").trim();
     const plate = String(data.get("vehiclePlate") ?? "").trim().toUpperCase();
+    const capacityValue = String(data.get("vehicleCapacity") ?? "").trim();
+    const capacity = Number(capacityValue);
 
-    if (brand || model || color || plate) {
-      if (!brand || !model || !color || !plate) {
-        showError("Por favor completa los datos de tu vehículo (Marca, Modelo, Color y Placa) o marca 'Agregar después'.");
-        return;
-      }
+    if (!brand || !model || !color || !plate || !capacityValue) {
+      showError("Completa los datos y la capacidad del vehículo o selecciona 'Agregar después'.");
+      return;
+    }
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 8) {
+      showError("La capacidad debe ser un número entero entre 1 y 8, sin incluir al conductor.");
+      return;
+    }
+    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
+      showError("La placa debe tener tres letras y tres números, por ejemplo ABC123.");
+      return;
     }
 
-    if (brand && model && color && plate) {
-      vehicleData = { brand, model, color, plate, documents: uploadedDocuments };
-      payload.vehicle = vehicleData;
-    }
+    vehicleData = { brand, model, color, plate, capacity, documents: uploadedDocuments };
+    payload.vehicle = vehicleData;
   }
 
   try {
@@ -803,7 +826,7 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
       role: payload.role,
       skipVehicle: payload.skipVehicle,
       vehicle: vehicleData
-        ? { brand: vehicleData.brand, model: vehicleData.model, color: vehicleData.color, plate: vehicleData.plate }
+        ? { brand: vehicleData.brand, model: vehicleData.model, color: vehicleData.color, plate: vehicleData.plate, capacity: vehicleData.capacity }
         : undefined,
     });
 

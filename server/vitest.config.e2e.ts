@@ -1,10 +1,12 @@
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { nestTypescript } from './test/typescript-transform.js';
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  plugins: [nestTypescript()],
+  resolve: { tsconfigPaths: true },
   test: {
     globals: true,
+    setupFiles: ['./test/setup.ts'],
     root: './',
     include: ['**/*.e2e-spec.ts'],
   },
