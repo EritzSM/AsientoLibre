@@ -300,6 +300,18 @@
       <button id="remove-confirm" class="btn btn-danger" type="button">Eliminar ruta</button>
     </div>
   </dialog>
+  <dialog id="survey-dialog" class="action-dialog survey-dialog" aria-labelledby="survey-title" aria-describedby="survey-description">
+    <h3 id="survey-title">Califica tu experiencia</h3>
+    <p id="survey-description" class="muted">Tu respuesta es anónima y ayuda a mejorar la comunidad.</p>
+    <form id="survey-form" novalidate>
+      <div id="survey-targets"></div>
+      <p id="survey-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="survey-later" class="btn btn-secondary" type="button">Ahora no</button>
+        <button id="survey-submit" class="btn btn-primary" type="submit">Guardar calificaciones</button>
+      </div>
+    </form>
+  </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 
   <script type="module" src="/src/app/features/pages/home/home.ts"></script>

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { Equals, IsDateString, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { Equals, IsDateString, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 
@@ -45,4 +45,15 @@ export class CancelRouteDto {
 export class CreateBookingDto {
   @IsInt() @Min(1) @Max(8)
   seats: number;
+}
+
+export class RateRouteDto {
+  @IsUUID()
+  ratedId: string;
+
+  @IsInt() @Min(1) @Max(5)
+  score: number;
+
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(500)
+  comment?: string;
 }

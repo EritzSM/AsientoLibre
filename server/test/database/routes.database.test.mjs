@@ -26,11 +26,17 @@ const routeSql = (overrides = {}) => {
 };
 const bookingSql = (routeId, actor = fixture.passenger, seats = 1) =>
   `SELECT public.book_route(${sqlValue(actor)}, ${sqlValue(routeId)}, ${seats});`;
+const finishSql = (routeId, actor) =>
+  `SELECT public.finish_route(${sqlValue(actor)}, ${sqlValue(routeId)});`;
+const ratingSql = (routeId, actor, rated, score, comment = null) =>
+  `SELECT public.submit_route_rating(${sqlValue(actor)}, ${sqlValue(routeId)}, ${sqlValue(rated)}, ${score}, ${sqlValue(comment)});`;
 const removalSql = (routeId, confirmed = false, actor = fixture.driver) =>
   `SELECT public.remove_route(${sqlValue(actor)}, ${sqlValue(routeId)}, ${confirmed});`;
 const createRoute = (overrides) => database.json(service(routeSql(overrides)));
 const book = (routeId, actor, seats) => database.json(service(bookingSql(routeId, actor, seats)));
 const remove = (routeId, confirmed, actor) => database.json(service(removalSql(routeId, confirmed, actor)));
+const finish = (routeId, actor) => database.json(service(finishSql(routeId, actor)));
+const rate = (routeId, actor, rated, score, comment) => database.json(service(ratingSql(routeId, actor, rated, score, comment)));
 
 before(async () => {
   database = await createTestDatabase();
@@ -40,6 +46,9 @@ before(async () => {
   // The base setup is safe to rerun before a versioned migration is applied once.
   await database.file(path('../../supabase/schema.sql'));
   await database.file(path('../../supabase/migrations/202609060001_routes.sql'));
+  await database.file(path('../../supabase/migrations/202609120001_route_completion.sql'));
+  await database.file(path('../../supabase/migrations/202609120002_cancel_before_departure.sql'));
+  await database.file(path('../../supabase/migrations/202609120003_route_ratings.sql'));
 
   await database.sql(`
     INSERT INTO auth.users (id) VALUES ${Object.values(fixture).map((id) => `(${sqlValue(id)})`).join(',')};
@@ -127,6 +136,37 @@ test('cancellation updates bookings and notifies each passenger exactly once acr
   assert(notices.every((notice) => notice.message.includes(route.origin) && notice.message.includes(route.destination)));
 });
 
+test('conductor y pasajeros finalizan su participación de forma independiente', async () => {
+  const route = await createRoute();
+  const booking = await book(route.id, fixture.passenger, 2);
+  const driverResult = await finish(route.id, fixture.driver);
+  assert.equal(driverResult.role, 'driver');
+  assert(driverResult.driverFinishedAt);
+  assert.equal(driverResult.passengerFinishedAt, null);
+  assert.equal(await database.sql(`SELECT driver_finished_at IS NOT NULL FROM public.routes WHERE id=${sqlValue(route.id)};`), 't');
+  assert.equal(await database.sql(`SELECT passenger_finished_at IS NOT NULL FROM public.bookings WHERE id=${sqlValue(booking.id)};`), 'f');
+
+  const passengerResult = await finish(route.id, fixture.passenger);
+  assert.equal(passengerResult.role, 'passenger');
+  assert(passengerResult.passengerFinishedAt);
+  assert.equal(await database.sql(`SELECT passenger_finished_at IS NOT NULL FROM public.bookings WHERE id=${sqlValue(booking.id)};`), 't');
+  await database.fails(service(`SELECT public.finish_route(${sqlValue(fixture.otherPassenger)},${sqlValue(route.id)});`), /FORBIDDEN/);
+});
+
+test('guarda calificaciones anónimas, impide duplicados y calcula el promedio', async () => {
+  const route = await createRoute();
+  await book(route.id, fixture.passenger, 2);
+  await database.sql(`UPDATE public.routes SET departure_at=now()-interval '1 hour' WHERE id=${sqlValue(route.id)};`);
+  await finish(route.id, fixture.driver);
+  await finish(route.id, fixture.passenger);
+  const first = await rate(route.id, fixture.driver, fixture.passenger, 5, 'Excelente pasajero.');
+  assert.equal((await rate(route.id, fixture.driver, fixture.passenger, 1, 'No debe reemplazar.')).id, first.id);
+  await rate(route.id, fixture.passenger, fixture.driver, 4);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.route_ratings WHERE rated_id=${sqlValue(fixture.passenger)};`), '1');
+  assert.equal(await database.sql(`SELECT avg(score) FROM public.route_ratings WHERE rated_id=${sqlValue(fixture.passenger)};`), '5.0000000000000000');
+  await database.fails(service(ratingSql(route.id, fixture.otherPassenger, fixture.driver, 5)), /FORBIDDEN/);
+});
+
 test('notification write failure rolls back both cancellation and booking changes', async () => {
   const route = await createRoute();
   await book(route.id);
@@ -164,7 +204,7 @@ test('anonymous and authenticated users cannot bypass the backend using tables, 
     for (const table of ['routes', 'bookings', 'notifications', 'route_catalog']) {
       await database.fails(`SET ROLE ${role}; SELECT * FROM public.${table};`, /permission denied/);
     }
-    for (const operation of [routeSql(), bookingSql(route.id), removalSql(route.id, true), `SELECT public.route_document(${sqlValue(route.id)});`]) {
+    for (const operation of [routeSql(), bookingSql(route.id), removalSql(route.id, true), `SELECT public.finish_route(${sqlValue(fixture.driver)},${sqlValue(route.id)});`, `SELECT public.route_document(${sqlValue(route.id)});`]) {
       await database.fails(`SET ROLE ${role}; ${operation}`, /permission denied for function/);
     }
   }

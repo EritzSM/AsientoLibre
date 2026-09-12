@@ -70,6 +70,15 @@ function populateProfileUI(user: AuthUser): void {
   if (sidebarRole) {
     sidebarRole.textContent = user.role === 'conductor' ? '🚗 Conductor' : '👤 Pasajero';
   }
+  const ratingValue = $<HTMLSpanElement>('#profile-rating-value');
+  const ratingCount = $<HTMLSpanElement>('#profile-rating-count');
+  if (user.ratingCount > 0 && user.averageRating !== null) {
+    if (ratingValue) ratingValue.textContent = user.averageRating.toFixed(2);
+    if (ratingCount) ratingCount.textContent = `${user.ratingCount} evaluación(es) anónima(s)`;
+  } else {
+    if (ratingValue) ratingValue.textContent = 'Sin calificaciones';
+    if (ratingCount) ratingCount.textContent = 'Aún no hay evaluaciones';
+  }
 
   // Formulario 1: Datos Personales
   const inputFirstName = $<HTMLInputElement>("#profile-firstname");

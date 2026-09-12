@@ -18,6 +18,8 @@ export interface AuthUser {
 	isActive: boolean;
 	skipVehicle?: boolean;
 	vehicle?: Vehicle;
+	averageRating: number | null;
+	ratingCount: number;
 }
 
 export interface AuthResponse {

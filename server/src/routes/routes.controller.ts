@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, ParseUUIDPipe, 
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 import { RoutesService } from './routes.service.js';
-import { CancelRouteDto, CreateBookingDto, CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
+import { CancelRouteDto, CreateBookingDto, CreateRouteDto, FindRoutesDto, RateRouteDto } from './dto/route.dto.js';
 
 const dtoPipe = (expectedType: new () => object) => new ValidationPipe({ expectedType, transform: true, whitelist: true, forbidNonWhitelisted: true });
 
@@ -28,6 +28,16 @@ export class RoutesController {
   @Post(':id/cancel') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
   cancel(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body(dtoPipe(CancelRouteDto)) _body: CancelRouteDto) {
     return this.routes.cancel(req.actorId, id);
+  }
+
+  @Post(':id/finish') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
+  finish(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.routes.finish(req.actorId, id);
+  }
+
+  @Post(':id/ratings') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
+  rate(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body(dtoPipe(RateRouteDto)) body: RateRouteDto) {
+    return this.routes.rate(req.actorId, id, body.ratedId, body.score, body.comment);
   }
 
   @Post(':id/bookings') @UseGuards(SupabaseAuthGuard)

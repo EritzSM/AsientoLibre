@@ -52,8 +52,11 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 1. `server/supabase/schema.sql`
 2. `server/supabase/migrations/202609060001_routes.sql`
 3. `server/supabase/migrations/202609090001_email_verification.sql`
+4. `server/supabase/migrations/202609120001_route_completion.sql`
+5. `server/supabase/migrations/202609120002_cancel_before_departure.sql`
+6. `server/supabase/migrations/202609120003_route_ratings.sql`
 
-Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas y agregan los campos de verificación de correo. La última migración es idempotente y se puede ejecutar sobre el proyecto existente.
+Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida y guardan calificaciones anónimas agregadas por perfil. Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
 
 ## Ejecución local
 
@@ -89,6 +92,8 @@ Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El ba
 - `GET /routes/mine`: consulta las rutas del conductor autenticado.
 - `DELETE /routes/:id`: elimina una ruta sin reservas confirmadas.
 - `POST /routes/:id/cancel`: cancela una ruta con confirmación explícita.
+- `POST /routes/:id/finish`: finaliza la participación del conductor o pasajero autenticado.
+- `POST /routes/:id/ratings`: guarda una calificación anónima de 1 a 5 para otro participante de la ruta.
 - `POST /routes/:id/bookings`: reserva cupos.
 - `GET /routes/bookings/mine`: consulta reservas propias.
 - `GET /vehicles/me` y `PUT /vehicles/me`: consulta o guarda el vehículo del conductor.

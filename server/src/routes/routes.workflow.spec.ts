@@ -119,6 +119,26 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     expect(rpc).toHaveBeenCalledWith('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
   });
 
+  it('finaliza la participación del actor autenticado sin mezclar roles', async () => {
+    rpc.mockResolvedValue({ data: { routeId, role: 'driver', driverFinishedAt: '2099-12-31T20:00:00.000Z' }, error: null });
+    const result = await request(app.getHttpServer()).post(`/routes/${routeId}/finish`)
+      .set('Authorization', 'Bearer valid-session').expect(200);
+    expect(result.body).toMatchObject({ routeId, role: 'driver' });
+    expect(rpc).toHaveBeenCalledWith('finish_route', { p_actor: actorId, p_route: routeId });
+  });
+
+  it('guarda una calificación usando la identidad autenticada del evaluador', async () => {
+    const ratedId = '20000000-0000-4000-8000-000000000001';
+    rpc.mockResolvedValue({ data: { routeId, ratedId, score: 5, comment: 'Excelente viaje.' }, error: null });
+    const result = await request(app.getHttpServer()).post(`/routes/${routeId}/ratings`)
+      .set('Authorization', 'Bearer valid-session')
+      .send({ ratedId, score: 5, comment: 'Excelente viaje.' }).expect(200);
+    expect(result.body).toMatchObject({ routeId, ratedId, score: 5 });
+    expect(rpc).toHaveBeenCalledWith('submit_route_rating', {
+      p_actor: actorId, p_route: routeId, p_rated: ratedId, p_score: 5, p_comment: 'Excelente viaje.',
+    });
+  });
+
   it('valida el identificador de ruta antes de consultar la base de datos', async () => {
     await request(app.getHttpServer()).delete('/routes/invalid').set('Authorization', 'Bearer valid-session').expect(400);
     expect(rpc).not.toHaveBeenCalled();

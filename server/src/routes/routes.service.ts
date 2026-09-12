@@ -7,6 +7,7 @@ export interface RouteRow {
   id: string; driver_id: string; driver_name: string; origin: string; destination: string;
   departure_at: string; seats: number; available_seats: number; price: number; note: string | null;
   status: string; confirmed_passengers: number; created_at: string;
+  driver_finished_at: string | null; passenger_finished_at?: string | null;
 }
 
 export function presentRoute(row: RouteRow) {
@@ -17,6 +18,7 @@ export function presentRoute(row: RouteRow) {
     origin: row.origin, destination: row.destination, date: local.slice(0, 10), time: local.slice(11, 16),
     seats: row.seats, availableSeats: row.available_seats, price: Number(row.price), note: row.note,
     status: row.status, confirmedPassengers: row.confirmed_passengers, createdAt: row.created_at,
+    driverFinishedAt: row.driver_finished_at, passengerFinishedAt: row.passenger_finished_at ?? null,
   };
 }
 
@@ -75,7 +77,7 @@ export class RoutesService {
 
   async myBookings(actorId: string) {
     const { data: bookings, error } = await this.supabase.getClient().from('bookings')
-      .select('id,route_id,seats,status,created_at').eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
+      .select('id,route_id,seats,status,passenger_finished_at,created_at').eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
     if (error) throwDatabaseError(error);
     if (!bookings?.length) return [];
     const { data: routes, error: routesError } = await this.supabase.getClient().from('route_catalog').select('*')
@@ -83,7 +85,17 @@ export class RoutesService {
     if (routesError) throwDatabaseError(routesError);
     const byId = new Map((routes as RouteRow[]).map((row) => [row.id, presentRoute(row)]));
     return bookings.map((booking) => ({ id: booking.id, routeId: booking.route_id, seats: booking.seats,
-      status: booking.status, createdAt: booking.created_at, route: byId.get(booking.route_id) }));
+      status: booking.status, passengerFinishedAt: booking.passenger_finished_at, createdAt: booking.created_at, route: byId.get(booking.route_id) }));
+  }
+
+  finish(actorId: string, routeId: string) {
+    return this.rpc('finish_route', { p_actor: actorId, p_route: routeId });
+  }
+
+  rate(actorId: string, routeId: string, ratedId: string, score: number, comment?: string) {
+    return this.rpc('submit_route_rating', {
+      p_actor: actorId, p_route: routeId, p_rated: ratedId, p_score: score, p_comment: comment || null,
+    });
   }
 
   private async rpc(name: string, parameters: Record<string, unknown>) {

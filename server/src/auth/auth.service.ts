@@ -40,6 +40,8 @@ export interface AuthResponse {
       plate: string;
       capacity: number | null;
     };
+    averageRating: number | null;
+    ratingCount: number;
   };
 }
 
@@ -115,6 +117,8 @@ export class AuthService {
         email: registerDto.email,
         role: registerDto.role,
         isActive: false,
+        averageRating: null,
+        ratingCount: 0,
         skipVehicle: registerDto.skipVehicle,
         vehicle: registerDto.vehicle ? { ...registerDto.vehicle, plate: registerDto.vehicle.plate.toUpperCase() } : undefined,
       },
@@ -381,6 +385,8 @@ export class AuthService {
         email: user.email ?? loginDto.email,
         role,
         isActive,
+        averageRating: null,
+        ratingCount: 0,
         vehicle: vehicle
           ? {
               brand: vehicle.brand,
@@ -428,6 +434,12 @@ export class AuthService {
       throw new ServiceUnavailableException('No se pudo consultar el perfil del usuario.');
     }
 
+    const { data: ratings, error: ratingsError } = await admin
+      .from('route_ratings').select('score').eq('rated_id', user.id);
+    if (ratingsError) throw new ServiceUnavailableException('No se pudo consultar la reputación del usuario.');
+    const ratingScores = (ratings ?? []).map((rating) => Number(rating.score)).filter(Number.isFinite);
+    const averageRating = ratingScores.length ? Number((ratingScores.reduce((sum, score) => sum + score, 0) / ratingScores.length).toFixed(2)) : null;
+
     return {
       id: user.id,
       firstName: profile?.first_name || user.user_metadata?.firstName || 'Usuario',
@@ -436,6 +448,8 @@ export class AuthService {
       email: user.email || '',
       role: profile?.role || user.user_metadata?.role || 'pasajero',
       isActive: profile?.is_active ?? false,
+      averageRating,
+      ratingCount: ratingScores.length,
       vehicle: vehicle
           ? {
             id: vehicle.id,

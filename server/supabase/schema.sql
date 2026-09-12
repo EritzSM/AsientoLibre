@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     CONSTRAINT unique_user_vehicle UNIQUE (user_id)
 );
 
+-- Completion timestamps are added by the routes migration after route tables exist.
+
 -- 4. Índices para optimizar consultas frecuentes
 CREATE INDEX IF NOT EXISTS idx_profiles_national_id ON public.profiles(national_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_activation_token ON public.profiles(activation_token) WHERE activation_token IS NOT NULL;

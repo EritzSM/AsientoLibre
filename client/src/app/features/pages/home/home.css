@@ -306,6 +306,7 @@ textarea { resize: vertical; min-height: 80px; }
   display: flex;
   flex-direction: column;
   gap: 16px;
+  align-self: start;
   animation: card-in 0.35s ease;
 }
 
@@ -389,7 +390,19 @@ textarea { resize: vertical; min-height: 80px; }
   gap: 12px;
 }
 
-.route-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.route-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+.route-actions .btn { width: 100%; }
+
+.survey-dialog { max-width: 560px; }
+.rating-fieldset { border: 0; margin: 0 0 22px; padding: 0 0 18px; border-bottom: 1px solid var(--border); }
+.rating-fieldset:last-child { margin-bottom: 0; }
+.rating-fieldset legend { color: var(--navy); font-weight: 800; margin-bottom: 10px; }
+.rating-fieldset .star-rating { justify-content: flex-start; margin-bottom: 12px; }
+.rating-fieldset .star-rating label { font-size: 2rem; }
+.rating-fieldset .star-rating label:hover, .rating-fieldset .star-rating label:has(input:checked), .rating-fieldset .star-rating label:has(~ label input:checked) { color: var(--orange); }
+.rating-fieldset .star-rating input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.survey-comment-label { font-size: 0.82rem; margin-bottom: 5px; }
+.rating-fieldset textarea { min-height: 60px; }
 
 .seat-indicator { display: flex; flex-direction: column; gap: 6px; }
 .seat-boxes { display: flex; gap: 5px; }

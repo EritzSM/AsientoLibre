@@ -118,6 +118,20 @@ body {
   margin-bottom: 24px;
 }
 
+.profile-rating-summary {
+  width: 100%;
+  padding: 14px 12px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fffaf0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.profile-rating-score { display: flex; justify-content: center; align-items: center; gap: 5px; color: var(--navy); font-size: 1.25rem; font-weight: 800; }
+.profile-rating-score span:last-child { color: var(--orange); }
+.profile-rating-summary > span { display: block; margin-top: 4px; }
+
 .profile-nav-links {
   width: 100%;
   display: flex;

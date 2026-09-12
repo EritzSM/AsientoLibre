@@ -14,6 +14,8 @@ export interface Route {
   note: string;
   status: 'published' | 'deleted' | 'cancelled';
   confirmedPassengers: number;
+  driverFinishedAt: string | null;
+  passengerFinishedAt: string | null;
   createdAt: string;
 }
 
@@ -51,8 +53,22 @@ export interface Booking {
   routeId: string;
   seats: number;
   status: string;
+  passengerFinishedAt: string | null;
   createdAt: string;
   route: Route;
+}
+
+export interface RatingTarget {
+  id: string;
+  name: string;
+}
+
+export interface FinishResult {
+  routeId: string;
+  role: 'driver' | 'passenger';
+  driverFinishedAt?: string;
+  passengerFinishedAt?: string;
+  ratingTargets?: RatingTarget[];
 }
 
 interface ErrorBody {
@@ -113,6 +129,10 @@ export const routesService = {
   create: (route: CreateRoute) => request<Route>('/routes', { method: 'POST', body: JSON.stringify(route) }),
   remove: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   cancel: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
+  finish: (id: string) => request<FinishResult>(`/routes/${encodeURIComponent(id)}/finish`, { method: 'POST' }),
+  rate: (routeId: string, ratedId: string, score: number, comment?: string) => request(`/routes/${encodeURIComponent(routeId)}/ratings`, {
+    method: 'POST', body: JSON.stringify({ ratedId, score, comment }),
+  }),
   reserve: (id: string, seats: number) => request(`/routes/${encodeURIComponent(id)}/bookings`, { method: 'POST', body: JSON.stringify({ seats }) }),
   vehicle: () => request<RegisteredVehicle | null>('/vehicles/me'),
   saveVehicle: (vehicle: Omit<RegisteredVehicle, 'id'>) => request<RegisteredVehicle>('/vehicles/me', { method: 'PUT', body: JSON.stringify(vehicle) }),

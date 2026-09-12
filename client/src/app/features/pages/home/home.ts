@@ -2,7 +2,7 @@
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute } from '../../../core/services/routes.service';
+import type { Route, RegisteredVehicle, CreateRoute, FinishResult, RatingTarget } from '../../../core/services/routes.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
 import { element as $, escapeHtml as escape, errorMessage, statusMessage } from '../../../core/dom';
 
@@ -12,7 +12,8 @@ let publicRoutes: Route[] = [];
 let ownRoutes: Route[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
-let removalNeedsCancellation = false;
+let activeSurvey: { routeId: string; targets: RatingTarget[] } | null = null;
+let surveySubmitting = false;
 let searchVersion = 0;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationRequest = false;
@@ -30,9 +31,15 @@ function dateLabel(date: string): string {
   });
 }
 
+function routeHasStarted(route: Route): boolean {
+  return new Date(`${route.date}T${route.time}:00-05:00`).getTime() <= Date.now();
+}
+
 export function routeCardHtml(route: Route, owner = false): string {
   const status = { published: 'Publicada', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
   const canReserve = !owner && route.status === 'published' && route.availableSeats > 0 && route.driverId !== user?.id;
+  const canCancel = route.status === 'published' && !routeHasStarted(route);
+  const canFinish = route.status === 'published' && routeHasStarted(route);
   const name = escape(route.driverName);
   const initials = escape(route.driverName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase());
   return `<article class="route-card" data-id="${escape(route.id)}">
@@ -55,7 +62,10 @@ export function routeCardHtml(route: Route, owner = false): string {
       ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Reservar asiento</button>` : ''}
     </div>
     ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) confirmado(s)</p>` : ''}
-    ${owner && route.status === 'published' ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">${route.confirmedPassengers > 0 ? 'Cancelar ruta' : 'Eliminar ruta'}</button>` : ''}
+    ${owner && (canCancel || (canFinish && !route.driverFinishedAt)) ? `<div class="route-actions">
+      ${canCancel ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">Cancelar ruta</button>` : ''}
+      ${canFinish && !route.driverFinishedAt ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">Finalizar ruta</button>` : ''}
+    </div>` : ''}
   </article>`;
 }
 
@@ -116,6 +126,9 @@ async function loadBookings(): Promise<void> {
       <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
       <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
       <p>${escape(booking.seats)} asiento(s) · ${booking.status === 'confirmed' ? 'Reserva confirmada' : 'Reserva cancelada'}</p>
+      ${booking.status === 'confirmed' && booking.route.status === 'published' && routeHasStarted(booking.route) && !booking.passengerFinishedAt
+        ? `<button type="button" class="btn btn-secondary" data-finish="${escape(booking.routeId)}">Finalizar ruta</button>`
+        : booking.passengerFinishedAt ? '<p class="hint">Ruta finalizada por ti</p>' : ''}
     </article>`).join('');
     $('#bookings-empty').hidden = bookings.length > 0;
   } catch (error) { statusMessage('#bookings-error', errorMessage(error)); }
@@ -255,18 +268,17 @@ async function reserve(event: SubmitEvent): Promise<void> {
 
 function describeRemoval(): void {
   if (!activeRemoval) return;
-  $('#remove-title').textContent = removalNeedsCancellation ? 'Cancelar ruta con pasajeros' : 'Eliminar ruta';
-  $('#remove-description').textContent = removalNeedsCancellation
+  $('#remove-title').textContent = 'Cancelar ruta';
+  $('#remove-description').textContent = activeRemoval.confirmedPassengers > 0
     ? `La ruta ${activeRemoval.origin} → ${activeRemoval.destination} tiene ${activeRemoval.confirmedPassengers} pasajero(s) confirmado(s). Al confirmar, se cancelarán sus reservas y recibirán una notificación en Asiento Libre.`
-    : `¿Quieres eliminar la ruta ${activeRemoval.origin} → ${activeRemoval.destination}? Dejará de estar visible para los pasajeros.`;
-  $('#remove-confirm').textContent = removalNeedsCancellation ? 'Confirmar cancelación y notificar' : 'Eliminar ruta';
+    : `¿Quieres cancelar la ruta ${activeRemoval.origin} → ${activeRemoval.destination}? Dejará de estar disponible para los pasajeros.`;
+  $('#remove-confirm').textContent = 'Confirmar cancelación';
 }
 
 function openRemoval(id: string): void {
   const route = ownRoutes.find((item) => item.id === id);
   if (!route || route.status !== 'published') return;
   activeRemoval = route;
-  removalNeedsCancellation = route.confirmedPassengers > 0;
   describeRemoval();
   statusMessage('#remove-error', '');
   $<HTMLDialogElement>('#remove-dialog').showModal();
@@ -281,23 +293,82 @@ async function confirmRemoval(): Promise<void> {
   $<HTMLButtonElement>('#remove-close').disabled = true;
   statusMessage('#remove-error', '');
   try {
-    const result = removalNeedsCancellation
-      ? await routesService.cancel(route.id)
-      : await routesService.remove(route.id);
+    const result = await routesService.cancel(route.id);
     $<HTMLDialogElement>('#remove-dialog').close();
-    toast(result.status === 'cancelled'
-      ? `Ruta cancelada. Se notificó a ${result.notifiedPassengers} pasajero(s).`
-      : 'Ruta eliminada. Ya no aparece en las búsquedas.');
+    toast(`Ruta cancelada. Se notificó a ${result.notifiedPassengers} pasajero(s).`);
     activeRemoval = null;
     await Promise.allSettled([loadRoutes(), loadMine()]);
   } catch (error) {
     if (error instanceof ApiError && error.code === 'CANCELLATION_CONFIRMATION_REQUIRED') {
-      removalNeedsCancellation = true;
       route.confirmedPassengers = error.confirmedPassengers;
       describeRemoval();
       statusMessage('#remove-error', 'Se confirmaron pasajeros desde tu última consulta. Revisa la información y confirma la cancelación para continuar.');
     } else { statusMessage('#remove-error', errorMessage(error)); }
   } finally { button.disabled = false; $<HTMLButtonElement>('#remove-close').disabled = false; }
+}
+
+async function finishRoute(button: HTMLButtonElement): Promise<void> {
+  const routeId = button.dataset.finish;
+  if (!routeId || button.disabled) return;
+  button.disabled = true;
+  try {
+    const result: FinishResult = await routesService.finish(routeId);
+    await Promise.allSettled([loadMine(), loadBookings()]);
+    if (result.ratingTargets?.length) openSurvey(routeId, result.ratingTargets);
+    else toast('Ruta finalizada correctamente.');
+  } catch (error) {
+    statusMessage(button.closest('#mine-list') ? '#mine-error' : '#bookings-error', errorMessage(error));
+    button.disabled = false;
+  }
+}
+
+function openSurvey(routeId: string, targets: RatingTarget[]): void {
+  activeSurvey = { routeId, targets };
+  const container = $('#survey-targets');
+  container.innerHTML = targets.map((target) => `<fieldset class="rating-fieldset">
+    <legend>¿Cómo fue tu experiencia con ${escape(target.name)}?</legend>
+    <div class="star-rating" role="radiogroup" aria-label="Calificación para ${escape(target.name)}">
+      ${[1, 2, 3, 4, 5].map((score) => `<label title="${score} de 5"><input type="radio" name="score:${escape(target.id)}" value="${score}" /><span aria-hidden="true">★</span><span class="sr-only">${score} de 5</span></label>`).join('')}
+    </div>
+    <label class="survey-comment-label" for="comment-${escape(target.id)}">Comentario opcional</label>
+    <textarea id="comment-${escape(target.id)}" name="comment:${escape(target.id)}" rows="2" maxlength="500" placeholder="Comparte una observación"></textarea>
+  </fieldset>`).join('');
+  statusMessage('#survey-error', '');
+  $<HTMLDialogElement>('#survey-dialog').showModal();
+}
+
+async function submitSurvey(event: SubmitEvent): Promise<void> {
+  event.preventDefault();
+  if (!activeSurvey || surveySubmitting) return;
+  const form = $<HTMLFormElement>('#survey-form');
+  const data = new FormData(form);
+  const ratings = activeSurvey.targets.map((target) => ({
+    target,
+    score: Number(data.get(`score:${target.id}`)),
+    comment: String(data.get(`comment:${target.id}`) || '').trim(),
+  }));
+  const missing = ratings.find((rating) => !Number.isInteger(rating.score) || rating.score < 1 || rating.score > 5);
+  if (missing) {
+    statusMessage('#survey-error', 'Selecciona una calificación para cada persona.');
+    return;
+  }
+  const button = $<HTMLButtonElement>('#survey-submit');
+  surveySubmitting = true;
+  button.disabled = true;
+  $<HTMLButtonElement>('#survey-later').disabled = true;
+  statusMessage('#survey-error', '');
+  try {
+    for (const rating of ratings) await routesService.rate(activeSurvey.routeId, rating.target.id, rating.score, rating.comment);
+    $<HTMLDialogElement>('#survey-dialog').close();
+    activeSurvey = null;
+    toast('Gracias. Tus calificaciones fueron guardadas de forma anónima.');
+  } catch (error) {
+    statusMessage('#survey-error', errorMessage(error));
+  } finally {
+    surveySubmitting = false;
+    button.disabled = false;
+    $<HTMLButtonElement>('#survey-later').disabled = false;
+  }
 }
 
 async function init(): Promise<void> {
@@ -306,12 +377,14 @@ async function init(): Promise<void> {
   $('#search-form').addEventListener('submit', (event) => { event.preventDefault(); void loadRoutes(); });
   $('#reserve-form').addEventListener('submit', (event) => { void reserve(event as SubmitEvent); });
   $('#remove-confirm').addEventListener('click', () => { void confirmRemoval(); });
+  $('#survey-form').addEventListener('submit', (event) => { void submitSurvey(event as SubmitEvent); });
+  $('#survey-later').addEventListener('click', () => { activeSurvey = null; $<HTMLDialogElement>('#survey-dialog').close(); });
   $('#refresh-mine').addEventListener('click', () => { void loadMine(); });
   $('#refresh-notifications').addEventListener('click', () => { void loadNotifications(); void loadBookings(); });
   for (const name of ['reserve', 'remove']) {
     $('#' + name + '-close').addEventListener('click', () => $<HTMLDialogElement>('#' + name + '-dialog').close());
     $('#' + name + '-dialog').addEventListener('cancel', (event) => {
-      const busy = $<HTMLButtonElement>(name === 'reserve' ? '#reserve-submit' : '#remove-confirm').disabled;
+      const busy = $<HTMLButtonElement>(name === 'reserve' ? '#reserve-submit' : name === 'remove' ? '#remove-confirm' : '#survey-submit').disabled;
       if (busy) event.preventDefault();
     });
   }
@@ -320,8 +393,13 @@ async function init(): Promise<void> {
     if (button?.dataset.reserve) openReservation(button.dataset.reserve);
   });
   $('#mine-list').addEventListener('click', (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove]');
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove], [data-finish]');
     if (button?.dataset.remove) openRemoval(button.dataset.remove);
+    if (button?.dataset.finish) void finishRoute(button);
+  });
+  $('#bookings-list').addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-finish]');
+    if (button?.dataset.finish) void finishRoute(button);
   });
   $('#notifications-list').addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-read]');
