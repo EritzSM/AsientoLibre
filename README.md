@@ -18,8 +18,9 @@ Aplicación universitaria de car pooling para conectar conductores y pasajeros, 
 - Recordatorios de viaje a las 24 horas y 1 hora, con correo, aviso interno y push cuando Firebase está configurado.
 - Confirmación de asistencia, estado de pasajeros y alerta al conductor 30 minutos antes.
 - Liberación manual del cupo de un pasajero que no confirmó.
+- Solicitudes de cupo pendientes, aceptación por el conductor y confirmación sin sobreventa.
 
-El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md), [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md) y [docs/SPRINT-2-HU09-RECORDATORIOS.md](docs/SPRINT-2-HU09-RECORDATORIOS.md).
+El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md), [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md), [docs/SPRINT-2-HU09-RECORDATORIOS.md](docs/SPRINT-2-HU09-RECORDATORIOS.md) y [docs/SPRINT-2-HU04-RESERVAS.md](docs/SPRINT-2-HU04-RESERVAS.md).
 
 ## Tecnologías
 
@@ -60,6 +61,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 3. `server/supabase/migrations/202609090001_email_verification.sql`
 4. `server/supabase/migrations/202609200001_profile_management.sql`
 5. `server/supabase/migrations/202609200002_trip_reminders.sql`
+6. `server/supabase/migrations/202609200003_booking_management.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas y agregan los campos de verificación de correo. La última migración es idempotente y se puede ejecutar sobre el proyecto existente.
 
@@ -97,8 +99,10 @@ Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El ba
 - `GET /routes/mine`: consulta las rutas del conductor autenticado.
 - `DELETE /routes/:id`: elimina una ruta sin reservas confirmadas.
 - `POST /routes/:id/cancel`: cancela una ruta con confirmación explícita.
-- `POST /routes/:id/bookings`: reserva cupos.
+- `POST /routes/:id/bookings`: crea o actualiza una solicitud de cupo pendiente.
 - `GET /routes/bookings/mine`: consulta reservas propias.
+- `GET /routes/booking-requests/mine`: consulta solicitudes pendientes de las rutas del conductor.
+- `POST /routes/booking-requests/:bookingId/accept`: acepta una solicitud y confirma la reserva.
 - `GET /vehicles/me` y `PUT /vehicles/me`: consulta o guarda el vehículo del conductor.
 - `GET /notifications` y `PATCH /notifications/:id/read`: consulta y marca avisos como leídos.
 

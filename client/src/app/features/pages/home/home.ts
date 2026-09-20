@@ -2,7 +2,7 @@
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute } from '../../../core/services/routes.service';
+import type { Route, RegisteredVehicle, CreateRoute, BookingRequest } from '../../../core/services/routes.service';
 import { enablePushNotifications, remindersService } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
@@ -12,6 +12,7 @@ let user: AuthUser | null = null;
 let vehicle: RegisteredVehicle | null = null;
 let publicRoutes: Route[] = [];
 let ownRoutes: Route[] = [];
+let bookingRequests: BookingRequest[] = [];
 let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
@@ -20,6 +21,10 @@ let searchVersion = 0;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationRequest = false;
 const priceFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
+const bookingStatusLabels: Record<string, string> = {
+  pending: 'Solicitud pendiente', confirmed: 'Reserva confirmada',
+  cancelled: 'Reserva cancelada',
+};
 
 function toast(message: string): void {
   statusMessage('#toast', message);
@@ -56,7 +61,7 @@ export function routeCardHtml(route: Route, owner = false): string {
     <div class="route-footer">
       <span class="seats-label">${escape(route.availableSeats)} de ${escape(route.seats)} cupos libres</span>
       ${owner ? `<span class="status-pill status-${escape(route.status)}">${escape(status)}</span>` : ''}
-      ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Reservar asiento</button>` : ''}
+      ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Solicitar cupo</button>` : ''}
     </div>
     ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) con reserva</p>${attendanceHtml(route.id)}` : ''}
     ${owner && route.status === 'published' ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">${route.confirmedPassengers > 0 ? 'Cancelar ruta' : 'Eliminar ruta'}</button>` : ''}
@@ -175,10 +180,29 @@ async function loadBookings(): Promise<void> {
     $('#bookings-list').innerHTML = bookings.map((booking) => `<article class="route-card">
       <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
       <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
-      <p>${escape(booking.seats)} asiento(s) · ${booking.status === 'confirmed' ? 'Reserva confirmada' : 'Reserva cancelada'}</p>
+      <p>${escape(booking.seats)} asiento(s) · ${escape(bookingStatusLabels[booking.status] ?? booking.status)}</p>
     </article>`).join('');
     $('#bookings-empty').hidden = bookings.length > 0;
   } catch (error) { statusMessage('#bookings-error', errorMessage(error)); }
+}
+
+async function loadBookingRequests(): Promise<void> {
+  if (user?.role !== 'conductor') return;
+  const button = $<HTMLButtonElement>('#refresh-booking-requests');
+  button.disabled = true;
+  statusMessage('#booking-requests-error', '');
+  try {
+    bookingRequests = await routesService.bookingRequests();
+    $('#booking-requests-list').innerHTML = bookingRequests.map((request) => `<article class="route-card">
+      <h3>${escape(request.passengerName)} solicita ${escape(request.seats)} cupo(s)</h3>
+      <p>${escape(request.route.origin)} → ${escape(request.route.destination)}</p>
+      <p>${escape(dateLabel(request.route.date))} · ${escape(request.route.time)} (Colombia)</p>
+      <button type="button" class="btn btn-primary" data-accept-booking="${escape(request.id)}">Aceptar y confirmar reserva</button>
+    </article>`).join('');
+    $('#booking-requests-empty').hidden = bookingRequests.length > 0;
+  } catch (error) {
+    statusMessage('#booking-requests-error', errorMessage(error));
+  } finally { button.disabled = false; }
 }
 
 async function loadNotifications(): Promise<void> {
@@ -220,6 +244,7 @@ async function loadSession(): Promise<void> {
     $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
     $('#mis-rutas').hidden = user.role !== 'conductor';
+    $('#solicitudes-cupo').hidden = user.role !== 'conductor';
     if (user.role !== 'conductor') {
       setPublishAccess('La publicación de rutas está disponible para cuentas de conductor.');
     } else {
@@ -236,7 +261,7 @@ async function loadSession(): Promise<void> {
   } catch (error) {
     setPublishAccess(errorMessage(error), { href: '/login.html', text: 'Revisar sesión' });
   }
-  await Promise.allSettled([loadMine(), loadBookings(), loadNotifications(), loadReminders()]);
+  await Promise.allSettled([loadMine(), loadBookings(), loadBookingRequests(), loadNotifications(), loadReminders()]);
   if (user?.role === 'conductor') await loadMine();
   renderPublicRoutes();
 }
@@ -286,7 +311,7 @@ function openReservation(id: string): void {
   if (!route) return;
   activeReservation = route;
   $('#reserve-route').textContent = `${route.origin} → ${route.destination}`;
-  $('#reserve-hint').textContent = `${route.availableSeats} cupos disponibles. Reserva a nombre de ${user.firstName} ${user.lastName}.`;
+  $('#reserve-hint').textContent = `${route.availableSeats} cupos disponibles. Solicitud a nombre de ${user.firstName} ${user.lastName}.`;
   const seats = $<HTMLInputElement>('#reserve-seats');
   seats.value = '1';
   seats.max = String(route.availableSeats);
@@ -309,9 +334,9 @@ async function reserve(event: SubmitEvent): Promise<void> {
   try {
     await routesService.reserve(activeReservation.id, seats);
     $<HTMLDialogElement>('#reserve-dialog').close();
-    toast('Reserva confirmada. Puedes consultarla en Mis reservas.');
+    toast('Solicitud enviada. El conductor recibirá una notificación para aceptarla.');
     activeReservation = null;
-    await Promise.allSettled([loadRoutes(), loadBookings()]);
+    await Promise.allSettled([loadRoutes(), loadBookings(), loadNotifications()]);
   } catch (error) { statusMessage('#reserve-error', errorMessage(error)); }
   finally { button.disabled = false; $<HTMLButtonElement>('#reserve-close').disabled = false; }
 }
@@ -370,6 +395,7 @@ async function init(): Promise<void> {
   $('#reserve-form').addEventListener('submit', (event) => { void reserve(event as SubmitEvent); });
   $('#remove-confirm').addEventListener('click', () => { void confirmRemoval(); });
   $('#refresh-mine').addEventListener('click', () => { void loadMine(); });
+  $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
   $('#refresh-notifications').addEventListener('click', () => { void loadNotifications(); void loadBookings(); });
   for (const name of ['reserve', 'remove']) {
     $('#' + name + '-close').addEventListener('click', () => $<HTMLDialogElement>('#' + name + '-dialog').close());
@@ -392,6 +418,20 @@ async function init(): Promise<void> {
     button.disabled = true;
     try { await routesService.markRead(button.dataset.read); await loadNotifications(); }
     catch (error) { statusMessage('#notifications-error', errorMessage(error)); button.disabled = false; }
+  });
+  $('#booking-requests-list').addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-accept-booking]');
+    if (!button?.dataset.acceptBooking || button.disabled) return;
+    button.disabled = true;
+    statusMessage('#booking-requests-error', '');
+    try {
+      await routesService.acceptBookingRequest(button.dataset.acceptBooking);
+      toast('Solicitud aceptada. La reserva quedó confirmada y ambas partes fueron notificadas.');
+      await Promise.allSettled([loadBookingRequests(), loadMine(), loadRoutes(), loadNotifications(), loadReminders()]);
+    } catch (error) {
+      statusMessage('#booking-requests-error', errorMessage(error));
+      button.disabled = false;
+    }
   });
   $('#reminder-banner-list').addEventListener('click', async (event) => {
     const target = event.target as HTMLElement;
@@ -447,6 +487,7 @@ async function init(): Promise<void> {
     if (document.visibilityState === 'visible') {
       void loadNotifications();
       void loadBookings();
+      void loadBookingRequests();
       void loadReminders();
     }
   };

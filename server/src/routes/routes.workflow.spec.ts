@@ -126,15 +126,22 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
   });
 
   it('requiere autenticación para historial, vehículo, reservas y notificaciones', async () => {
-    for (const path of ['/routes/mine', '/vehicles/me', '/routes/bookings/mine', '/notifications']) {
+    for (const path of ['/routes/mine', '/vehicles/me', '/routes/bookings/mine', '/routes/booking-requests/mine', '/notifications']) {
       await request(app.getHttpServer()).get(path).expect(401);
     }
     expect(from).not.toHaveBeenCalled();
   });
 
-  it('reserva usando la identidad verificada del pasajero', async () => {
+  it('registra una solicitud usando la identidad verificada del pasajero', async () => {
     await request(app.getHttpServer()).post(`/routes/${routeId}/bookings`).set('Authorization', 'Bearer valid-session').send({ seats: 2 }).expect(201);
-    expect(rpc).toHaveBeenCalledWith('book_route', { p_actor: actorId, p_route: routeId, p_seats: 2 });
+    expect(rpc).toHaveBeenCalledWith('request_booking', { p_actor: actorId, p_route: routeId, p_seats: 2 });
+  });
+
+  it('acepta una solicitud usando la identidad verificada del conductor', async () => {
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/booking-requests/${bookingId}/accept`)
+      .set('Authorization', 'Bearer valid-session').expect(200);
+    expect(rpc).toHaveBeenCalledWith('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
   });
 
   it('guarda la capacidad explícita del vehículo y normaliza la placa', async () => {

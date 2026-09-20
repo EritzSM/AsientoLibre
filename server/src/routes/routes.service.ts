@@ -72,8 +72,44 @@ export class RoutesService {
     return this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
   }
 
-  book(actorId: string, routeId: string, seats: number) {
-    return this.rpc('book_route', { p_actor: actorId, p_route: routeId, p_seats: seats });
+  requestBooking(actorId: string, routeId: string, seats: number) {
+    return this.rpc('request_booking', { p_actor: actorId, p_route: routeId, p_seats: seats });
+  }
+
+  acceptBookingRequest(actorId: string, bookingId: string) {
+    return this.rpc('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+  }
+
+  async pendingBookingRequests(actorId: string) {
+    const admin = this.supabase.getClient();
+    const { data: routes, error: routesError } = await admin.from('route_catalog').select('*')
+      .eq('driver_id', actorId).eq('status', 'published').gt('departure_at', new Date().toISOString())
+      .order('departure_at').limit(100);
+    if (routesError) throwDatabaseError(routesError);
+    if (!routes?.length) return [];
+    const routeIds = routes.map((route) => route.id as string);
+    const { data: requests, error } = await admin.from('bookings')
+      .select('id,route_id,passenger_id,seats,status,created_at')
+      .in('route_id', routeIds).eq('status', 'pending').order('created_at').limit(200);
+    if (error) throwDatabaseError(error);
+    if (!requests?.length) return [];
+    const passengerIds = [...new Set(requests.map((request) => request.passenger_id as string))];
+    const { data: passengers, error: passengerError } = await admin.from('profiles')
+      .select('id,first_name,last_name').in('id', passengerIds);
+    if (passengerError) throwDatabaseError(passengerError);
+    const routeById = new Map((routes as RouteRow[]).map((row) => [row.id, presentRoute(row)]));
+    const passengerById = new Map((passengers ?? []).map((profile) => [profile.id as string,
+      [profile.first_name, profile.last_name].filter(Boolean).join(' ')]));
+    return requests.map((request) => ({
+      id: request.id,
+      routeId: request.route_id,
+      passengerId: request.passenger_id,
+      passengerName: passengerById.get(request.passenger_id as string) || 'Pasajero',
+      seats: request.seats,
+      status: request.status,
+      createdAt: request.created_at,
+      route: routeById.get(request.route_id as string),
+    }));
   }
 
   async myBookings(actorId: string) {

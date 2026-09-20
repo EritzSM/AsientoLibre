@@ -266,6 +266,13 @@
           <div id="mine-list" class="routes-list"></div>
           <p id="mine-empty" class="empty-state" hidden>Todavía no has publicado rutas.</p>
         </section>
+        <section id="solicitudes-cupo" class="routes-panel" hidden aria-labelledby="booking-requests-title">
+          <div class="panel-heading"><h2 id="booking-requests-title">Solicitudes de cupo</h2><button id="refresh-booking-requests" type="button" class="btn btn-secondary">Actualizar</button></div>
+          <p class="muted">Los cupos se asignan cuando aceptas una solicitud.</p>
+          <p id="booking-requests-error" class="form-error" role="alert" hidden></p>
+          <div id="booking-requests-list" class="routes-list" aria-live="polite"></div>
+          <p id="booking-requests-empty" class="empty-state" hidden>No tienes solicitudes pendientes.</p>
+        </section>
         <section id="mis-reservas" class="routes-panel" hidden aria-labelledby="bookings-title">
           <h2 id="bookings-title">Mis reservas</h2>
           <p id="bookings-error" class="form-error" role="alert" hidden></p>
@@ -290,7 +297,7 @@
   </footer>
 
   <dialog id="reserve-dialog" class="action-dialog" aria-labelledby="reserve-title" aria-describedby="reserve-route">
-    <h3 id="reserve-title">Reservar asiento</h3>
+    <h3 id="reserve-title">Solicitar cupo</h3>
     <p id="reserve-route" class="route-chip"></p>
     <form id="reserve-form" novalidate>
       <div class="field">
@@ -301,7 +308,7 @@
       <p id="reserve-error" class="form-error" role="alert" hidden></p>
       <div class="dialog-actions">
         <button id="reserve-close" class="btn btn-secondary" type="button">Volver</button>
-        <button id="reserve-submit" class="btn btn-primary" type="submit">Confirmar reserva</button>
+        <button id="reserve-submit" class="btn btn-primary" type="submit">Enviar solicitud</button>
       </div>
     </form>
   </dialog>

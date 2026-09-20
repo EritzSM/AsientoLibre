@@ -19,6 +19,17 @@ export class RoutesController {
   @Get('bookings/mine') @UseGuards(SupabaseAuthGuard)
   myBookings(@Req() req: AuthenticatedRequest) { return this.routes.myBookings(req.actorId); }
 
+  @Get('booking-requests/mine') @UseGuards(SupabaseAuthGuard)
+  bookingRequests(@Req() req: AuthenticatedRequest) { return this.routes.pendingBookingRequests(req.actorId); }
+
+  @Post('booking-requests/:bookingId/accept') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
+  acceptBookingRequest(
+    @Req() req: AuthenticatedRequest,
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
+  ) {
+    return this.routes.acceptBookingRequest(req.actorId, bookingId);
+  }
+
   @Post() @UseGuards(SupabaseAuthGuard)
   create(@Req() req: AuthenticatedRequest, @Body(dtoPipe(CreateRouteDto)) body: CreateRouteDto) { return this.routes.create(req.actorId, body); }
 
@@ -32,6 +43,6 @@ export class RoutesController {
 
   @Post(':id/bookings') @UseGuards(SupabaseAuthGuard)
   book(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body(dtoPipe(CreateBookingDto)) body: CreateBookingDto) {
-    return this.routes.book(req.actorId, id, body.seats);
+    return this.routes.requestBooking(req.actorId, id, body.seats);
   }
 }

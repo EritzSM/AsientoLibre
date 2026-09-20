@@ -59,12 +59,16 @@ ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS metadata jsonb NOT NUL
 ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK (type IN (
   'route_cancelled', 'trip_reminder_24h', 'trip_reminder_1h',
-  'attendance_confirmed', 'attendance_missing', 'seat_released'
+  'attendance_confirmed', 'attendance_missing', 'seat_released',
+  'booking_requested', 'booking_confirmed'
 ));
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'notifications_route_recipient_type_unique'
       AND conrelid = 'public.notifications'::regclass
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_class WHERE relname = 'notifications_route_recipient_type_subject_unique'
+      AND relnamespace = 'public'::regnamespace
   ) THEN
     ALTER TABLE public.notifications ADD CONSTRAINT notifications_route_recipient_type_unique
       UNIQUE (route_id, recipient_id, type);

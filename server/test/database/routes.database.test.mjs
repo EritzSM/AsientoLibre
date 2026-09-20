@@ -31,6 +31,12 @@ const removalSql = (routeId, confirmed = false, actor = fixture.driver) =>
 const createRoute = (overrides) => database.json(service(routeSql(overrides)));
 const book = (routeId, actor, seats) => database.json(service(bookingSql(routeId, actor, seats)));
 const remove = (routeId, confirmed, actor) => database.json(service(removalSql(routeId, confirmed, actor)));
+const requestBooking = (routeId, actor = fixture.passenger, seats = 1) => database.json(service(
+  `SELECT public.request_booking(${sqlValue(actor)},${sqlValue(routeId)},${seats});`,
+));
+const acceptBooking = (bookingId, actor = fixture.driver) => database.json(service(
+  `SELECT public.accept_booking_request(${sqlValue(actor)},${sqlValue(bookingId)});`,
+));
 
 before(async () => {
   database = await createTestDatabase();
@@ -42,6 +48,8 @@ before(async () => {
   await database.file(path('../../supabase/migrations/202609060001_routes.sql'));
   await database.file(path('../../supabase/migrations/202609200001_profile_management.sql'));
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
+  await database.file(path('../../supabase/migrations/202609200003_booking_management.sql'));
+  await database.file(path('../../supabase/migrations/202609200003_booking_management.sql'));
   // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
@@ -318,5 +326,55 @@ test('HU-09 tables and privileged functions cannot be called directly by client 
     }
     await database.fails(`SET ROLE ${role}; SELECT public.confirm_trip_attendance(
       ${sqlValue(fixture.passenger)}, ${sqlValue(missingId)});`, /permission denied for function/);
+  }
+});
+
+test('HU-04 registers requests, notifies the driver and confirms only after acceptance', async () => {
+  const route = await createRoute({ seats: 2 });
+  const request = await requestBooking(route.id, fixture.passenger, 1);
+  assert.equal(request.status, 'pending');
+  assert.equal(await database.sql(`SELECT available_seats FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), '2');
+  assert.equal(await database.sql(`SELECT count(*) FROM public.notifications WHERE route_id=${sqlValue(route.id)}
+    AND recipient_id=${sqlValue(fixture.driver)} AND type='booking_requested';`), '1');
+
+  const accepted = await acceptBooking(request.id);
+  assert.equal(accepted.status, 'confirmed');
+  assert.equal(accepted.availableSeats, 1);
+  assert.equal(await database.sql(`SELECT available_seats FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), '1');
+  assert.equal(await database.sql(`SELECT status FROM public.trip_attendance WHERE route_id=${sqlValue(route.id)}
+    AND user_id=${sqlValue(fixture.passenger)};`), 'pending');
+  assert.equal(await database.sql(`SELECT count(*) FROM public.notifications WHERE route_id=${sqlValue(route.id)}
+    AND type='booking_confirmed';`), '2');
+  assert.equal((await acceptBooking(request.id)).status, 'confirmed');
+});
+
+test('HU-04 keeps one notification per passenger and serializes competing acceptances', async () => {
+  const route = await createRoute({ seats: 1 });
+  const firstRequest = await requestBooking(route.id, fixture.otherPassenger, 1);
+  const secondRequest = await requestBooking(route.id, fixture.thirdPassenger, 1);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.notifications WHERE route_id=${sqlValue(route.id)}
+    AND recipient_id=${sqlValue(fixture.driver)} AND type='booking_requested';`), '2');
+
+  const first = database.connection('qa_accept_first');
+  const second = database.connection('qa_accept_second');
+  first.send(`BEGIN; ${service(`SELECT public.accept_booking_request(${sqlValue(fixture.driver)},${sqlValue(firstRequest.id)});`)} SELECT 'ACCEPT_LOCK_HELD';`);
+  await first.waitFor('ACCEPT_LOCK_HELD');
+  second.send(service(`SELECT public.accept_booking_request(${sqlValue(fixture.driver)},${sqlValue(secondRequest.id)});`));
+  await database.waitForLock('qa_accept_second');
+  assert.equal((await first.end('COMMIT;')).code, 0);
+  const competing = await second.end();
+  assert.notEqual(competing.code, 0);
+  assert.match(competing.errors, /CONFLICT/);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.bookings WHERE route_id=${sqlValue(route.id)}
+    AND status='confirmed';`), '1');
+  assert.equal(await database.sql(`SELECT available_seats FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), '0');
+});
+
+test('HU-04 privileged booking operations are blocked for client roles', async () => {
+  for (const role of ['anon', 'authenticated']) {
+    await database.fails(`SET ROLE ${role}; SELECT public.request_booking(
+      ${sqlValue(fixture.passenger)},${sqlValue(missingId)},1);`, /permission denied for function/);
+    await database.fails(`SET ROLE ${role}; SELECT public.accept_booking_request(
+      ${sqlValue(fixture.driver)},${sqlValue(missingId)});`, /permission denied for function/);
   }
 });

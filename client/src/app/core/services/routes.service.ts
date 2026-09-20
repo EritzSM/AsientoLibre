@@ -58,6 +58,11 @@ export interface Booking {
   route: Route;
 }
 
+export interface BookingRequest extends Booking {
+  passengerId: string;
+  passengerName: string;
+}
+
 interface ErrorBody {
   message?: string | string[];
   code?: string;
@@ -113,6 +118,8 @@ export const routesService = {
   },
   mine: () => request<Route[]>('/routes/mine'),
   bookings: () => request<Booking[]>('/routes/bookings/mine'),
+  bookingRequests: () => request<BookingRequest[]>('/routes/booking-requests/mine'),
+  acceptBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
   create: (route: CreateRoute) => request<Route>('/routes', { method: 'POST', body: JSON.stringify(route) }),
   remove: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   cancel: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
