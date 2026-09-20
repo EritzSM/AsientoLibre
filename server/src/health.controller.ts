@@ -14,7 +14,7 @@ export class HealthController {
   async ready() {
     const client = this.supabase.getClient();
     const [{ error: routesError }, { error: profileError }, { error: remindersError }, { error: bookingsError }] = await Promise.all([
-      client.from('routes').select('id,meeting_point').limit(1),
+      client.from('routes').select('id,driver_finished_at,meeting_point').limit(1),
       client.from('profiles').select('phone').limit(1),
       client.from('trip_attendance').select('route_id').limit(1),
       client.from('bookings').select('id,responded_at').limit(1),
