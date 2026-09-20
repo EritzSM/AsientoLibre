@@ -7,6 +7,7 @@ El backend requiere el esquema base y la migración de rutas. En un proyecto nue
 1. `server/supabase/schema.sql`
 2. `server/supabase/migrations/202609060001_routes.sql`
 3. `server/supabase/migrations/202609090001_email_verification.sql`
+4. `server/supabase/migrations/202609200001_profile_management.sql`
 
 En el proyecto Supabase configurado actualmente ya existen `profiles` y `vehicles`; las migraciones versionadas se ejecutan una vez y la migración de correo puede repetirse de forma segura. No copies claves en el frontend ni confirmes una migración si el editor muestra un error.
 

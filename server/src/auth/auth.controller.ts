@@ -22,6 +22,8 @@ import { ChangeUnverifiedEmailDto } from './dto/change-email.dto.js';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto.js';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 
@@ -163,7 +165,27 @@ export class AuthController {
       firstName: dto.firstName,
       lastName: dto.lastName,
       nationalId: dto.nationalId,
+      phone: dto.phone,
     });
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async changePassword(@Req() req: AuthenticatedRequest, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(
+      req.actorId,
+      req.accessToken,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+  }
+
+  @Post('delete-account')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async deleteAccount(@Req() req: AuthenticatedRequest, @Body() dto: DeleteAccountDto) {
+    return this.authService.deleteAccount(req.actorId, dto.password);
   }
 
   @Post('logout')

@@ -357,8 +357,22 @@ function checkUrlParams(): void {
   const params = new URLSearchParams(window.location.search);
   const activated = params.get("activated");
   const error = params.get("error");
+  const passwordChanged = params.get("passwordChanged");
+  const accountDeleted = params.get("accountDeleted");
 
-  if (activated === "true") {
+  if (passwordChanged === "true") {
+    showSuccessBanner(
+      "Contraseña actualizada",
+      "La sesión se cerró por seguridad. Inicia sesión con tu nueva contraseña."
+    );
+    window.history.replaceState({}, "", "/login.html");
+  } else if (accountDeleted === "true") {
+    showSuccessBanner(
+      "Cuenta eliminada",
+      "Tu cuenta y sus datos asociados fueron eliminados correctamente."
+    );
+    window.history.replaceState({}, "", "/login.html");
+  } else if (activated === "true") {
     showSuccessBanner(
       "¡Correo verificado exitosamente! 🎉",
       "Tu cuenta está activa. Ya puedes iniciar sesión y comenzar a compartir viajes."

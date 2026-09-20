@@ -4,6 +4,7 @@ import { SupabaseService } from '../supabase/supabase.service.js';
 
 export interface AuthenticatedRequest extends Request {
   actorId: string;
+  accessToken: string;
 }
 
 @Injectable()
@@ -23,6 +24,7 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Debes verificar tu correo antes de continuar.');
     }
     request.actorId = data.user.id;
+    request.accessToken = match[1];
     return true;
   }
 }

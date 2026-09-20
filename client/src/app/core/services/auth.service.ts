@@ -13,6 +13,7 @@ export interface AuthUser {
 	firstName: string;
 	lastName: string;
 	nationalId?: string;
+	phone?: string;
 	email: string;
 	role: UserRole;
 	isActive: boolean;
@@ -158,11 +159,30 @@ class AuthService {
 		firstName: string;
 		lastName: string;
 		nationalId: string;
+		phone: string;
 	}): Promise<{ success: boolean; message: string }> {
 		return this.request<{ success: boolean; message: string }>('/auth/update-profile', {
 			method: 'POST',
 			body: JSON.stringify(data),
 		}, true);
+	}
+
+	async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+		const response = await this.request<{ success: boolean; message: string }>('/auth/change-password', {
+			method: 'POST',
+			body: JSON.stringify({ currentPassword, newPassword }),
+		}, true);
+		this.clearToken();
+		return response;
+	}
+
+	async deleteAccount(password: string): Promise<{ success: boolean; message: string }> {
+		const response = await this.request<{ success: boolean; message: string }>('/auth/delete-account', {
+			method: 'POST',
+			body: JSON.stringify({ password }),
+		}, true);
+		this.clearToken();
+		return response;
 	}
 
 	async logout(): Promise<void> {

@@ -12,8 +12,12 @@ export function setActiveUser(user: AuthUser): void {
   activeUser = user;
 }
 
-export function logoutUser(): void {
+export function clearActiveUser(): void {
   activeUser = null;
+}
+
+export function logoutUser(): void {
+  clearActiveUser();
   localStorage.removeItem("asiento_libre_token");
   window.location.href = "/index.html";
 }

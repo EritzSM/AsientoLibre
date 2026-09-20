@@ -40,6 +40,7 @@ before(async () => {
   // The base setup is safe to rerun before a versioned migration is applied once.
   await database.file(path('../../supabase/schema.sql'));
   await database.file(path('../../supabase/migrations/202609060001_routes.sql'));
+  await database.file(path('../../supabase/migrations/202609200001_profile_management.sql'));
 
   await database.sql(`
     INSERT INTO auth.users (id) VALUES ${Object.values(fixture).map((id) => `(${sqlValue(id)})`).join(',')};
@@ -64,6 +65,12 @@ test('creation persists normalized locations, verified driver and available pass
   assert.equal(route.availableSeats, 3);
   assert.equal(route.status, 'published');
   assert.equal(await database.sql(`SELECT count(*) FROM public.route_catalog WHERE id=${sqlValue(route.id)} AND status='published' AND available_seats=3;`), '1');
+});
+
+test('profile phone accepts only 7 to 15 digits', async () => {
+  await database.sql(`UPDATE public.profiles SET phone='3001234567' WHERE id=${sqlValue(fixture.passenger)};`);
+  assert.equal(await database.sql(`SELECT phone FROM public.profiles WHERE id=${sqlValue(fixture.passenger)};`), '3001234567');
+  await database.fails(`UPDATE public.profiles SET phone='+57 3001234567' WHERE id=${sqlValue(fixture.passenger)};`, /profiles_phone_format_check/);
 });
 
 test('creation rejects incomplete places, invalid seats, past dates and unavailable vehicle capacity', async () => {
@@ -230,4 +237,23 @@ test('competing reservations cannot sell the final seat twice', async () => {
   assert.match(result.errors, /CONFLICT/);
   assert.equal(await database.sql(`SELECT available_seats FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), '0');
   assert.equal(await database.sql(`SELECT count(*) FROM public.bookings WHERE route_id=${sqlValue(route.id)};`), '1');
+});
+
+test('deleting an auth user cascades their profile, vehicle, routes, bookings and notifications', async () => {
+  const route = await createRoute({ actor: fixture.otherDriver, seats: 2 });
+  await book(route.id, fixture.thirdPassenger);
+  await remove(route.id, true, fixture.otherDriver);
+
+  await database.sql(`DELETE FROM auth.users WHERE id=${sqlValue(fixture.otherDriver)};`);
+
+  for (const [table, predicate] of [
+    ['profiles', `id=${sqlValue(fixture.otherDriver)}`],
+    ['vehicles', `user_id=${sqlValue(fixture.otherDriver)}`],
+    ['routes', `driver_id=${sqlValue(fixture.otherDriver)}`],
+    ['bookings', `route_id=${sqlValue(route.id)}`],
+    ['notifications', `route_id=${sqlValue(route.id)}`],
+  ]) {
+    assert.equal(await database.sql(`SELECT count(*) FROM public.${table} WHERE ${predicate};`), '0');
+  }
+  assert.equal(await database.sql(`SELECT count(*) FROM public.profiles WHERE id=${sqlValue(fixture.thirdPassenger)};`), '1');
 });

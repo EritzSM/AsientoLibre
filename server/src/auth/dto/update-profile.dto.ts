@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsString({ message: 'El nombre debe ser una cadena' })
@@ -17,4 +17,10 @@ export class UpdateProfileDto {
   @IsNotEmpty({ message: 'La identificación es obligatoria' })
   @MaxLength(40)
   nationalId: string;
+
+  @IsString({ message: 'El teléfono debe ser una cadena' })
+  @Matches(/^$|^\d{7,15}$/, {
+    message: 'El teléfono debe contener únicamente entre 7 y 15 dígitos',
+  })
+  phone: string;
 }

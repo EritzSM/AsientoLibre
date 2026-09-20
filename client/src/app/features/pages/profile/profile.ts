@@ -2,7 +2,7 @@
 // Asiento Libre — Lógica de la Página de Perfil (Profile)
 // =========================================================
 
-import { getActiveUser, setActiveUser, initHeader } from "../../components/header/header";
+import { clearActiveUser, getActiveUser, setActiveUser, initHeader } from "../../components/header/header";
 import type { AuthUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
 import { routesService } from "../../../core/services/routes.service";
@@ -75,12 +75,14 @@ function populateProfileUI(user: AuthUser): void {
   const inputFirstName = $<HTMLInputElement>("#profile-firstname");
   const inputLastName = $<HTMLInputElement>("#profile-lastname");
   const inputNationalId = $<HTMLInputElement>("#profile-national-id");
+  const inputPhone = $<HTMLInputElement>("#profile-phone");
   const inputEmail = $<HTMLInputElement>("#profile-email");
   const selectRole = $<HTMLSelectElement>("#profile-role");
 
   if (inputFirstName) inputFirstName.value = user.firstName || "";
   if (inputLastName) inputLastName.value = user.lastName || "";
   if (inputNationalId) inputNationalId.value = user.nationalId || "";
+  if (inputPhone) inputPhone.value = user.phone || "";
   if (inputEmail) inputEmail.value = user.email || "";
   if (selectRole) selectRole.value = user.role || "pasajero";
 
@@ -162,11 +164,17 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
   const firstName = String(data.get("firstName") ?? "").trim();
   const lastName = String(data.get("lastName") ?? "").trim();
   const nationalId = String(data.get("nationalId") ?? "").trim();
+  const phone = String(data.get("phone") ?? "").trim();
   const newEmail = String(data.get("email") ?? "").trim().toLowerCase();
   const role = currentUser.role;
 
-  if (!firstName || !newEmail) {
-    showToast("Nombre y correo electrónico son obligatorios.");
+  if (!firstName || !lastName || !nationalId || !newEmail) {
+    showToast("Nombre, apellido, documento y correo electrónico son obligatorios.");
+    return;
+  }
+
+  if (phone && !/^\d{7,15}$/.test(phone)) {
+    showToast("El teléfono debe contener únicamente entre 7 y 15 dígitos.");
     return;
   }
 
@@ -187,6 +195,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         firstName,
         lastName,
         nationalId,
+        phone,
       });
 
       const updatedUser: AuthUser = {
@@ -194,6 +203,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         firstName,
         lastName,
         nationalId,
+        phone,
         role,
         vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
       };
@@ -211,6 +221,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         firstName,
         lastName,
         nationalId,
+        phone,
       });
 
       const updatedUser: AuthUser = {
@@ -218,13 +229,14 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         firstName,
         lastName,
         nationalId,
+        phone,
         role,
         vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
       };
 
       setActiveUser(updatedUser);
       populateProfileUI(updatedUser);
-      initHeader();
+      void initHeader(updatedUser);
       showToast("¡Tus datos personales fueron actualizados con éxito!");
     }
   } catch (err: unknown) {
@@ -279,7 +291,7 @@ async function handleConfirmEmailCode(event: Event): Promise<void> {
       };
       setActiveUser(updatedUser);
       populateProfileUI(updatedUser);
-      initHeader();
+      void initHeader(updatedUser);
     }
 
     closeEmailChangeModal();
@@ -372,7 +384,7 @@ async function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): Pro
 
     setActiveUser(updatedUser);
     populateProfileUI(updatedUser);
-    initHeader();
+    void initHeader(updatedUser);
     showToast("¡Los datos de tu vehículo fueron guardados con éxito!");
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -393,7 +405,7 @@ async function handleVehicleDataSubmit(event: Event, currentUser: AuthUser): Pro
 }
 
 // ---- Guardar Contraseña ----
-function handleSecuritySubmit(event: Event): void {
+async function handleSecuritySubmit(event: Event): Promise<void> {
   event.preventDefault();
   const form = $<HTMLFormElement>("#form-security-data");
   if (!form) return;
@@ -408,8 +420,8 @@ function handleSecuritySubmit(event: Event): void {
     return;
   }
 
-  if (newPassword.length < 6) {
-    showToast("La nueva contraseña debe tener al menos 6 caracteres.");
+  if (newPassword.length < 8 || newPassword.length > 72 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    showToast("La nueva contraseña debe tener entre 8 y 72 caracteres, con mayúscula, minúscula y número.");
     return;
   }
 
@@ -418,7 +430,27 @@ function handleSecuritySubmit(event: Event): void {
     return;
   }
 
-  showToast("El cambio de contraseña estará disponible en una próxima historia de usuario.");
+  if (currentPassword === newPassword) {
+    showToast("La nueva contraseña debe ser diferente a la actual.");
+    return;
+  }
+
+  const submitBtn = form.querySelector<HTMLButtonElement>("button[type='submit']");
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Actualizando...";
+    }
+    await authService.changePassword(currentPassword, newPassword);
+    clearActiveUser();
+    window.location.href = "/login.html?passwordChanged=true";
+  } catch (err: unknown) {
+    showToast(err instanceof Error ? err.message : String(err));
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Actualizar contraseña";
+    }
+  }
 }
 
 // ---- Eliminar Cuenta ----
@@ -426,30 +458,60 @@ function bindDeleteAccount(): void {
   const openModalBtn = $<HTMLButtonElement>("#btn-open-delete-modal");
   const modalOverlay = $<HTMLDivElement>("#delete-modal-overlay");
   const cancelBtn = $<HTMLButtonElement>("#btn-cancel-delete");
+  const form = $<HTMLFormElement>("#form-delete-account");
   const confirmBtn = $<HTMLButtonElement>("#btn-confirm-delete");
+  const passwordInput = $<HTMLInputElement>("#delete-account-password");
+  const errorBox = $<HTMLParagraphElement>("#delete-account-error");
+
+  const closeModal = (): void => {
+    if (modalOverlay) modalOverlay.hidden = true;
+    if (form) form.reset();
+    if (errorBox) {
+      errorBox.textContent = "";
+      errorBox.hidden = true;
+    }
+  };
 
   if (openModalBtn && modalOverlay) {
     openModalBtn.addEventListener("click", () => {
       modalOverlay.hidden = false;
+      setTimeout(() => passwordInput?.focus(), 100);
     });
   }
 
   if (cancelBtn && modalOverlay) {
     cancelBtn.addEventListener("click", () => {
-      modalOverlay.hidden = true;
+      closeModal();
     });
   }
 
   if (modalOverlay) {
     modalOverlay.addEventListener("click", (e) => {
-      if (e.target === modalOverlay) modalOverlay.hidden = true;
+      if (e.target === modalOverlay) closeModal();
     });
   }
 
-  if (confirmBtn) {
-    confirmBtn.addEventListener("click", () => {
-      showToast("La eliminación de cuenta estará disponible en una próxima historia de usuario.");
-      if (modalOverlay) modalOverlay.hidden = true;
+  if (form && confirmBtn) {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const password = passwordInput?.value ?? "";
+      if (!password) return;
+      if (errorBox) errorBox.hidden = true;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Eliminando...";
+
+      void authService.deleteAccount(password).then(() => {
+        clearActiveUser();
+        window.location.href = "/login.html?accountDeleted=true";
+      }).catch((err: unknown) => {
+        if (errorBox) {
+          errorBox.textContent = err instanceof Error ? err.message : String(err);
+          errorBox.hidden = false;
+        }
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Sí, eliminar cuenta";
+        passwordInput?.focus();
+      });
     });
   }
 }
@@ -529,7 +591,7 @@ async function initProfile(): Promise<void> {
   // Formulario 3: Seguridad
   const formSecurity = $<HTMLFormElement>("#form-security-data");
   if (formSecurity) {
-    formSecurity.addEventListener("submit", handleSecuritySubmit);
+    formSecurity.addEventListener("submit", (event) => void handleSecuritySubmit(event));
   }
 
   // Eliminar Cuenta y Sidebar

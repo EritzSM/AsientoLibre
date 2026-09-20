@@ -8,6 +8,7 @@ Aplicación universitaria de car pooling para conectar conductores y pasajeros, 
 - Activación de cuenta mediante enlace enviado por correo.
 - Corrección del correo antes de activar la cuenta.
 - Edición autenticada de datos personales y cambio de correo mediante código temporal.
+- Gestión del teléfono, cambio seguro de contraseña y eliminación de cuenta con confirmación de credenciales.
 - Registro del vehículo y su capacidad de 1 a 8 pasajeros.
 - Publicación y búsqueda de rutas futuras.
 - Validación de cupos contra la capacidad real del vehículo.
@@ -15,7 +16,7 @@ Aplicación universitaria de car pooling para conectar conductores y pasajeros, 
 - Eliminación de rutas sin pasajeros confirmados.
 - Cancelación confirmada de rutas con reservas y notificaciones persistentes para los pasajeros.
 
-El alcance y las pruebas de la historia de usuario de rutas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md).
+El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md) y [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md).
 
 ## Tecnologías
 
@@ -52,6 +53,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 1. `server/supabase/schema.sql`
 2. `server/supabase/migrations/202609060001_routes.sql`
 3. `server/supabase/migrations/202609090001_email_verification.sql`
+4. `server/supabase/migrations/202609200001_profile_management.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas y agregan los campos de verificación de correo. La última migración es idempotente y se puede ejecutar sobre el proyecto existente.
 
@@ -64,7 +66,7 @@ npm run dev
 - Frontend: `http://localhost:5173`
 - Backend: `http://127.0.0.1:3000`
 - Estado del backend: `http://127.0.0.1:3000/health`
-- Estado de Supabase y migraciones: `http://127.0.0.1:3000/health/ready`
+- Estado de Supabase y migraciones de rutas/perfil: `http://127.0.0.1:3000/health/ready`
 
 ## Verificación
 
@@ -95,3 +97,10 @@ Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El ba
 - `GET /notifications` y `PATCH /notifications/:id/read`: consulta y marca avisos como leídos.
 
 Las fechas y horas se interpretan en `America/Bogota` y se guardan en UTC.
+
+## API de gestión de perfil
+
+- `POST /auth/update-profile`: actualiza los datos personales y el teléfono.
+- `POST /auth/request-email-change` y `POST /auth/confirm-email-change`: cambian el correo mediante verificación.
+- `POST /auth/change-password`: comprueba la contraseña actual, actualiza la credencial y revoca las sesiones.
+- `POST /auth/delete-account`: comprueba la contraseña y elimina la cuenta con sus datos relacionados.

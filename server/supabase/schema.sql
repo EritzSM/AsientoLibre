@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
     national_id TEXT NOT NULL,
+    phone TEXT,
     role TEXT NOT NULL CHECK (role IN ('pasajero', 'conductor')),
     is_active BOOLEAN DEFAULT false NOT NULL,
     activation_token TEXT,
@@ -27,6 +28,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false NOT NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_phone_format_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_phone_format_check
+    CHECK (phone IS NULL OR phone ~ '^[0-9]{7,15}$');
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS activation_token TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_email TEXT;

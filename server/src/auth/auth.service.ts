@@ -28,6 +28,7 @@ export interface AuthResponse {
     firstName: string;
     lastName: string;
     nationalId?: string;
+    phone?: string;
     email: string;
     role: 'pasajero' | 'conductor';
     isActive: boolean;
@@ -378,6 +379,7 @@ export class AuthService {
         firstName,
         lastName,
         nationalId,
+        phone: profile?.phone || '',
         email: user.email ?? loginDto.email,
         role,
         isActive,
@@ -433,6 +435,7 @@ export class AuthService {
       firstName: profile?.first_name || user.user_metadata?.firstName || 'Usuario',
       lastName: profile?.last_name || user.user_metadata?.lastName || '',
       nationalId: profile?.national_id || user.user_metadata?.nationalId || '',
+      phone: profile?.phone || '',
       email: user.email || '',
       role: profile?.role || user.user_metadata?.role || 'pasajero',
       isActive: profile?.is_active ?? false,
@@ -532,15 +535,61 @@ export class AuthService {
 
   async updateProfile(
     actorId: string,
-    data: { firstName: string; lastName: string; nationalId: string },
+    data: { firstName: string; lastName: string; nationalId: string; phone: string },
   ): Promise<{ success: boolean; message: string }> {
     const { error } = await this.supabaseService.getClient().from('profiles').update({
       first_name: data.firstName.trim(),
       last_name: data.lastName.trim(),
       national_id: data.nationalId.trim(),
+      phone: data.phone.trim() || null,
     }).eq('id', actorId);
     if (error) throw new BadRequestException('No se pudieron actualizar los datos del perfil.');
     return { success: true, message: 'Perfil actualizado exitosamente.' };
+  }
+
+  private async verifyCurrentPassword(actorId: string, password: string): Promise<void> {
+    const admin = this.supabaseService.getClient();
+    const { data: userResult, error: userError } = await admin.auth.admin.getUserById(actorId);
+    const email = userResult.user?.email;
+    if (userError || !email) throw new NotFoundException('No se encontró la cuenta autenticada.');
+
+    const { data, error } = await this.supabaseService.createAuthClient().auth
+      .signInWithPassword({ email, password });
+    if (error || data.user?.id !== actorId) {
+      throw new UnauthorizedException('La contraseña actual no es correcta.');
+    }
+  }
+
+  async changePassword(
+    actorId: string,
+    accessToken: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('La nueva contraseña debe ser diferente a la actual.');
+    }
+    await this.verifyCurrentPassword(actorId, currentPassword);
+    const admin = this.supabaseService.getClient();
+    const { error } = await admin.auth.admin.updateUserById(actorId, { password: newPassword });
+    if (error) throw new ServiceUnavailableException('No se pudo actualizar la contraseña.');
+
+    const { error: signOutError } = await admin.auth.admin.signOut(accessToken, 'global');
+    if (signOutError) this.logger.warn(`La contraseña cambió, pero Supabase no revocó todas las sesiones de ${actorId}.`);
+    return { success: true, message: 'Contraseña actualizada. Inicia sesión nuevamente.' };
+  }
+
+  async deleteAccount(
+    actorId: string,
+    password: string,
+  ): Promise<{ success: boolean; message: string }> {
+    await this.verifyCurrentPassword(actorId, password);
+    const { error } = await this.supabaseService.getClient().auth.admin.deleteUser(actorId);
+    if (error) {
+      this.logger.error(`No se pudo eliminar la cuenta ${actorId}: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudo eliminar la cuenta. Verifica la migración de Gestión de Perfil.');
+    }
+    return { success: true, message: 'La cuenta y sus datos fueron eliminados.' };
   }
 
 }
