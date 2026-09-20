@@ -5,6 +5,7 @@ import type { CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
 
 export interface RouteRow {
   id: string; driver_id: string; driver_name: string; origin: string; destination: string;
+  meeting_point: string;
   departure_at: string; seats: number; available_seats: number; price: number; note: string | null;
   status: string; confirmed_passengers: number; created_at: string;
 }
@@ -14,7 +15,8 @@ export function presentRoute(row: RouteRow) {
   const local = new Date(new Date(row.departure_at).getTime() - 5 * 60 * 60 * 1000).toISOString();
   return {
     id: row.id, driverId: row.driver_id, driverName: row.driver_name,
-    origin: row.origin, destination: row.destination, date: local.slice(0, 10), time: local.slice(11, 16),
+    origin: row.origin, destination: row.destination, meetingPoint: row.meeting_point,
+    date: local.slice(0, 10), time: local.slice(11, 16),
     seats: row.seats, availableSeats: row.available_seats, price: Number(row.price), note: row.note,
     status: row.status, confirmedPassengers: row.confirmed_passengers, createdAt: row.created_at,
   };
@@ -55,9 +57,10 @@ export class RoutesService {
     if (!Number.isFinite(departureAt.getTime()) || departureAt.getTime() <= Date.now()) {
       throw new BadRequestException('La fecha y hora del viaje deben ser futuras (hora de Colombia).');
     }
-    return this.rpc('create_route', {
+    return this.rpc('create_route_v2', {
       p_actor: actorId, p_origin: dto.origin, p_destination: dto.destination,
-      p_departure_at: departureAt.toISOString(), p_seats: dto.seats, p_price: dto.price ?? 0, p_note: dto.note || null,
+      p_departure_at: departureAt.toISOString(), p_seats: dto.seats, p_price: dto.price ?? 0,
+      p_note: dto.note || null, p_meeting_point: dto.meetingPoint,
     });
   }
 

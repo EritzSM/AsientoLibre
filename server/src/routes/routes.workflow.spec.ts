@@ -13,7 +13,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 
 const actorId = '20000000-0000-4000-8000-000000000001';
 const routeId = '30000000-0000-4000-8000-000000000001';
-const routeBody = { origin: 'Bogotá', destination: 'Chía', date: '2099-12-31', time: '14:30', seats: 3, price: 8500, note: 'Punto de encuentro: biblioteca.' };
+const routeBody = { origin: 'Bogotá', destination: 'Chía', meetingPoint: 'Biblioteca principal', date: '2099-12-31', time: '14:30', seats: 3, price: 8500, note: 'Salida puntual.' };
 
 describe('Rutas: contrato HTTP, autenticación y validación', () => {
   let app: INestApplication;
@@ -51,15 +51,16 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     await request(app.getHttpServer()).post('/routes').set('Authorization', 'Bearer valid-session')
       .send({ ...routeBody, origin: '  Bogotá  ' }).expect(201);
     expect(getUser).toHaveBeenCalledWith('valid-session');
-    expect(rpc).toHaveBeenCalledWith('create_route', {
+    expect(rpc).toHaveBeenCalledWith('create_route_v2', {
       p_actor: actorId, p_origin: 'Bogotá', p_destination: 'Chía', p_departure_at: '2099-12-31T19:30:00.000Z',
-      p_seats: 3, p_price: 8500, p_note: routeBody.note,
+      p_seats: 3, p_price: 8500, p_note: routeBody.note, p_meeting_point: routeBody.meetingPoint,
     });
   });
 
   it.each([
     ['origen vacío', { origin: '' }], ['origen en blanco', { origin: '   ' }],
     ['destino ausente', { destination: undefined }], ['destino nulo', { destination: null }],
+    ['punto de encuentro vacío', { meetingPoint: ' ' }], ['punto de encuentro ausente', { meetingPoint: undefined }],
     ['origen igual al destino', { destination: 'bOgOtÁ' }],
     ['fecha imposible', { date: '2099-02-29' }], ['fecha sin formato', { date: '31/12/2099' }],
     ['fecha pasada', { date: '2000-01-01' }], ['hora imposible', { time: '24:00' }],

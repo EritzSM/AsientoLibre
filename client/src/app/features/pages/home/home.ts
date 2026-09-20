@@ -3,6 +3,8 @@ import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
 import type { Route, RegisteredVehicle, CreateRoute } from '../../../core/services/routes.service';
+import { enablePushNotifications, remindersService } from '../../../core/services/reminders.service';
+import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
 import { element as $, escapeHtml as escape, errorMessage, statusMessage } from '../../../core/dom';
 
@@ -10,6 +12,7 @@ let user: AuthUser | null = null;
 let vehicle: RegisteredVehicle | null = null;
 let publicRoutes: Route[] = [];
 let ownRoutes: Route[] = [];
+let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
 let removalNeedsCancellation = false;
@@ -47,6 +50,7 @@ export function routeCardHtml(route: Route, owner = false): string {
       <div class="route-connector"></div>
       <div class="route-point"><div><div class="route-point-label">Hasta</div><div class="route-point-value">${escape(route.destination)}</div></div></div>
     </div>
+    ${route.meetingPoint ? `<p class="meeting-point">Encuentro: ${escape(route.meetingPoint)}</p>` : ''}
     ${route.note ? `<p class="route-note">${escape(route.note)}</p>` : ''}
     <div class="route-meta"><span>${escape(dateLabel(route.date))}</span><span>${escape(route.time)} · Colombia</span></div>
     <div class="route-footer">
@@ -54,9 +58,65 @@ export function routeCardHtml(route: Route, owner = false): string {
       ${owner ? `<span class="status-pill status-${escape(route.status)}">${escape(status)}</span>` : ''}
       ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Reservar asiento</button>` : ''}
     </div>
-    ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) confirmado(s)</p>` : ''}
+    ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) con reserva</p>${attendanceHtml(route.id)}` : ''}
     ${owner && route.status === 'published' ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">${route.confirmedPassengers > 0 ? 'Cancelar ruta' : 'Eliminar ruta'}</button>` : ''}
   </article>`;
+}
+
+const attendanceLabels: Record<AttendanceStatus, string> = {
+  pending: 'Pendiente', confirmed: 'Confirmó', release_suggested: 'Sin confirmar',
+  released: 'Cupo liberado', cancelled: 'Cancelado',
+};
+
+function attendanceHtml(routeId: string): string {
+  const trip = tripReminders.find((item) => item.routeId === routeId && item.role === 'driver');
+  if (!trip?.participants.length) return '';
+  return `<div class="attendance-list" aria-label="Estado de asistencia">${trip.participants.map((participant) =>
+    `<span class="attendance-person attendance-${escape(participant.status)}">${escape(participant.name)}: ${escape(attendanceLabels[participant.status])}</span>`
+  ).join('')}</div>`;
+}
+
+function renderReminders(): void {
+  const list = $('#reminder-banner-list');
+  list.innerHTML = tripReminders.map((trip) => {
+    const start = new Date(trip.startsAt).toLocaleString('es-CO', {
+      timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short',
+    });
+    const urgent = trip.minutesUntil <= 60;
+    const canConfirm = trip.status === 'pending' || trip.status === 'release_suggested';
+    const passengers = trip.role === 'driver' ? attendanceHtml(trip.routeId) : '';
+    const releaseButtons = trip.role === 'driver'
+      ? trip.participants.filter((person) => person.status === 'release_suggested').map((person) =>
+          `<button type="button" class="btn btn-danger" data-release-trip="${escape(trip.routeId)}" data-release-passenger="${escape(person.userId)}">Liberar cupo de ${escape(person.name)}</button>`
+        ).join('')
+      : '';
+    return `<article class="reminder-banner ${urgent ? 'reminder-urgent' : ''}" data-trip="${escape(trip.routeId)}">
+      <h3>${urgent ? 'Viaje próximo' : 'Viaje programado'}: ${escape(trip.origin)} → ${escape(trip.destination)}</h3>
+      <p>${escape(start)} (Colombia) · faltan ${escape(trip.minutesUntil)} minutos</p>
+      <p class="meeting-point">Punto de encuentro: ${escape(trip.meetingPoint)}</p>
+      <p>Tu asistencia: <strong>${escape(attendanceLabels[trip.status])}</strong></p>
+      ${passengers}
+      <div class="reminder-actions">
+        ${canConfirm ? `<button type="button" class="btn btn-primary" data-confirm-trip="${escape(trip.routeId)}">Confirmar asistencia</button>` : ''}
+        ${releaseButtons}
+      </div>
+    </article>`;
+  }).join('');
+  $('#reminders-empty').hidden = tripReminders.length > 0;
+}
+
+async function loadReminders(): Promise<void> {
+  if (!user) return;
+  statusMessage('#reminders-error', '');
+  try {
+    tripReminders = await remindersService.dashboard();
+    renderReminders();
+    if (user.role === 'conductor' && ownRoutes.length) {
+      $('#mine-list').innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
+    }
+  } catch (error) {
+    statusMessage('#reminders-error', errorMessage(error));
+  }
 }
 
 function renderPublicRoutes(): void {
@@ -157,6 +217,7 @@ async function loadSession(): Promise<void> {
     user = await authService.getMe();
     await initHeader(user);
     $('#notificaciones').hidden = false;
+    $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
     $('#mis-rutas').hidden = user.role !== 'conductor';
     if (user.role !== 'conductor') {
@@ -175,12 +236,13 @@ async function loadSession(): Promise<void> {
   } catch (error) {
     setPublishAccess(errorMessage(error), { href: '/login.html', text: 'Revisar sesión' });
   }
-  await Promise.allSettled([loadMine(), loadBookings(), loadNotifications()]);
+  await Promise.allSettled([loadMine(), loadBookings(), loadNotifications(), loadReminders()]);
+  if (user?.role === 'conductor') await loadMine();
   renderPublicRoutes();
 }
 
 export function renderRouteErrors(errors: ReturnType<typeof validateRoute>): void {
-  for (const field of ['origin', 'destination', 'date', 'time', 'seats', 'price', 'note'] as const) {
+  for (const field of ['origin', 'destination', 'meetingPoint', 'date', 'time', 'seats', 'price', 'note'] as const) {
     const message = errors[field] || '';
     statusMessage('#' + field + '-error', message);
     $('#' + field).setAttribute('aria-invalid', String(Boolean(message)));
@@ -195,6 +257,7 @@ async function publish(event: SubmitEvent): Promise<void> {
   const data = new FormData(form);
   const route: CreateRoute = {
     origin: String(data.get('origin') || '').trim(), destination: String(data.get('destination') || '').trim(),
+    meetingPoint: String(data.get('meetingPoint') || '').trim(),
     date: String(data.get('date') || ''), time: String(data.get('time') || ''), seats: Number(data.get('seats')),
     price: Number(data.get('price') || 0), note: String(data.get('note') || '').trim(),
   };
@@ -212,7 +275,7 @@ async function publish(event: SubmitEvent): Promise<void> {
     await routesService.create(route);
     form.reset();
     toast('Tu ruta fue publicada. Ya está disponible para los pasajeros.');
-    await Promise.allSettled([loadRoutes(), loadMine()]);
+    await Promise.allSettled([loadRoutes(), loadMine(), loadReminders()]);
   } catch (error) { statusMessage('#publish-error', errorMessage(error)); }
   finally { button.disabled = false; button.textContent = 'Publicar ruta'; }
 }
@@ -330,6 +393,49 @@ async function init(): Promise<void> {
     try { await routesService.markRead(button.dataset.read); await loadNotifications(); }
     catch (error) { statusMessage('#notifications-error', errorMessage(error)); button.disabled = false; }
   });
+  $('#reminder-banner-list').addEventListener('click', async (event) => {
+    const target = event.target as HTMLElement;
+    const confirmButton = target.closest<HTMLButtonElement>('[data-confirm-trip]');
+    const releaseButton = target.closest<HTMLButtonElement>('[data-release-trip]');
+    const button = confirmButton ?? releaseButton;
+    if (!button || button.disabled) return;
+    button.disabled = true;
+    statusMessage('#reminders-error', '');
+    try {
+      if (confirmButton?.dataset.confirmTrip) {
+        await remindersService.confirm(confirmButton.dataset.confirmTrip);
+        toast('Asistencia confirmada. La contraparte recibirá la notificación.');
+      } else if (releaseButton?.dataset.releaseTrip && releaseButton.dataset.releasePassenger) {
+        await remindersService.release(releaseButton.dataset.releaseTrip, releaseButton.dataset.releasePassenger);
+        toast('El cupo fue liberado y el pasajero recibió la notificación.');
+      }
+      await Promise.allSettled([loadReminders(), loadNotifications(), loadMine(), loadRoutes(), loadBookings()]);
+    } catch (error) {
+      statusMessage('#reminders-error', errorMessage(error));
+      button.disabled = false;
+    }
+  });
+  $('#enable-push').addEventListener('click', async () => {
+    const button = $<HTMLButtonElement>('#enable-push');
+    button.disabled = true;
+    statusMessage('#reminders-error', '');
+    try {
+      const result = await enablePushNotifications(() => { void Promise.allSettled([loadReminders(), loadNotifications()]); });
+      if (result === 'enabled') {
+        button.textContent = 'Avisos push activados';
+        toast('Este dispositivo recibirá los recordatorios push.');
+      } else if (result === 'unconfigured') {
+        statusMessage('#reminders-error', 'Firebase todavía no está configurado. Los avisos internos y por correo siguen activos.');
+        button.disabled = false;
+      } else {
+        statusMessage('#reminders-error', 'El navegador no permitió activar las notificaciones push. Revisa sus permisos.');
+        button.disabled = false;
+      }
+    } catch (error) {
+      statusMessage('#reminders-error', errorMessage(error));
+      button.disabled = false;
+    }
+  });
   document.querySelectorAll<HTMLElement>('[data-scroll]').forEach((link) => {
     link.addEventListener('click', (event) => {
       const selector = link.dataset.target || link.getAttribute('href');
@@ -338,7 +444,11 @@ async function init(): Promise<void> {
   });
   await Promise.allSettled([loadRoutes(), loadSession()]);
   const refreshAccount = () => {
-    if (document.visibilityState === 'visible') { void loadNotifications(); void loadBookings(); }
+    if (document.visibilityState === 'visible') {
+      void loadNotifications();
+      void loadBookings();
+      void loadReminders();
+    }
   };
   const timer = setInterval(refreshAccount, 30000);
   window.addEventListener('focus', refreshAccount);

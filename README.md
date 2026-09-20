@@ -15,8 +15,11 @@ Aplicación universitaria de car pooling para conectar conductores y pasajeros, 
 - Reserva de cupos sin sobreventa.
 - Eliminación de rutas sin pasajeros confirmados.
 - Cancelación confirmada de rutas con reservas y notificaciones persistentes para los pasajeros.
+- Recordatorios de viaje a las 24 horas y 1 hora, con correo, aviso interno y push cuando Firebase está configurado.
+- Confirmación de asistencia, estado de pasajeros y alerta al conductor 30 minutos antes.
+- Liberación manual del cupo de un pasajero que no confirmó.
 
-El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md) y [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md).
+El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md), [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md) y [docs/SPRINT-2-HU09-RECORDATORIOS.md](docs/SPRINT-2-HU09-RECORDATORIOS.md).
 
 ## Tecnologías
 
@@ -44,6 +47,8 @@ El backend admite las claves actuales `SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_SEC
 
 `BREVO_API_KEY` y `BREVO_SENDER_EMAIL` habilitan el envío real de correos. Sin esas variables, el backend usa el modo local y muestra el enlace o código en su consola.
 
+Las variables `FIREBASE_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` y las variables `VITE_FIREBASE_*` habilitan las notificaciones push. La cuenta de servicio y sus credenciales deben permanecer fuera de Git. Los avisos internos y el correo funcionan aunque Firebase todavía no esté configurado.
+
 La contraseña de PostgreSQL no es necesaria para ejecutar la aplicación. El backend usa la API HTTPS de Supabase.
 
 ## Base de datos
@@ -54,6 +59,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 2. `server/supabase/migrations/202609060001_routes.sql`
 3. `server/supabase/migrations/202609090001_email_verification.sql`
 4. `server/supabase/migrations/202609200001_profile_management.sql`
+5. `server/supabase/migrations/202609200002_trip_reminders.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas y agregan los campos de verificación de correo. La última migración es idempotente y se puede ejecutar sobre el proyecto existente.
 
@@ -87,7 +93,7 @@ npm run test:db
 Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El backend obtiene la identidad desde el token y no acepta identificadores de propietario enviados por el cliente.
 
 - `GET /routes`: busca rutas publicadas con filtros opcionales de origen, destino y fecha.
-- `POST /routes`: publica origen, destino, fecha, hora, cupos, aporte y nota opcional.
+- `POST /routes`: publica origen, destino, punto de encuentro, fecha, hora, cupos, aporte y nota opcional.
 - `GET /routes/mine`: consulta las rutas del conductor autenticado.
 - `DELETE /routes/:id`: elimina una ruta sin reservas confirmadas.
 - `POST /routes/:id/cancel`: cancela una ruta con confirmación explícita.
@@ -97,6 +103,16 @@ Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El ba
 - `GET /notifications` y `PATCH /notifications/:id/read`: consulta y marca avisos como leídos.
 
 Las fechas y horas se interpretan en `America/Bogota` y se guardan en UTC.
+
+## API de recordatorios y asistencia
+
+- `GET /reminders`: consulta los próximos viajes y el estado de asistencia.
+- `GET /reminders/routes/:routeId/attendance`: muestra al conductor el estado de sus pasajeros.
+- `POST /reminders/routes/:routeId/confirm`: confirma la asistencia del usuario autenticado.
+- `POST /reminders/routes/:routeId/attendance/:passengerId/release`: libera una reserva sin confirmar.
+- `PUT /reminders/push-token` y `DELETE /reminders/push-token`: registra o retira un dispositivo.
+
+El scheduler se ejecuta cada minuto. La cola en PostgreSQL evita duplicados, permite reintentos y usa bloqueos para que varias instancias del backend no envíen el mismo recordatorio.
 
 ## API de gestión de perfil
 

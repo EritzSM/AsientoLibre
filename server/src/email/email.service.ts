@@ -502,4 +502,51 @@ export class EmailService {
       return { success: true };
     }
   }
+
+  async sendTripNotificationEmail(input: {
+    toEmail: string;
+    recipientName: string;
+    subject: string;
+    title: string;
+    message: string;
+    actionUrl?: string;
+  }): Promise<{ success: boolean; messageId?: string }> {
+    const apiKey = this.getApiKey();
+    const senderEmail = this.configService.get<string>('BREVO_SENDER_EMAIL') || this.senderEmail;
+    const senderName = this.configService.get<string>('BREVO_SENDER_NAME') || this.senderName;
+    const actionUrl = input.actionUrl || this.frontendUrl;
+    const htmlContent = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(input.subject)}</title></head>
+<body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#1e293b"><div style="max-width:600px;margin:32px auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden">
+<div style="background:#0b1e3b;color:#fff;padding:24px;text-align:center"><strong style="font-size:22px">Asiento Libre</strong></div>
+<div style="padding:30px"><h1 style="font-size:22px;color:#0b1e3b">${escapeHtml(input.title)}</h1><p>Hola, ${escapeHtml(input.recipientName || 'viajero/a')}.</p>
+<p style="line-height:1.65">${escapeHtml(input.message)}</p><p style="text-align:center;margin:28px 0"><a href="${escapeHtml(actionUrl)}" style="background:#17bfac;color:#fff;text-decoration:none;padding:13px 24px;border-radius:8px;font-weight:700">Ver detalles del viaje</a></p></div>
+<div style="padding:18px 30px;background:#f8fafc;color:#64748b;font-size:12px;text-align:center">Asiento Libre · Recordatorio automático de viaje</div></div></body></html>`;
+
+    if (!apiKey) {
+      this.logger.log(`Correo de viaje simulado para ${input.toEmail}: ${input.subject}`);
+      return { success: true };
+    }
+
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { accept: 'application/json', 'api-key': apiKey, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sender: { name: senderName, email: senderEmail || undefined },
+          to: [{ email: input.toEmail, name: input.recipientName || undefined }],
+          subject: input.subject,
+          htmlContent,
+        }),
+      });
+      const data = await response.json().catch(() => ({})) as { message?: string; messageId?: string };
+      if (!response.ok) {
+        this.logger.error(`Brevo rechazó el correo de viaje [${response.status}]: ${data.message || response.statusText}`);
+        return { success: false };
+      }
+      return { success: true, messageId: data.messageId };
+    } catch (error: unknown) {
+      this.logger.error(`No se pudo enviar el correo de viaje: ${error instanceof Error ? error.message : String(error)}`);
+      return { success: false };
+    }
+  }
 }

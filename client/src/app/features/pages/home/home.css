@@ -627,6 +627,15 @@ button:disabled { cursor: wait; opacity: 0.6; }
 .notification time { color: var(--text-muted); font-size: 0.8rem; }
 .notification-unread { border-left: 3px solid var(--teal-dark); padding-left: 16px; }
 .notification .btn { padding: 10px 14px; flex-shrink: 0; font-size: 0.8rem; }
+.reminder-list { display: grid; gap: 16px; }
+.reminder-banner { border: 1px solid var(--border); border-left: 5px solid var(--teal-dark); border-radius: 14px; padding: 18px; background: #f8fffe; }
+.reminder-banner h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.reminder-banner p { margin: 6px 0; }
+.reminder-actions, .attendance-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.attendance-person { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px; background: #eef2f6; font-size: 0.82rem; }
+.attendance-confirmed { background: var(--teal-pale); color: #075e56; }
+.attendance-release_suggested { background: #fff4dc; color: #805500; }
+.meeting-point { color: var(--navy-soft); font-weight: 600; }
 .toast { white-space: normal; width: max-content; max-width: calc(100% - 32px); text-align: center; }
 .btn-primary, .btn-reserve { background: #087f73; }
 .btn-primary:hover, .btn-reserve:hover { background: #06665d; }

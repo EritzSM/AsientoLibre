@@ -4,12 +4,13 @@ import type { SupabaseService } from '../supabase/supabase.service.js';
 describe('consulta de rutas', () => {
   const row = {
     id: 'route', driver_id: 'driver', driver_name: 'Ana Ruiz', origin: 'Bogotá', destination: 'Chía',
+    meeting_point: 'Portal norte',
     departure_at: '2099-12-31T02:30:00Z', seats: 4, available_seats: 2, price: 8500, note: null,
     status: 'published', confirmed_passengers: 1, created_at: '2099-01-01T00:00:00Z',
   };
 
   it('presenta fecha/hora de Colombia aun cuando UTC corresponde al día siguiente', () => {
-    expect(presentRoute(row)).toMatchObject({ date: '2099-12-30', time: '21:30', driverName: 'Ana Ruiz', availableSeats: 2, confirmedPassengers: 1 });
+    expect(presentRoute(row)).toMatchObject({ date: '2099-12-30', time: '21:30', meetingPoint: 'Portal norte', driverName: 'Ana Ruiz', availableSeats: 2, confirmedPassengers: 1 });
   });
 
   it('solo busca rutas publicadas, futuras y con cupos; fecha usa el día completo de Colombia', async () => {

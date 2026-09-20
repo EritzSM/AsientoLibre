@@ -18,6 +18,11 @@ export function validateRoute(route: CreateRoute, capacity: number | null, now =
     if (!value) errors[field] = field === 'origin' ? 'Ingresa el origen del viaje.' : 'Ingresa el destino del viaje.';
     else if (value.length < 2 || value.length > 160) errors[field] = 'Escribe entre 2 y 160 caracteres.';
   }
+  const meetingPoint = route.meetingPoint.trim();
+  if (!meetingPoint) errors.meetingPoint = 'Ingresa el punto exacto de encuentro.';
+  else if (meetingPoint.length < 2 || meetingPoint.length > 200) {
+    errors.meetingPoint = 'Escribe entre 2 y 200 caracteres.';
+  }
   if (route.origin.trim() && route.origin.trim().toLocaleLowerCase() === route.destination.trim().toLocaleLowerCase()) {
     errors.destination = 'El destino debe ser diferente del origen.';
   }

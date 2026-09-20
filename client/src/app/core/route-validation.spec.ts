@@ -6,6 +6,7 @@ const future = Date.parse('2030-01-01T17:00:00Z');
 const validRoute: CreateRoute = {
   origin: 'Medellín',
   destination: 'Universidad de Medellín',
+  meetingPoint: 'Portería principal del centro comercial',
   date: '2030-01-02',
   time: '07:30',
   seats: 3,
@@ -22,6 +23,7 @@ describe('validación de publicación de rutas', () => {
     [{ origin: '' }, 'origin'],
     [{ destination: '   ' }, 'destination'],
     [{ destination: 'mEdElLíN' }, 'destination'],
+    [{ meetingPoint: ' ' }, 'meetingPoint'],
     [{ date: '2030-02-30' }, 'date'],
     [{ time: '24:00' }, 'time'],
     [{ seats: 0 }, 'seats'],

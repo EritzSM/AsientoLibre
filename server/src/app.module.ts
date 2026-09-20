@@ -8,6 +8,8 @@ import { RoutesModule } from './routes/routes.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { HealthController } from './health.controller.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { RemindersModule } from './reminders/reminders.module.js';
 
 @Module({
   imports: [
@@ -15,11 +17,13 @@ import { HealthController } from './health.controller.js';
       isGlobal: true,
       envFilePath: ['.env', '.env.local'],
     }),
+    ScheduleModule.forRoot(),
     SupabaseModule,
     AuthModule,
     RoutesModule,
     VehiclesModule,
     NotificationsModule,
+    RemindersModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

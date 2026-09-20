@@ -41,6 +41,9 @@ before(async () => {
   await database.file(path('../../supabase/schema.sql'));
   await database.file(path('../../supabase/migrations/202609060001_routes.sql'));
   await database.file(path('../../supabase/migrations/202609200001_profile_management.sql'));
+  await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
+  // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
+  await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
   await database.sql(`
     INSERT INTO auth.users (id) VALUES ${Object.values(fixture).map((id) => `(${sqlValue(id)})`).join(',')};
@@ -256,4 +259,64 @@ test('deleting an auth user cascades their profile, vehicle, routes, bookings an
     assert.equal(await database.sql(`SELECT count(*) FROM public.${table} WHERE ${predicate};`), '0');
   }
   assert.equal(await database.sql(`SELECT count(*) FROM public.profiles WHERE id=${sqlValue(fixture.thirdPassenger)};`), '1');
+});
+
+test('HU-09 schedules idempotent 24h and 1h reminders and alerts the driver at 30 minutes', async () => {
+  const route = await database.json(service(`SELECT public.create_route_v2(
+    ${sqlValue(fixture.driver)}, 'Medellin', 'Campus', now() + interval '23 hours 30 minutes',
+    4, 7000, 'Prueba HU-09', 'Porteria principal');`));
+  await book(route.id, fixture.passenger, 1);
+  await book(route.id, fixture.otherPassenger, 2);
+  assert.equal(route.meetingPoint, 'Porteria principal');
+  assert.equal(await database.sql(`SELECT meeting_point FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), 'Porteria principal');
+
+  const departure = await database.sql(`SELECT departure_at::text FROM public.routes WHERE id=${sqlValue(route.id)};`);
+  const at24h = await database.json(service(`SELECT COALESCE(jsonb_agg(to_jsonb(q)), '[]'::jsonb)
+    FROM public.claim_due_trip_reminders('qa-24h', 50, (${sqlValue(departure)}::timestamptz - interval '23 hours 45 minutes')) q;`));
+  assert.equal(at24h.length, 3);
+  assert(at24h.every((delivery) => delivery.kind === '24h' && delivery.meeting_point === 'Porteria principal'));
+  for (const delivery of at24h) {
+    await database.sql(service(`SELECT public.complete_trip_reminder_delivery(${sqlValue(delivery.id)}, true, NULL);`));
+  }
+  assert.equal(await database.sql(service(`SELECT count(*) FROM public.claim_due_trip_reminders(
+    'qa-24h-repeat', 50, (${sqlValue(departure)}::timestamptz - interval '23 hours 45 minutes'));`)), '0');
+
+  const at1h = await database.json(service(`SELECT COALESCE(jsonb_agg(to_jsonb(q)), '[]'::jsonb)
+    FROM public.claim_due_trip_reminders('qa-1h', 50, (${sqlValue(departure)}::timestamptz - interval '50 minutes')) q;`));
+  assert.equal(at1h.length, 3);
+  assert(at1h.every((delivery) => delivery.kind === '1h'));
+  for (const delivery of at1h) {
+    await database.sql(service(`SELECT public.complete_trip_reminder_delivery(${sqlValue(delivery.id)}, true, NULL);`));
+  }
+
+  const confirmation = await database.json(service(`SELECT public.confirm_trip_attendance(
+    ${sqlValue(fixture.passenger)}, ${sqlValue(route.id)});`));
+  assert.equal(confirmation.status, 'confirmed');
+  assert.equal(await database.sql(`SELECT count(*) FROM public.notifications WHERE route_id=${sqlValue(route.id)}
+    AND recipient_id=${sqlValue(fixture.driver)} AND type='attendance_confirmed';`), '1');
+
+  const at30m = await database.json(service(`SELECT COALESCE(jsonb_agg(to_jsonb(q)), '[]'::jsonb)
+    FROM public.claim_due_trip_reminders('qa-30m', 50, (${sqlValue(departure)}::timestamptz - interval '25 minutes')) q;`));
+  const missing = at30m.filter((delivery) => delivery.kind === '30m_missing');
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].recipient_id, fixture.driver);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.trip_reminder_deliveries WHERE route_id=${sqlValue(route.id)}
+    AND kind='30m_missing';`), '1');
+
+  const released = await database.json(service(`SELECT public.release_unconfirmed_seat(
+    ${sqlValue(fixture.driver)}, ${sqlValue(route.id)}, ${sqlValue(fixture.otherPassenger)});`));
+  assert.equal(released.releasedSeats, 2);
+  assert.equal(await database.sql(`SELECT available_seats FROM public.route_catalog WHERE id=${sqlValue(route.id)};`), '3');
+  await database.fails(service(`SELECT public.release_unconfirmed_seat(
+    ${sqlValue(fixture.driver)}, ${sqlValue(route.id)}, ${sqlValue(fixture.passenger)});`), /CONFLICT/);
+});
+
+test('HU-09 tables and privileged functions cannot be called directly by client roles', async () => {
+  for (const role of ['anon', 'authenticated']) {
+    for (const table of ['push_tokens', 'trip_attendance', 'trip_reminder_deliveries']) {
+      await database.fails(`SET ROLE ${role}; SELECT * FROM public.${table};`, /permission denied/);
+    }
+    await database.fails(`SET ROLE ${role}; SELECT public.confirm_trip_attendance(
+      ${sqlValue(fixture.passenger)}, ${sqlValue(missingId)});`, /permission denied for function/);
+  }
 });

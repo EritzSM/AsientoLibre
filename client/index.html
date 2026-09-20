@@ -184,7 +184,7 @@
               <div class="field-row">
                 <div class="field">
                   <label for="origin">Origen</label>
-                  <input id="origin" name="origin" type="text" placeholder="Punto de encuentro" maxlength="160" required aria-describedby="origin-error" />
+                  <input id="origin" name="origin" type="text" placeholder="Ciudad o sector de salida" maxlength="160" required aria-describedby="origin-error" />
                   <p id="origin-error" class="field-error" hidden></p>
                 </div>
                 <div class="field">
@@ -192,6 +192,11 @@
                   <input id="destination" name="destination" type="text" placeholder="Lugar de llegada" maxlength="160" required aria-describedby="destination-error" />
                   <p id="destination-error" class="field-error" hidden></p>
                 </div>
+              </div>
+              <div class="field">
+                <label for="meetingPoint">Punto exacto de encuentro</label>
+                <input id="meetingPoint" name="meetingPoint" type="text" placeholder="Ej. portería norte, junto a la entrada principal" maxlength="200" required aria-describedby="meetingPoint-error" />
+                <p id="meetingPoint-error" class="field-error" hidden></p>
               </div>
               <div class="field-row">
                 <div class="field">
@@ -220,7 +225,7 @@
               </div>
               <div class="field">
                 <label for="note">Nota (opcional)</label>
-                <textarea id="note" name="note" rows="3" maxlength="500" placeholder="Punto exacto de encuentro, equipaje?" aria-describedby="note-error"></textarea>
+                <textarea id="note" name="note" rows="3" maxlength="500" placeholder="Indicaciones de equipaje u otra información útil" aria-describedby="note-error"></textarea>
                 <p id="note-error" class="field-error" hidden></p>
               </div>
               <p id="publish-error" class="form-error" role="alert" hidden></p>
@@ -245,6 +250,15 @@
         </section>
       </div>
       <div class="container account-panels">
+        <section id="recordatorios" class="card reminder-panel" hidden aria-labelledby="reminders-title">
+          <div class="panel-heading">
+            <div><h2 id="reminders-title">Próximos viajes</h2><p class="muted">Confirma tu asistencia y consulta el punto de encuentro.</p></div>
+            <button id="enable-push" type="button" class="btn btn-secondary">Activar avisos push</button>
+          </div>
+          <p id="reminders-error" class="form-error" role="alert" hidden></p>
+          <div id="reminder-banner-list" class="reminder-list" aria-live="polite"></div>
+          <p id="reminders-empty" class="hint" hidden>No tienes viajes próximos.</p>
+        </section>
         <section id="mis-rutas" class="routes-panel" hidden aria-labelledby="my-routes-title">
           <div class="panel-heading"><h2 id="my-routes-title">Mis rutas</h2><button id="refresh-mine" type="button" class="btn btn-secondary">Actualizar</button></div>
           <p class="muted">Gestiona tus publicaciones. Si hay pasajeros confirmados, deberás confirmar la cancelación.</p>
@@ -260,7 +274,7 @@
         </section>
         <section id="notificaciones" class="card" hidden aria-labelledby="notifications-title">
           <div class="panel-heading"><h2 id="notifications-title">Notificaciones</h2><button id="refresh-notifications" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Aquí recibirás los avisos de cancelación de tus viajes.</p>
+          <p class="muted">Aquí recibirás recordatorios, confirmaciones y avisos sobre tus viajes.</p>
           <p id="notifications-error" class="form-error" role="alert" hidden></p>
           <div id="notifications-list" aria-live="polite"></div>
           <p id="notifications-empty" class="hint" hidden>No tienes notificaciones.</p>

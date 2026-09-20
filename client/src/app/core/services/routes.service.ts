@@ -6,6 +6,7 @@ export interface Route {
   driverName: string;
   origin: string;
   destination: string;
+  meetingPoint: string;
   date: string;
   time: string;
   seats: number;
@@ -20,6 +21,7 @@ export interface Route {
 export interface CreateRoute {
   origin: string;
   destination: string;
+  meetingPoint: string;
   date: string;
   time: string;
   seats: number;
@@ -42,6 +44,7 @@ export interface Notification {
   type: string;
   title: string;
   message: string;
+  metadata?: Record<string, unknown>;
   readAt: string | null;
   createdAt: string;
 }

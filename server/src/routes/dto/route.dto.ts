@@ -10,6 +10,9 @@ export class CreateRouteDto {
   @Transform(trim) @IsString() @MinLength(2, { message: 'Ingresa el destino (mínimo 2 caracteres).' }) @MaxLength(160)
   destination: string;
 
+  @Transform(trim) @IsString() @MinLength(2, { message: 'Ingresa el punto de encuentro (mínimo 2 caracteres).' }) @MaxLength(200)
+  meetingPoint: string;
+
   @IsDateString({ strict: true }, { message: 'La fecha debe ser válida.' }) @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Usa el formato AAAA-MM-DD para la fecha.' })
   date: string;
 

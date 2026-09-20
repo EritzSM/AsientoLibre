@@ -8,11 +8,11 @@ export class NotificationsService {
 
   async findMine(actorId: string) {
     const { data, error } = await this.supabase.getClient().from('notifications')
-      .select('id,route_id,type,title,message,read_at,created_at').eq('recipient_id', actorId)
+      .select('id,route_id,type,title,message,metadata,read_at,created_at').eq('recipient_id', actorId)
       .order('created_at', { ascending: false }).limit(100);
     if (error) throwDatabaseError(error);
     return data.map((row) => ({ id: row.id, routeId: row.route_id, type: row.type, title: row.title,
-      message: row.message, readAt: row.read_at, createdAt: row.created_at }));
+      message: row.message, metadata: row.metadata ?? {}, readAt: row.read_at, createdAt: row.created_at }));
   }
 
   async markRead(actorId: string, notificationId: string) {
