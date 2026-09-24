@@ -10,6 +10,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { HealthController } from './health.controller.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RemindersModule } from './reminders/reminders.module.js';
+import { AdminModule } from './admin/admin.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RemindersModule } from './reminders/reminders.module.js';
     VehiclesModule,
     NotificationsModule,
     RemindersModule,
+    AdminModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

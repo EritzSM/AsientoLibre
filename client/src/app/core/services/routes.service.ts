@@ -146,6 +146,28 @@ export const routesService = {
   reserve: (id: string, seats: number) => request(`/routes/${encodeURIComponent(id)}/bookings`, { method: 'POST', body: JSON.stringify({ seats }) }),
   vehicle: () => request<RegisteredVehicle | null>('/vehicles/me'),
   saveVehicle: (vehicle: Omit<RegisteredVehicle, 'id'>) => request<RegisteredVehicle>('/vehicles/me', { method: 'PUT', body: JSON.stringify(vehicle) }),
+  getDocuments: () => request<ConductorDocument[]>('/vehicles/documents'),
+  uploadDocument: (data: { documentType: 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo'; fileName: string; fileData: string }) =>
+    request<{ success: boolean; message: string; document: ConductorDocument }>('/vehicles/documents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteDocument: (id: string) =>
+    request<{ success: boolean; message: string }>(`/vehicles/documents/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
   notifications: () => request<Notification[]>('/notifications'),
   markRead: (id: string) => request(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
 };
+
+export interface ConductorDocument {
+  id: string;
+  conductor_id: string;
+  document_type: 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo';
+  file_url: string;
+  file_name: string | null;
+  status: 'pendiente' | 'aprobado' | 'rechazado';
+  rejection_reason: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+}

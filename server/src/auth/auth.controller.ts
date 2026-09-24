@@ -166,6 +166,7 @@ export class AuthController {
       lastName: dto.lastName,
       nationalId: dto.nationalId,
       phone: dto.phone,
+      role: dto.role,
     });
   }
 

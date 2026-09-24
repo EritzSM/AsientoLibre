@@ -643,3 +643,204 @@ body {
 .btn-cancel-change:hover {
   background: rgba(239, 68, 68, 0.08);
 }
+
+.field-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748B);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+/* ---- Sección de Documentos del Conductor ---- */
+.doc-upload-area {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.doc-upload-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 16px 0;
+}
+
+.doc-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 28px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  background: #fff;
+}
+
+.doc-dropzone:hover,
+.doc-dropzone.drag-over {
+  border-color: var(--teal);
+  background: var(--teal-pale);
+}
+
+.doc-dropzone svg {
+  color: var(--teal);
+  margin-bottom: 8px;
+}
+
+.doc-dropzone p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.doc-browse-link {
+  color: var(--teal);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.doc-file-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--teal-pale);
+  border: 1px solid var(--teal);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---- Lista de documentos subidos ---- */
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.doc-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  transition: box-shadow 0.15s ease;
+}
+
+.doc-card:hover {
+  box-shadow: var(--shadow-card);
+}
+
+.doc-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.doc-card-type {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.doc-card-date {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.doc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.doc-status-badge.pendiente {
+  background: #FCEBD1;
+  color: #8A5A16;
+}
+
+.doc-status-badge.aprobado {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.doc-status-badge.rechazado {
+  background: #FDE8EA;
+  color: var(--danger-dark);
+}
+
+.doc-rejection-note {
+  font-size: 0.8rem;
+  color: var(--danger-dark);
+  background: var(--danger-bg);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.doc-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-doc-view {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.btn-doc-view:hover {
+  background: var(--teal-pale);
+  border-color: var(--teal);
+  color: var(--teal-dark);
+}
+
+.btn-doc-delete {
+  background: transparent;
+  border: 1px solid var(--danger-bg);
+  color: var(--danger);
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-doc-delete:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.docs-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}

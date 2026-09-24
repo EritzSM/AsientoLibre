@@ -30,7 +30,7 @@ export interface AuthResponse {
     nationalId?: string;
     phone?: string;
     email: string;
-    role: 'pasajero' | 'conductor';
+    role: 'pasajero' | 'conductor' | 'admin';
     isActive: boolean;
     skipVehicle?: boolean;
     vehicle?: {
@@ -60,13 +60,48 @@ export class AuthService {
     }
     const activationToken = randomUUID();
     const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await admin.auth.admin.createUser({
+    let { data, error } = await admin.auth.admin.createUser({
       email: registerDto.email,
       password: registerDto.password,
       email_confirm: true,
       user_metadata: { firstName: registerDto.firstName, lastName: registerDto.lastName },
     });
-    if (error || !data.user) {
+    if ((error?.code === 'email_exists' || error?.code === 'user_already_exists') && !data?.user) {
+      try {
+        const { data: usersData } = await admin.auth.admin.listUsers();
+        const existing = usersData?.users?.find(
+          (u) => u.email?.toLowerCase() === registerDto.email.trim().toLowerCase(),
+        );
+        if (existing) {
+          const { data: existingProfile } = await admin
+            .from('profiles')
+            .select('id, is_active')
+            .eq('id', existing.id)
+            .maybeSingle();
+
+          if (!existingProfile || !existingProfile.is_active) {
+            this.logger.log(`Liberando cuenta previa inactiva o huérfana para reutilizar correo: ${existing.id}`);
+            if (existingProfile) {
+              await admin.from('vehicles').delete().eq('user_id', existing.id);
+              await admin.from('profiles').delete().eq('id', existing.id);
+            }
+            await admin.auth.admin.deleteUser(existing.id, false);
+
+            const retry = await admin.auth.admin.createUser({
+              email: registerDto.email,
+              password: registerDto.password,
+              email_confirm: true,
+              user_metadata: { firstName: registerDto.firstName, lastName: registerDto.lastName },
+            });
+            data = retry.data;
+            error = retry.error;
+          }
+        }
+      } catch (checkErr: any) {
+        this.logger.debug(`No se pudo verificar reciclaje de cuenta previa: ${checkErr?.message}`);
+      }
+    }
+    if (error || !data?.user) {
       if (error?.code === 'email_exists' || error?.code === 'user_already_exists') {
         throw new BadRequestException('El correo electrónico ya se encuentra registrado.');
       }
@@ -467,6 +502,28 @@ export class AuthService {
     if (userError || !currentEmail) throw new NotFoundException('No se encontró la cuenta autenticada.');
     if (currentEmail === targetEmail) throw new BadRequestException('El nuevo correo debe ser diferente al actual.');
 
+    // 1. Validar que el nuevo correo no esté ya asignado a otra cuenta en auth.users
+    const { data: usersData, error: listError } = await admin.auth.admin.listUsers();
+    if (!listError && usersData?.users) {
+      const existingUser = usersData.users.find(
+        (u) => u.email?.toLowerCase() === targetEmail && u.id !== actorId,
+      );
+      if (existingUser) {
+        throw new BadRequestException('El correo electrónico ya se encuentra registrado por otro usuario.');
+      }
+    }
+
+    // 2. Validar que ningún otro perfil tenga este correo en pending_email
+    const { data: pendingProfile } = await admin
+      .from('profiles')
+      .select('id')
+      .ilike('pending_email', targetEmail)
+      .neq('id', actorId)
+      .maybeSingle();
+    if (pendingProfile) {
+      throw new BadRequestException('El correo electrónico ya se encuentra registrado por otro usuario.');
+    }
+
     const code = randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const { data: profile, error } = await admin.from('profiles')
@@ -535,14 +592,24 @@ export class AuthService {
 
   async updateProfile(
     actorId: string,
-    data: { firstName: string; lastName: string; nationalId: string; phone: string },
+    data: {
+      firstName: string;
+      lastName: string;
+      nationalId: string;
+      phone: string;
+      role?: 'pasajero' | 'conductor';
+    },
   ): Promise<{ success: boolean; message: string }> {
-    const { error } = await this.supabaseService.getClient().from('profiles').update({
+    const updatePayload: Record<string, any> = {
       first_name: data.firstName.trim(),
       last_name: data.lastName.trim(),
       national_id: data.nationalId.trim(),
       phone: data.phone.trim() || null,
-    }).eq('id', actorId);
+    };
+    if (data.role) {
+      updatePayload.role = data.role;
+    }
+    const { error } = await this.supabaseService.getClient().from('profiles').update(updatePayload).eq('id', actorId);
     if (error) throw new BadRequestException('No se pudieron actualizar los datos del perfil.');
     return { success: true, message: 'Perfil actualizado exitosamente.' };
   }
@@ -584,7 +651,34 @@ export class AuthService {
     password: string,
   ): Promise<{ success: boolean; message: string }> {
     await this.verifyCurrentPassword(actorId, password);
-    const { error } = await this.supabaseService.getClient().auth.admin.deleteUser(actorId);
+    const admin = this.supabaseService.getClient();
+
+    // Limpieza explícita de registros dependientes para asegurar liberación total sin fallos de FK
+    try {
+      await admin.from('notifications').delete().eq('recipient_id', actorId);
+      await admin.from('route_ratings').delete().or(`reviewer_id.eq.${actorId},rated_id.eq.${actorId}`);
+      await admin.from('push_tokens').delete().eq('user_id', actorId);
+      await admin.from('trip_attendance').delete().eq('user_id', actorId);
+      await admin.from('trip_reminder_deliveries').delete().or(`recipient_id.eq.${actorId},subject_user_id.eq.${actorId}`);
+      await admin.from('bookings').delete().eq('passenger_id', actorId);
+
+      const { data: routes } = await admin.from('routes').select('id').eq('driver_id', actorId);
+      if (routes && routes.length > 0) {
+        const routeIds = routes.map((r) => r.id);
+        await admin.from('bookings').delete().in('route_id', routeIds);
+        await admin.from('notifications').delete().in('route_id', routeIds);
+        await admin.from('trip_attendance').delete().in('route_id', routeIds);
+        await admin.from('trip_reminder_deliveries').delete().in('route_id', routeIds);
+        await admin.from('routes').delete().eq('driver_id', actorId);
+      }
+
+      await admin.from('vehicles').delete().eq('user_id', actorId);
+      await admin.from('profiles').delete().eq('id', actorId);
+    } catch (cleanupErr: any) {
+      this.logger.warn(`Advertencia al limpiar datos del usuario ${actorId}: ${cleanupErr?.message}`);
+    }
+
+    const { error } = await admin.auth.admin.deleteUser(actorId, false);
     if (error) {
       this.logger.error(`No se pudo eliminar la cuenta ${actorId}: ${error.message}`);
       throw new ServiceUnavailableException('No se pudo eliminar la cuenta. Verifica la migración de Gestión de Perfil.');

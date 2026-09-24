@@ -17,8 +17,18 @@ describe('AuthService profile management', () => {
   function fixture(passwordIsValid = true) {
     const eq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn(() => ({ eq }));
+    const inFn = vi.fn().mockResolvedValue({ error: null });
+    const or = vi.fn().mockResolvedValue({ error: null });
+    const delEq = vi.fn().mockResolvedValue({ error: null });
+    const del = vi.fn(() => ({ eq: delEq, in: inFn, or }));
+    const selectEq = vi.fn().mockResolvedValue({ data: [], error: null });
+    const select = vi.fn(() => ({ eq: selectEq }));
     const getUserById = vi.fn().mockResolvedValue({
       data: { user: { id: actorId, email: 'driver@example.test' } },
+      error: null,
+    });
+    const listUsers = vi.fn().mockResolvedValue({
+      data: { users: [{ id: actorId, email: 'driver@example.test' }] },
       error: null,
     });
     const updateUserById = vi.fn().mockResolvedValue({ error: null });
@@ -28,21 +38,24 @@ describe('AuthService profile management', () => {
       ? { data: { user: { id: actorId } }, error: null }
       : { data: { user: null }, error: { message: 'invalid credentials' } });
     const admin = {
-      from: vi.fn(() => ({ update })),
-      auth: { admin: { getUserById, updateUserById, signOut, deleteUser } },
+      from: vi.fn(() => ({ update, delete: del, select })),
+      auth: { admin: { getUserById, listUsers, updateUserById, signOut, deleteUser } },
     };
     const authClient = { auth: { signInWithPassword } };
     const supabase = {
       getClient: () => admin,
       createAuthClient: () => authClient,
     } as unknown as SupabaseService;
-    const email = {} as EmailService;
+    const email = {
+      sendEmailChangeCode: vi.fn().mockResolvedValue(undefined),
+    } as unknown as EmailService;
 
     return {
       service: new AuthService(supabase, email),
       update,
       eq,
       getUserById,
+      listUsers,
       updateUserById,
       signOut,
       deleteUser,
@@ -50,7 +63,7 @@ describe('AuthService profile management', () => {
     };
   }
 
-  it('persists normalized personal data and an optional phone', async () => {
+  it('persists normalized personal data, role and an optional phone', async () => {
     const { service, update, eq } = fixture();
 
     await expect(service.updateProfile(actorId, {
@@ -58,6 +71,7 @@ describe('AuthService profile management', () => {
       lastName: ' Ruiz  ',
       nationalId: ' 12345 ',
       phone: ' 3001234567 ',
+      role: 'conductor',
     })).resolves.toEqual({ success: true, message: 'Perfil actualizado exitosamente.' });
 
     expect(update).toHaveBeenCalledWith({
@@ -65,6 +79,7 @@ describe('AuthService profile management', () => {
       last_name: 'Ruiz',
       national_id: '12345',
       phone: '3001234567',
+      role: 'conductor',
     });
     expect(eq).toHaveBeenCalledWith('id', actorId);
   });
@@ -96,7 +111,7 @@ describe('AuthService profile management', () => {
 
     await expect(service.deleteAccount(actorId, currentPassword))
       .resolves.toEqual({ success: true, message: 'La cuenta y sus datos fueron eliminados.' });
-    expect(deleteUser).toHaveBeenCalledExactlyOnceWith(actorId);
+    expect(deleteUser).toHaveBeenCalledExactlyOnceWith(actorId, false);
   });
 
   it('reports a controlled error when Supabase cannot delete the account', async () => {
@@ -105,6 +120,22 @@ describe('AuthService profile management', () => {
 
     await expect(test.service.deleteAccount(actorId, currentPassword))
       .rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('rejects email change request if the email is already in use by another user', async () => {
+    const { service, listUsers } = fixture();
+    listUsers.mockResolvedValueOnce({
+      data: {
+        users: [
+          { id: actorId, email: 'driver@example.test' },
+          { id: '20000000-0000-4000-8000-000000000002', email: 'taken@example.test' },
+        ],
+      },
+      error: null,
+    });
+
+    await expect(service.requestEmailChange(actorId, 'taken@example.test'))
+      .rejects.toThrow('El correo electrónico ya se encuentra registrado por otro usuario.');
   });
 });
 

@@ -727,6 +727,15 @@ async function handleLoginSubmit(event: Event): Promise<void> {
     }
 
     setActiveUser(response.user);
+
+    if (response.user.role === 'admin') {
+      showToast(`¡Bienvenido Administrador, ${response.user.firstName}! Accediendo al panel...`);
+      setTimeout(() => {
+        window.location.href = "/admin.html";
+      }, 900);
+      return;
+    }
+
     showToast(`¡Bienvenido de nuevo, ${response.user.firstName}! Redirigiendo...`);
     setTimeout(() => {
       window.location.href = "/index.html";

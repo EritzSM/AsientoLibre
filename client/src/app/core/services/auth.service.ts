@@ -1,4 +1,4 @@
-export type UserRole = 'pasajero' | 'conductor';
+export type UserRole = 'pasajero' | 'conductor' | 'admin';
 
 export interface Vehicle {
 	brand: string;
@@ -160,6 +160,7 @@ class AuthService {
 		lastName: string;
 		nationalId: string;
 		phone: string;
+		role?: 'pasajero' | 'conductor';
 	}): Promise<{ success: boolean; message: string }> {
 		return this.request<{ success: boolean; message: string }>('/auth/update-profile', {
 			method: 'POST',

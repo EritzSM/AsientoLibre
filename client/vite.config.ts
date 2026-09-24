@@ -11,6 +11,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         login: resolve(import.meta.dirname, 'login.html'),
         profile: resolve(import.meta.dirname, 'profile.html'),
+        admin: resolve(import.meta.dirname, 'admin.html'),
       },
     },
   },
