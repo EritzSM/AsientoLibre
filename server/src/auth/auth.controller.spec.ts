@@ -66,6 +66,7 @@ describe('AuthController', () => {
         firstName: 'Mariana',
         lastName: 'González',
         nationalId: '1020304050',
+        phone: '3001234567',
         email: 'mariana@example.com',
         password: testPassword,
         role: UserRole.PASAJERO,

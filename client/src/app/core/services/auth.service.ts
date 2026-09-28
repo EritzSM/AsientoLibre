@@ -37,6 +37,7 @@ export interface RegisterPayload extends LoginPayload {
 	firstName: string;
 	lastName: string;
 	nationalId: string;
+	phone: string;
 	role: UserRole;
 	skipVehicle?: boolean;
 	vehicle?: Vehicle;

@@ -58,6 +58,21 @@ export class AuthService {
     if (registerDto.role === 'conductor' && !registerDto.skipVehicle && !registerDto.vehicle) {
       throw new BadRequestException('Registra tu vehículo o selecciona agregarlo después.');
     }
+
+    const cleanNationalId = registerDto.nationalId.trim();
+    const cleanPhone = registerDto.phone ? registerDto.phone.trim() : null;
+
+    // Validar que el ID/cédula no esté duplicado
+    const { data: existingProfileWithId } = await admin
+      .from('profiles')
+      .select('id, is_active')
+      .eq('national_id', cleanNationalId)
+      .maybeSingle();
+
+    if (existingProfileWithId) {
+      throw new BadRequestException('El número de documento de identidad (ID) ya se encuentra registrado.');
+    }
+
     const activationToken = randomUUID();
     const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     let { data, error } = await admin.auth.admin.createUser({
@@ -114,7 +129,8 @@ export class AuthService {
         id: userId,
         first_name: registerDto.firstName,
         last_name: registerDto.lastName,
-        national_id: registerDto.nationalId,
+        national_id: cleanNationalId,
+        phone: cleanPhone,
         role: registerDto.role,
         is_active: false,
         activation_token: activationToken,
@@ -147,7 +163,8 @@ export class AuthService {
         id: userId,
         firstName: registerDto.firstName,
         lastName: registerDto.lastName,
-        nationalId: registerDto.nationalId,
+        nationalId: cleanNationalId,
+        phone: cleanPhone || '',
         email: registerDto.email,
         role: registerDto.role,
         isActive: false,

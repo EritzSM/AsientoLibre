@@ -20,6 +20,7 @@ interface UserSignUp {
   firstName: string;
   lastName: string;
   nationalId: string;
+  phone: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -454,15 +455,32 @@ function showErrorBanner(title: string, message: string): void {
 }
 
 // ====================================================================
-// CONTROL DE TABS (Login vs Sign-up)
+// CONTROL DE TABS & SLIDER (Login vs Sign-up)
 // ====================================================================
+
+export function updateSliderHeight(mode?: 'login' | 'signup'): void {
+  const sliderWrapper = $<HTMLDivElement>("#auth-slider-wrapper");
+  if (!sliderWrapper) return;
+
+  const isSignupActive = $<HTMLButtonElement>("#tab-signup")?.classList.contains("active");
+  const currentMode = mode || (isSignupActive ? 'signup' : 'login');
+  const targetPane = currentMode === 'signup' ? $<HTMLDivElement>("#pane-signup") : $<HTMLDivElement>("#pane-login");
+
+  if (targetPane) {
+    const paneHeight = targetPane.offsetHeight;
+    if (paneHeight > 0) {
+      sliderWrapper.style.height = `${paneHeight}px`;
+    }
+  }
+}
 
 export function switchTab(mode: 'login' | 'signup'): void {
   hideError();
   const tabLogin = $<HTMLButtonElement>("#tab-login");
   const tabSignup = $<HTMLButtonElement>("#tab-signup");
-  const formLogin = $<HTMLFormElement>("#form-login");
-  const formSignup = $<HTMLFormElement>("#form-signup");
+  const sliderTrack = $<HTMLDivElement>("#auth-slider-track");
+  const paneLogin = $<HTMLDivElement>("#pane-login");
+  const paneSignup = $<HTMLDivElement>("#pane-signup");
   const title = $<HTMLHeadingElement>("#auth-title");
   const subtitle = $<HTMLParagraphElement>("#auth-subtitle");
 
@@ -475,8 +493,15 @@ export function switchTab(mode: 'login' | 'signup'): void {
       tabSignup.classList.remove("active");
       tabSignup.setAttribute("aria-selected", "false");
     }
-    if (formLogin) formLogin.hidden = false;
-    if (formSignup) formSignup.hidden = true;
+    if (sliderTrack) {
+      sliderTrack.classList.remove("slide-signup");
+    }
+    if (paneLogin) {
+      paneLogin.setAttribute("aria-hidden", "false");
+    }
+    if (paneSignup) {
+      paneSignup.setAttribute("aria-hidden", "true");
+    }
     if (title) title.innerHTML = 'Bienvenido a <span>Asiento Libre</span>';
     if (subtitle) subtitle.textContent = 'Ingresa tus datos para continuar';
   } else {
@@ -488,11 +513,23 @@ export function switchTab(mode: 'login' | 'signup'): void {
       tabLogin.classList.remove("active");
       tabLogin.setAttribute("aria-selected", "false");
     }
-    if (formLogin) formLogin.hidden = true;
-    if (formSignup) formSignup.hidden = false;
+    if (sliderTrack) {
+      sliderTrack.classList.add("slide-signup");
+    }
+    if (paneLogin) {
+      paneLogin.setAttribute("aria-hidden", "true");
+    }
+    if (paneSignup) {
+      paneSignup.setAttribute("aria-hidden", "false");
+    }
     if (title) title.innerHTML = 'Crea tu cuenta en <span>Asiento Libre</span>';
     if (subtitle) subtitle.textContent = 'Únete a nuestra comunidad de viajes compartidos';
   }
+
+  // Ajustar altura inmediatamente y tras animación
+  requestAnimationFrame(() => {
+    updateSliderHeight(mode);
+  });
 }
 
 // ---- Toggle para ver / ocultar contraseñas ----
@@ -542,6 +579,8 @@ function bindRoleSelector(): void {
       if (vehicleSection) {
         vehicleSection.hidden = role !== 'conductor';
       }
+
+      setTimeout(() => updateSliderHeight('signup'), 50);
     });
   });
 }
@@ -558,6 +597,7 @@ function bindSkipVehicleToggle(): void {
       } else {
         vehicleFields.classList.remove("is-disabled");
       }
+      setTimeout(() => updateSliderHeight('signup'), 50);
     });
   }
 }
@@ -615,6 +655,8 @@ function renderUploadedFiles(): void {
 
     list.appendChild(item);
   });
+
+  updateSliderHeight('signup');
 }
 
 function handleFilesAdded(files: FileList | null): void {
@@ -679,6 +721,35 @@ function bindDocumentUploader(): void {
 }
 
 // ====================================================================
+// VALIDACIÓN Y MANEJO DEL LOGIN & SIGN-UP
+// ====================================================================
+
+function clearFieldErrors(form: HTMLFormElement): void {
+  form.querySelectorAll<HTMLInputElement>('.is-invalid').forEach((input) => {
+    input.classList.remove('is-invalid');
+  });
+}
+
+function markInvalidField(input: HTMLInputElement | null, message: string): void {
+  if (input) {
+    input.classList.add('is-invalid');
+    input.focus();
+  }
+  showError(message);
+}
+
+function setupFormValidationListeners(form: HTMLFormElement): void {
+  form.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
+    input.addEventListener('input', () => {
+      if (input.classList.contains('is-invalid')) {
+        input.classList.remove('is-invalid');
+      }
+      hideError();
+    });
+  });
+}
+
+// ====================================================================
 // MANEJO DEL LOGIN
 // ====================================================================
 
@@ -689,6 +760,10 @@ async function handleLoginSubmit(event: Event): Promise<void> {
   const form = $<HTMLFormElement>("#form-login");
   if (!form) return;
 
+  clearFieldErrors(form);
+
+  const inputEmail = form.querySelector<HTMLInputElement>("#login-email");
+  const inputPassword = form.querySelector<HTMLInputElement>("#login-password");
   const submitBtn = form.querySelector<HTMLButtonElement>(".btn-submit");
   const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
 
@@ -696,14 +771,26 @@ async function handleLoginSubmit(event: Event): Promise<void> {
   const email = String(data.get("email") ?? "").trim();
   const password = String(data.get("password") ?? "");
 
-  if (!email || !password) {
-    showError("Por favor ingresa tu correo y contraseña.");
+  // Validación de Correo
+  if (!email) {
+    markInvalidField(inputEmail, "Por favor ingresa tu correo electrónico.");
     return;
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    showError("Por favor ingresa un correo electrónico válido.");
+    markInvalidField(inputEmail, "Por favor ingresa un correo electrónico válido (ejemplo@correo.com).");
+    return;
+  }
+
+  // Validación de Contraseña
+  if (!password) {
+    markInvalidField(inputPassword, "Por favor ingresa tu contraseña.");
+    return;
+  }
+
+  if (password.length < 6) {
+    markInvalidField(inputPassword, "La contraseña debe tener al menos 6 caracteres.");
     return;
   }
 
@@ -762,6 +849,15 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
   const form = $<HTMLFormElement>("#form-signup");
   if (!form) return;
 
+  clearFieldErrors(form);
+
+  const inputFirstName = form.querySelector<HTMLInputElement>("#signup-firstname");
+  const inputLastName = form.querySelector<HTMLInputElement>("#signup-lastname");
+  const inputId = form.querySelector<HTMLInputElement>("#signup-id");
+  const inputPhone = form.querySelector<HTMLInputElement>("#signup-phone");
+  const inputEmail = form.querySelector<HTMLInputElement>("#signup-email");
+  const inputPassword = form.querySelector<HTMLInputElement>("#signup-password");
+  const inputConfirmPassword = form.querySelector<HTMLInputElement>("#signup-confirm-password");
   const submitBtn = form.querySelector<HTMLButtonElement>(".btn-submit");
   const originalBtnHtml = submitBtn ? submitBtn.innerHTML : "";
 
@@ -773,6 +869,7 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
     firstName: String(data.get("firstName") ?? "").trim(),
     lastName: String(data.get("lastName") ?? "").trim(),
     nationalId: String(data.get("nationalId") ?? "").trim(),
+    phone: String(data.get("phone") ?? "").trim(),
     email: String(data.get("email") ?? "").trim(),
     password: String(data.get("password") ?? ""),
     confirmPassword: String(data.get("confirmPassword") ?? ""),
@@ -780,31 +877,80 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
     skipVehicle,
   };
 
-  // Validaciones
-  if (!payload.firstName || !payload.lastName || !payload.nationalId || !payload.email || !payload.password) {
-    showError("Por favor completa todos los campos obligatorios del usuario.");
+  // Validaciones campo por campo
+  if (!payload.firstName) {
+    markInvalidField(inputFirstName, "Por favor ingresa tu nombre.");
+    return;
+  }
+  if (payload.firstName.length < 2) {
+    markInvalidField(inputFirstName, "El nombre debe tener al menos 2 caracteres.");
     return;
   }
 
+  if (!payload.lastName) {
+    markInvalidField(inputLastName, "Por favor ingresa tu apellido.");
+    return;
+  }
+  if (payload.lastName.length < 2) {
+    markInvalidField(inputLastName, "El apellido debe tener al menos 2 caracteres.");
+    return;
+  }
+
+  if (!payload.nationalId) {
+    markInvalidField(inputId, "Por favor ingresa tu documento de identidad (ID / Cédula).");
+    return;
+  }
+  if (payload.nationalId.length < 5) {
+    markInvalidField(inputId, "El documento de identidad debe tener al menos 5 dígitos o caracteres.");
+    return;
+  }
+
+  if (!payload.phone) {
+    markInvalidField(inputPhone, "Por favor ingresa tu número de teléfono.");
+    return;
+  }
+  if (!/^[0-9]{7,15}$/.test(payload.phone)) {
+    markInvalidField(inputPhone, "El número de teléfono debe contener entre 7 y 15 dígitos numéricos (ej: 3001234567).");
+    return;
+  }
+
+  if (!payload.email) {
+    markInvalidField(inputEmail, "Por favor ingresa tu correo electrónico.");
+    return;
+  }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(payload.email)) {
-    showError("Por favor ingresa un correo electrónico válido.");
+    markInvalidField(inputEmail, "Por favor ingresa un correo electrónico válido (ejemplo@correo.com).");
     return;
   }
 
+  if (!payload.password) {
+    markInvalidField(inputPassword, "Por favor ingresa una contraseña.");
+    return;
+  }
   if (payload.password.length < 6) {
-    showError("La contraseña debe tener al menos 6 caracteres.");
+    markInvalidField(inputPassword, "La contraseña debe tener al menos 6 caracteres.");
     return;
   }
 
+  if (!payload.confirmPassword) {
+    markInvalidField(inputConfirmPassword, "Por favor confirma tu contraseña.");
+    return;
+  }
   if (payload.password !== payload.confirmPassword) {
-    showError("Las contraseñas no coinciden. Por favor verifícalas.");
+    markInvalidField(inputConfirmPassword, "Las contraseñas no coinciden. Por favor verifícalas.");
     return;
   }
 
   let vehicleData: VehicleData | undefined = undefined;
 
   if (role === 'conductor' && !skipVehicle) {
+    const inputBrand = form.querySelector<HTMLInputElement>("#vehicle-brand");
+    const inputModel = form.querySelector<HTMLInputElement>("#vehicle-model");
+    const inputColor = form.querySelector<HTMLInputElement>("#vehicle-color");
+    const inputPlate = form.querySelector<HTMLInputElement>("#vehicle-plate");
+    const inputCapacity = form.querySelector<HTMLInputElement>("#vehicle-capacity");
+
     const brand = String(data.get("vehicleBrand") ?? "").trim();
     const model = String(data.get("vehicleModel") ?? "").trim();
     const color = String(data.get("vehicleColor") ?? "").trim();
@@ -812,20 +958,29 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
     const capacityValue = String(data.get("vehicleCapacity") ?? "").trim();
     const capacity = Number(capacityValue);
 
-    if (!brand || !model || !color || !plate || !capacityValue) {
-      showError("Completa los datos y la capacidad del vehículo o selecciona 'Agregar después'.");
+    if (!brand || brand.length < 2) {
+      markInvalidField(inputBrand, "Ingresa la marca del vehículo (mínimo 2 caracteres).");
       return;
     }
-    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 8) {
-      showError("La capacidad debe ser un número entero entre 1 y 8, sin incluir al conductor.");
+    if (!model || model.length < 2) {
+      markInvalidField(inputModel, "Ingresa el modelo del vehículo (mínimo 2 caracteres).");
       return;
     }
-    if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
-      showError("La placa debe tener tres letras y tres números, por ejemplo ABC123.");
+    if (!color || color.length < 2) {
+      markInvalidField(inputColor, "Ingresa el color del vehículo.");
+      return;
+    }
+    const cleanPlate = plate.replace(/\s+/g, '');
+    if (!plate || !/^[A-Z]{3}[0-9]{3}$/.test(cleanPlate)) {
+      markInvalidField(inputPlate, "La placa debe tener tres letras y tres números (ej: ABC123).");
+      return;
+    }
+    if (!capacityValue || !Number.isInteger(capacity) || capacity < 1 || capacity > 8) {
+      markInvalidField(inputCapacity, "La capacidad debe ser un número entero entre 1 y 8, sin incluir al conductor.");
       return;
     }
 
-    vehicleData = { brand, model, color, plate, capacity, documents: uploadedDocuments };
+    vehicleData = { brand, model, color, plate: cleanPlate, capacity, documents: uploadedDocuments };
     payload.vehicle = vehicleData;
   }
 
@@ -844,6 +999,7 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
       firstName: payload.firstName,
       lastName: payload.lastName,
       nationalId: payload.nationalId,
+      phone: payload.phone,
       email: payload.email,
       password: payload.password,
       role: payload.role,
@@ -902,8 +1058,14 @@ function initAuth(): void {
   const formLogin = $<HTMLFormElement>("#form-login");
   const formSignup = $<HTMLFormElement>("#form-signup");
 
-  if (formLogin) formLogin.addEventListener("submit", handleLoginSubmit);
-  if (formSignup) formSignup.addEventListener("submit", handleSignUpSubmit);
+  if (formLogin) {
+    formLogin.addEventListener("submit", handleLoginSubmit);
+    setupFormValidationListeners(formLogin);
+  }
+  if (formSignup) {
+    formSignup.addEventListener("submit", handleSignUpSubmit);
+    setupFormValidationListeners(formSignup);
+  }
 
   // Helpers UI
   bindPasswordToggles();
@@ -923,7 +1085,16 @@ function initAuth(): void {
   // Comprobar hash en la URL (#signup o #login)
   if (window.location.hash === "#signup") {
     switchTab('signup');
+  } else {
+    requestAnimationFrame(() => {
+      updateSliderHeight('login');
+    });
   }
+
+  // Listener para ajuste de altura responsivo al redimensionar ventana
+  window.addEventListener("resize", () => {
+    updateSliderHeight();
+  });
 }
 
 if (document.readyState === "loading") {

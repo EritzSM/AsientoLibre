@@ -97,8 +97,9 @@ body {
   background: #EAEFF2;
   padding: 5px;
   border-radius: 999px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   gap: 4px;
+  position: relative;
 }
 
 .auth-tab {
@@ -111,7 +112,11 @@ body {
   color: var(--navy-soft);
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+
+.auth-tab:hover {
+  color: var(--navy);
 }
 
 .auth-tab.active {
@@ -120,15 +125,57 @@ body {
   box-shadow: 0 2px 8px rgba(11, 30, 59, 0.08);
 }
 
+/* ==============================================
+   Slider / Animación Slide entre Login y Registro
+   ============================================== */
+.auth-slider-wrapper {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  transition: height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  box-sizing: border-box;
+}
+
+.auth-slider-track {
+  display: flex;
+  width: 200%;
+  transform: translateX(0%);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  align-items: flex-start;
+}
+
+.auth-slider-track.slide-signup {
+  transform: translateX(-50%);
+}
+
+.auth-slide-pane {
+  width: 50%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  opacity: 1;
+  transition: opacity 0.32s ease, filter 0.32s ease;
+}
+
+.auth-slide-pane[aria-hidden="true"] {
+  opacity: 0.15;
+  filter: blur(1.5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.auth-slide-pane[aria-hidden="false"] {
+  opacity: 1;
+  filter: blur(0);
+  pointer-events: auto;
+}
+
 /* Formularios */
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: 18px;
-}
-
-.auth-form[hidden] {
-  display: none;
 }
 
 .field-group {

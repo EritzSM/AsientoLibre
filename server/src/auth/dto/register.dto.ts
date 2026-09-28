@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   MinLength,
+  Matches,
   ValidateNested,
   IsBoolean,
   IsInt,
@@ -54,7 +55,13 @@ export class RegisterDto {
 
   @IsString({ message: 'El documento de identidad debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'El documento de identidad es obligatorio' })
+  @MinLength(5, { message: 'El documento de identidad debe tener al menos 5 caracteres' })
   nationalId: string;
+
+  @IsString({ message: 'El número de teléfono debe ser una cadena de texto' })
+  @IsNotEmpty({ message: 'El número de teléfono es obligatorio' })
+  @Matches(/^[0-9]{7,15}$/, { message: 'El número de teléfono debe tener entre 7 y 15 dígitos numéricos' })
+  phone: string;
 
   @IsEmail({}, { message: 'El correo electrónico no tiene un formato válido' })
   @IsNotEmpty({ message: 'El correo electrónico es obligatorio' })
