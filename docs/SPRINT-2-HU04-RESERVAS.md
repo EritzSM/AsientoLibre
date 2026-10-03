@@ -34,6 +34,12 @@ Ejecutar después de la migración de recordatorios:
 server/supabase/migrations/202609200003_booking_management.sql
 ```
 
+La funcionalidad de pagos requiere ejecutar después:
+
+```text
+server/supabase/migrations/202609230001_trip_payments.sql
+```
+
 La migración puede ejecutarse nuevamente. Conserva las reservas confirmadas existentes y amplía los estados admitidos por `bookings`.
 
 ## Subtareas

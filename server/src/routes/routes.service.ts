@@ -11,6 +11,12 @@ export interface RouteRow {
   driver_finished_at: string | null; passenger_finished_at?: string | null;
 }
 
+export interface PaymentRow {
+  id: string; booking_id: string; route_id: string; passenger_id: string;
+  amount: number; status: string; confirmed_at: string | null; confirmed_by: string | null;
+  created_at: string; passenger_name?: string;
+}
+
 export function presentRoute(row: RouteRow) {
   // Colombia does not observe daylight-saving time. Store UTC, expose local date and time.
   const local = new Date(new Date(row.departure_at).getTime() - 5 * 60 * 60 * 1000).toISOString();
@@ -131,6 +137,29 @@ export class RoutesService {
     return this.rpc('finish_route', { p_actor: actorId, p_route: routeId });
   }
 
+  async payments(actorId: string) {
+    const routeIds = await this.ownedFinishedRouteIds(actorId);
+    if (!routeIds.length) return [];
+    const { data, error } = await this.supabase.getClient().from('trip_payments')
+      .select('id,booking_id,route_id,passenger_id,amount,status,confirmed_at,confirmed_by,created_at')
+      .eq('status', 'pending')
+      .in('route_id', routeIds);
+    if (error) throwDatabaseError(error);
+    return this.presentPayments(data as PaymentRow[]);
+  }
+
+  async myPayments(actorId: string) {
+    const { data, error } = await this.supabase.getClient().from('trip_payments')
+      .select('id,booking_id,route_id,passenger_id,amount,status,confirmed_at,confirmed_by,created_at')
+      .eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
+    if (error) throwDatabaseError(error);
+    return this.presentPayments(data as PaymentRow[]);
+  }
+
+  confirmPayment(actorId: string, paymentId: string) {
+    return this.rpc('confirm_trip_payment', { p_actor: actorId, p_payment: paymentId });
+  }
+
   rate(actorId: string, routeId: string, ratedId: string, score: number, comment?: string) {
     return this.rpc('submit_route_rating', {
       p_actor: actorId, p_route: routeId, p_rated: ratedId, p_score: score, p_comment: comment || null,
@@ -141,5 +170,40 @@ export class RoutesService {
     const { data, error } = await this.supabase.getClient().rpc(name, parameters);
     if (error) throwDatabaseError(error);
     return data;
+  }
+
+  private async ownedFinishedRouteIds(actorId: string): Promise<string[]> {
+    const { data, error } = await this.supabase.getClient().from('routes')
+      .select('id').eq('driver_id', actorId).not('driver_finished_at', 'is', null);
+    if (error) throwDatabaseError(error);
+    return (data ?? []).map((row) => row.id as string);
+  }
+
+  private async presentPayments(rows: PaymentRow[]) {
+    if (!rows.length) return [];
+    const passengerIds = [...new Set(rows.map((row) => row.passenger_id))];
+    const client = this.supabase.getClient();
+    const { data, error } = await client.from('profiles')
+      .select('id,first_name,last_name').in('id', passengerIds);
+    if (error) throwDatabaseError(error);
+    const { data: routeRows, error: routeError } = await client.from('route_catalog')
+      .select('id,origin,destination,departure_at').in('id', [...new Set(rows.map((row) => row.route_id))]);
+    if (routeError) throwDatabaseError(routeError);
+    const names = new Map((data ?? []).map((profile) => [
+      profile.id as string, [profile.first_name, profile.last_name].filter(Boolean).join(' '),
+    ]));
+    const routes = new Map((routeRows ?? []).map((route) => {
+      const local = new Date(new Date(route.departure_at as string).getTime() - 5 * 60 * 60 * 1000).toISOString();
+      return [route.id as string, {
+        origin: route.origin as string, destination: route.destination as string,
+        date: local.slice(0, 10), time: local.slice(11, 16),
+      }];
+    }));
+    return rows.map((row) => ({
+      id: row.id, bookingId: row.booking_id, routeId: row.route_id, passengerId: row.passenger_id,
+      passengerName: names.get(row.passenger_id) || 'Pasajero', amount: Number(row.amount),
+      status: row.status, confirmedAt: row.confirmed_at, confirmedBy: row.confirmed_by,
+      createdAt: row.created_at, route: routes.get(row.route_id),
+    }));
   }
 }

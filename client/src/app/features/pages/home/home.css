@@ -310,6 +310,21 @@ textarea { resize: vertical; min-height: 80px; }
   animation: card-in 0.35s ease;
 }
 
+.payment-summary {
+  display: grid;
+  gap: .35rem;
+  margin-top: 1rem;
+  padding: .85rem;
+  border: 1px solid var(--border, #dbe4ee);
+  border-radius: .6rem;
+  background: var(--surface-muted, #f7fafc);
+}
+
+.payment-summary .btn {
+  justify-self: start;
+  margin-top: .35rem;
+}
+
 @keyframes card-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

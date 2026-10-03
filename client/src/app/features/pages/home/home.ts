@@ -2,7 +2,7 @@
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute, FinishResult, RatingTarget, BookingRequest } from '../../../core/services/routes.service';
+import type { Route, RegisteredVehicle, CreateRoute, FinishResult, RatingTarget, BookingRequest, TripPayment } from '../../../core/services/routes.service';
 import { enablePushNotifications, remindersService } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
@@ -13,6 +13,7 @@ let vehicle: RegisteredVehicle | null = null;
 let publicRoutes: Route[] = [];
 let ownRoutes: Route[] = [];
 let bookingRequests: BookingRequest[] = [];
+let payments: TripPayment[] = [];
 let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
@@ -44,10 +45,10 @@ function routeHasStarted(route: Route): boolean {
 }
 
 export function routeCardHtml(route: Route, owner = false): string {
-  const status = { published: 'Publicada', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
+  const status = route.driverFinishedAt ? 'FINALIZADO' : { published: 'ACTIVO', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
   const canReserve = !owner && route.status === 'published' && route.availableSeats > 0 && route.driverId !== user?.id;
   const canCancel = route.status === 'published' && !routeHasStarted(route);
-  const canFinish = route.status === 'published' && routeHasStarted(route);
+  const canFinish = route.status === 'published' && routeHasStarted(route) && !route.driverFinishedAt;
   const name = escape(route.driverName);
   const initials = escape(route.driverName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase());
   return `<article class="route-card" data-id="${escape(route.id)}">
@@ -73,7 +74,7 @@ export function routeCardHtml(route: Route, owner = false): string {
     ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) con reserva</p>${attendanceHtml(route.id)}` : ''}
     ${owner && (canCancel || canFinish) ? `<div class="route-actions">
       ${canCancel ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">${route.confirmedPassengers > 0 ? 'Cancelar ruta' : 'Eliminar ruta'}</button>` : ''}
-      ${canFinish ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">${route.driverFinishedAt ? 'Calificar viaje' : 'Finalizar ruta'}</button>` : ''}
+      ${canFinish ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">Finalizar viaje</button>` : ''}
     </div>` : ''}
   </article>`;
 }
@@ -174,7 +175,7 @@ async function loadMine(): Promise<void> {
   button.disabled = true;
   statusMessage('#mine-error', '');
   try {
-    ownRoutes = await routesService.mine();
+    ownRoutes = (await routesService.mine()).filter((route) => route.status === 'published' && !route.driverFinishedAt);
     $('#mine-list').innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
     $('#mine-empty').hidden = ownRoutes.length > 0;
   } catch (error) {
@@ -191,12 +192,43 @@ async function loadBookings(): Promise<void> {
       <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
       <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
       <p>${escape(booking.seats)} asiento(s) · ${escape(bookingStatusLabels[booking.status] ?? booking.status)}</p>
+      ${paymentForBooking(booking.id) ? paymentHtml(paymentForBooking(booking.id)!, false) : ''}
       ${booking.status === 'confirmed' && booking.route.status === 'published' && routeHasStarted(booking.route)
         ? `<button type="button" class="btn btn-secondary" data-finish="${escape(booking.routeId)}">${booking.passengerFinishedAt ? 'Calificar viaje' : 'Finalizar ruta'}</button>`
         : booking.passengerFinishedAt ? '<p class="hint">Ruta finalizada por ti</p>' : ''}
     </article>`).join('');
     $('#bookings-empty').hidden = bookings.length > 0;
   } catch (error) { statusMessage('#bookings-error', errorMessage(error)); }
+}
+
+function paymentForBooking(bookingId: string): TripPayment | undefined {
+  return payments.find((payment) => payment.bookingId === bookingId);
+}
+
+function paymentHtml(payment: TripPayment, owner: boolean): string {
+  const status = payment.status === 'confirmed' ? '✓ PAGADO / CONFIRMADO' : 'PENDIENTE DE CONFIRMACIÓN';
+  return `<div class="payment-summary">
+    ${payment.route ? `<strong>${escape(payment.route.origin)} → ${escape(payment.route.destination)}</strong><span>${escape(dateLabel(payment.route.date))} · ${escape(payment.route.time)} (Colombia)</span>` : ''}
+    ${owner ? `<strong>Pasajero: ${escape(payment.passengerName || 'Pasajero')}</strong>` : '<strong>Pago del viaje</strong>'}
+    <span>Aporte: <strong>${escape(priceFormatter.format(payment.amount))}</strong></span>
+    <span>Estado: ${escape(status)}</span>
+    ${owner && payment.status === 'pending' ? `<button type="button" class="btn btn-primary" data-confirm-payment="${escape(payment.id)}">Confirmar pago</button>` : ''}
+    ${payment.confirmedAt ? `<small class="hint">Confirmado el ${escape(new Date(payment.confirmedAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' }))}</small>` : ''}
+  </div>`;
+}
+
+async function loadPayments(): Promise<void> {
+  if (!user) return;
+  statusMessage('#payments-error', '');
+  try {
+    payments = user.role === 'conductor' ? await routesService.pendingPayments() : await routesService.payments();
+    if (user.role === 'conductor') {
+      $('#payments-list').innerHTML = payments.map((payment) => paymentHtml(payment, true)).join('');
+      $('#payments-empty').hidden = payments.length > 0;
+    } else {
+      await loadBookings();
+    }
+  } catch (error) { statusMessage('#payments-error', errorMessage(error)); }
 }
 
 async function loadBookingRequests(): Promise<void> {
@@ -257,6 +289,7 @@ async function loadSession(): Promise<void> {
     $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
     $('#mis-rutas').hidden = user.role !== 'conductor';
+    $('#validacion-pagos').hidden = user.role !== 'conductor';
     $('#solicitudes-cupo').hidden = user.role !== 'conductor';
     if (user.role !== 'conductor') {
       setPublishAccess('La publicación de rutas está disponible para cuentas de conductor.');
@@ -274,7 +307,7 @@ async function loadSession(): Promise<void> {
   } catch (error) {
     setPublishAccess(errorMessage(error), { href: '/login.html', text: 'Revisar sesión' });
   }
-  await Promise.allSettled([loadMine(), loadBookings(), loadBookingRequests(), loadNotifications(), loadReminders()]);
+  await Promise.allSettled([loadMine(), loadBookings(), loadPayments(), loadBookingRequests(), loadNotifications(), loadReminders()]);
   if (user?.role === 'conductor') await loadMine();
   renderPublicRoutes();
 }
@@ -401,7 +434,7 @@ async function finishRoute(button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
   try {
     const result: FinishResult = await routesService.finish(routeId);
-    await Promise.allSettled([loadMine(), loadBookings()]);
+    await Promise.allSettled([loadMine(), loadBookings(), loadPayments()]);
     if (result.ratingTargets?.length) openSurvey(routeId, result.ratingTargets);
     else toast(result.driverFinishedAt || result.passengerFinishedAt
       ? 'No tienes calificaciones pendientes para este viaje.'
@@ -474,6 +507,7 @@ async function init(): Promise<void> {
     else activeSurvey = null;
   });
   $('#refresh-mine').addEventListener('click', () => { void loadMine(); });
+  $('#refresh-payments').addEventListener('click', () => { void loadPayments(); });
   $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
   $('#refresh-notifications').addEventListener('click', () => { void loadNotifications(); void loadBookings(); });
   for (const name of ['reserve', 'remove']) {
@@ -495,6 +529,20 @@ async function init(): Promise<void> {
   $('#bookings-list').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-finish]');
     if (button?.dataset.finish) void finishRoute(button);
+  });
+  $('#payments-list').addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-confirm-payment]');
+    if (!button?.dataset.confirmPayment || button.disabled) return;
+    button.disabled = true;
+    statusMessage('#payments-error', '');
+    try {
+      await routesService.confirmPayment(button.dataset.confirmPayment);
+      toast('Pago confirmado correctamente.');
+      await Promise.allSettled([loadPayments(), loadMine(), loadBookings(), loadNotifications()]);
+    } catch (error) {
+      statusMessage('#payments-error', errorMessage(error));
+      button.disabled = false;
+    }
   });
   $('#notifications-list').addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-read]');

@@ -65,8 +65,9 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 7. `server/supabase/migrations/202609200001_profile_management.sql`
 8. `server/supabase/migrations/202609200002_trip_reminders.sql`
 9. `server/supabase/migrations/202609200003_booking_management.sql`
+10. `server/supabase/migrations/202609230001_trip_payments.sql`
 
-Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida y guardan calificaciones anónimas agregadas por perfil. Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
+Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida, guardan calificaciones anónimas agregadas por perfil y crean el snapshot/confirmación de pagos por reserva. Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
 
 ## Ejecución local
 
