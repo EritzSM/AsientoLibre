@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Administración — Asiento Libre</title>
+  <meta name="description" content="Panel de administración para verificación y aprobación de documentos de conductores en Asiento Libre." />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/app/features/pages/admin/admin.css" />
+</head>
+
+<body class="admin-body">
+
+  <!-- ===== Encabezado del Administrador ===== -->
+  <header class="admin-header">
+    <div class="header-inner">
+      <a class="admin-logo-group" href="/admin.html" aria-label="Asiento Libre Admin">
+        <svg width="30" height="30" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17 2C10.4 2 5 7.2 5 13.6 5 22 17 32 17 32s12-10 12-18.4C29 7.2 23.6 2 17 2Z" fill="#17BFAC" />
+          <path d="M9 15c3 6 8 9 8 9s8.5-4.5 8.5-11" stroke="#070e1b" stroke-width="2.6" stroke-linecap="round" fill="none" />
+        </svg>
+        <span style="font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em;">Asiento Libre</span>
+        <span class="admin-logo-badge">Admin Panel</span>
+      </a>
+
+      <div class="admin-user-nav">
+        <div class="admin-user-pill">
+          <div class="admin-user-avatar" id="admin-user-avatar">A</div>
+          <span class="admin-user-email" id="admin-user-email">admin@asientolibre.com</span>
+        </div>
+        <button class="btn-admin-logout" id="btn-admin-logout" type="button" title="Cerrar sesión">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Salir
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Contenido Principal ===== -->
+  <main class="admin-main">
+    
+    <!-- Hero / Título de la Sección -->
+    <div class="admin-hero">
+      <div class="admin-title-group">
+        <h1>Gestión de Documentos</h1>
+        <p>Revisa y valida los documentos enviados por conductores para habilitar sus rutas en la plataforma.</p>
+      </div>
+      <button class="btn-refresh" id="btn-refresh" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/>
+          <polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Actualizar
+      </button>
+    </div>
+
+    <!-- Estadísticas Rápidas -->
+    <section class="stats-grid" aria-label="Resumen de estadísticas">
+      <div class="stat-card pending">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number" id="stat-pending">0</span>
+          <span class="stat-label">Documentos pendientes</span>
+        </div>
+      </div>
+
+      <div class="stat-card approved">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number" id="stat-approved">0</span>
+          <span class="stat-label">Documentos aprobados</span>
+        </div>
+      </div>
+
+      <div class="stat-card rejected">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number" id="stat-rejected">0</span>
+          <span class="stat-label">Documentos rechazados</span>
+        </div>
+      </div>
+
+      <div class="stat-card conductors">
+        <div class="stat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number" id="stat-conductors">0</span>
+          <span class="stat-label">Conductores registrados</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Barra de Controles: Filtros y Búsqueda -->
+    <div class="controls-bar">
+      <div class="filter-tabs" role="tablist">
+        <button class="filter-tab active" data-filter="pendiente" type="button" role="tab">
+          Pendientes
+          <span class="tab-badge" id="badge-tab-pendiente">0</span>
+        </button>
+        <button class="filter-tab" data-filter="aprobado" type="button" role="tab">
+          Aprobados
+          <span class="tab-badge" id="badge-tab-aprobado">0</span>
+        </button>
+        <button class="filter-tab" data-filter="rechazado" type="button" role="tab">
+          Rechazados
+          <span class="tab-badge" id="badge-tab-rechazado">0</span>
+        </button>
+        <button class="filter-tab" data-filter="all" type="button" role="tab">
+          Todos
+          <span class="tab-badge" id="badge-tab-all">0</span>
+        </button>
+      </div>
+
+      <div class="search-input-wrapper">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input 
+          type="text" 
+          id="admin-search" 
+          class="admin-search-input" 
+          placeholder="Buscar por conductor, CC, correo..."
+          autocomplete="off"
+        />
+      </div>
+    </div>
+
+    <!-- Tarjeta Principal con la Tabla -->
+    <div class="documents-card">
+      <div class="table-responsive" id="documents-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Conductor</th>
+              <th>Tipo de Documento</th>
+              <th>Estado</th>
+              <th>Fecha de Envío</th>
+              <th style="text-align: right;">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="documents-table-body">
+            <!-- Rellenado dinámicamente con admin.ts -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Estado vacío cuando no hay documentos -->
+      <div class="empty-state" id="documents-empty-state" hidden>
+        <div class="empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <h3 class="empty-title">No hay documentos en esta vista</h3>
+        <p class="empty-subtitle">Cuando los conductores suban sus documentos o cambies los filtros, aparecerán aquí.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===== Modal para Rechazar Documento ===== -->
+  <div class="modal-overlay" id="modal-reject" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Rechazar Documento</h3>
+        <button class="btn-close-modal" id="btn-close-reject-modal" type="button" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-top:0; color:var(--admin-text-muted); font-size:0.9rem;">
+          Indica el motivo por el cual se rechaza el documento para que el conductor pueda corregirlo y volverlo a subir.
+        </p>
+        <div class="modal-field">
+          <label for="reject-reason-input">Motivo del rechazo (opcional pero recomendado):</label>
+          <textarea 
+            id="reject-reason-input" 
+            class="modal-textarea" 
+            placeholder="Ej: La imagen no es legible, el SOAT está vencido o los datos no coinciden con la cédula..."
+          ></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btn-cancel-reject" type="button">Cancelar</button>
+        <button class="btn-modal-reject" id="btn-confirm-reject" type="button">Confirmar Rechazo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal para Previsualizar Documento ===== -->
+  <div class="modal-overlay" id="modal-preview" hidden>
+    <div class="modal-card preview-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="preview-modal-title">Visualización de Documento</h3>
+        <button class="btn-close-modal" id="btn-close-preview-modal" type="button" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-preview-wrapper" id="preview-container">
+          <!-- Imagen o Iframe cargado dinámicamente -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notificaciones -->
+  <div class="admin-toast" id="admin-toast" hidden></div>
+
+  <!-- Script del Panel de Administración -->
+  <script type="module" src="/src/app/features/pages/admin/admin.ts"></script>
+</body>
+
+</html>

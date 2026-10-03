@@ -1,4 +1,4 @@
-import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { UserRole } from './dto/register.dto.js';
@@ -13,8 +13,8 @@ describe('AuthService session isolation', () => {
     const insert = vi.fn().mockResolvedValue({ error: null });
     const from = vi.fn((table: string) => ({
       insert,
-      select: () => ({ eq: (_: string, id: string) => ({ maybeSingle: async () => ({
-        data: table === 'profiles' ? { first_name: id, last_name: 'Test', role: 'conductor', national_id: 'test', is_active: true } : null,
+      select: () => ({ eq: (column: string, id: string) => ({ maybeSingle: async () => ({
+        data: table === 'profiles' && column === 'id' ? { first_name: id, last_name: 'Test', role: 'conductor', national_id: 'test', is_active: true } : null,
         error: null,
       }) }) }),
     }));
@@ -51,7 +51,20 @@ describe('AuthService session isolation', () => {
   it('rolls back a newly created account when profile persistence fails', async () => {
     const { service, admin, insert } = fixture();
     insert.mockResolvedValueOnce({ error: { message: 'missing table' } });
-    await expect(service.register({ firstName: 'Ana', lastName: 'Test', nationalId: 'test', email: 'a@example.test', password: testPassword, role: UserRole.PASAJERO })).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(service.register({ firstName: 'Ana', lastName: 'Test', nationalId: '12345', phone: '3001234567', email: 'a@example.test', password: testPassword, role: UserRole.PASAJERO })).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(admin.auth.admin.deleteUser).toHaveBeenCalledExactlyOnceWith('new-user');
+  });
+
+  it('rejects registration when nationalId is duplicate', async () => {
+    const { service, admin } = fixture();
+    admin.from = vi.fn((table: string) => ({
+      insert: vi.fn(),
+      select: () => ({ eq: (col: string, val: string) => ({ maybeSingle: async () => ({
+        data: table === 'profiles' && col === 'national_id' && val === '12345' ? { id: 'existing-id', is_active: true } : null,
+        error: null,
+      }) }) }),
+    })) as any;
+
+    await expect(service.register({ firstName: 'Ana', lastName: 'Test', nationalId: '12345', phone: '3001234567', email: 'a@example.test', password: testPassword, role: UserRole.PASAJERO })).rejects.toThrow(BadRequestException);
   });
 });

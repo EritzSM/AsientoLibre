@@ -73,250 +73,266 @@
         </div>
 
         <!-- ==============================================
-             FORMULARIO 1: INICIAR SESIÓN (LOGIN)
+             CONTENEDOR SLIDER DE FORMULARIOS
              ============================================== -->
-        <form class="auth-form" id="form-login" novalidate>
-          <!-- Correo -->
-          <div class="field">
-            <label for="login-email">Correo electrónico</label>
-            <div class="input-container">
-              <input id="login-email" name="email" type="email" placeholder="ejemplo@correo.com" autocomplete="email" required />
-            </div>
-          </div>
+        <div class="auth-slider-wrapper" id="auth-slider-wrapper">
+          <div class="auth-slider-track" id="auth-slider-track">
 
-          <!-- Contraseña -->
-          <div class="field">
-            <label for="login-password">
-              <span>Contraseña</span>
-              <a href="#recuperar" class="field-forgot" id="btn-forgot-password">¿Olvidaste tu contraseña?</a>
-            </label>
-            <div class="input-container">
-              <input id="login-password" name="password" type="password" placeholder="Tu contraseña" autocomplete="current-password" required />
-              <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="login-password">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+            <!-- Panel 1: Iniciar Sesión (Login) -->
+            <div class="auth-slide-pane active" id="pane-login" aria-hidden="false">
+              <form class="auth-form" id="form-login" novalidate>
+                <!-- Correo -->
+                <div class="field">
+                  <label for="login-email">Correo electrónico</label>
+                  <div class="input-container">
+                    <input id="login-email" name="email" type="email" placeholder="ejemplo@correo.com" autocomplete="email" required />
+                  </div>
+                </div>
 
-          <!-- Botón de envío -->
-          <button class="btn-submit" type="submit">
-            Iniciar sesión
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-              <polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </button>
+                <!-- Contraseña -->
+                <div class="field">
+                  <label for="login-password">
+                    <span>Contraseña</span>
+                    <a href="#recuperar" class="field-forgot" id="btn-forgot-password">¿Olvidaste tu contraseña?</a>
+                  </label>
+                  <div class="input-container">
+                    <input id="login-password" name="password" type="password" placeholder="Tu contraseña" autocomplete="current-password" required />
+                    <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="login-password">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
 
-          <div class="auth-footer">
-            ¿No tienes una cuenta? <a href="#signup" id="link-go-signup">Regístrate aquí</a>
-          </div>
-        </form>
-
-        <!-- ==============================================
-             FORMULARIO 2: REGISTRO (SIGN-UP)
-             ============================================== -->
-        <form class="auth-form" id="form-signup" hidden novalidate>
-          <!-- Nombre y Apellido -->
-          <div class="field-group">
-            <div class="field">
-              <label for="signup-firstname">Nombre</label>
-              <div class="input-container">
-                <input id="signup-firstname" name="firstName" type="text" placeholder="Ej: Mariana" required />
-              </div>
-            </div>
-            <div class="field">
-              <label for="signup-lastname">Apellido</label>
-              <div class="input-container">
-                <input id="signup-lastname" name="lastName" type="text" placeholder="Ej: González" required />
-              </div>
-            </div>
-          </div>
-
-          <!-- ID (Documento de identidad) -->
-          <div class="field">
-            <label for="signup-id">Documento de identidad (ID / Cédula)</label>
-            <div class="input-container">
-              <input id="signup-id" name="nationalId" type="text" placeholder="Ej: 1020304050" required />
-            </div>
-          </div>
-
-          <!-- Correo -->
-          <div class="field">
-            <label for="signup-email">Correo electrónico</label>
-            <div class="input-container">
-              <input id="signup-email" name="email" type="email" placeholder="ejemplo@correo.com" autocomplete="email" required />
-            </div>
-          </div>
-
-          <!-- Contraseña y Re-contraseña -->
-          <div class="field-group">
-            <div class="field">
-              <label for="signup-password">Contraseña</label>
-              <div class="input-container">
-                <input id="signup-password" name="password" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required />
-                <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="signup-password">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                    <circle cx="12" cy="12" r="3"/>
+                <!-- Botón de envío -->
+                <button class="btn-submit" type="submit">
+                  Iniciar sesión
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
                   </svg>
                 </button>
-              </div>
+
+                <div class="auth-footer">
+                  ¿No tienes una cuenta? <a href="#signup" id="link-go-signup">Regístrate aquí</a>
+                </div>
+              </form>
             </div>
-            <div class="field">
-              <label for="signup-confirm-password">Confirmar contraseña</label>
-              <div class="input-container">
-                <input id="signup-confirm-password" name="confirmPassword" type="password" placeholder="Repite tu contraseña" autocomplete="new-password" required />
-                <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="signup-confirm-password">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
-                    <circle cx="12" cy="12" r="3"/>
+
+            <!-- Panel 2: Registro (Sign-Up) -->
+            <div class="auth-slide-pane" id="pane-signup" aria-hidden="true">
+              <form class="auth-form" id="form-signup" novalidate>
+                <!-- Nombre y Apellido -->
+                <div class="field-group">
+                  <div class="field">
+                    <label for="signup-firstname">Nombre</label>
+                    <div class="input-container">
+                      <input id="signup-firstname" name="firstName" type="text" placeholder="Ej: Mariana" required />
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="signup-lastname">Apellido</label>
+                    <div class="input-container">
+                      <input id="signup-lastname" name="lastName" type="text" placeholder="Ej: González" required />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ID (Documento de identidad) y Teléfono -->
+                <div class="field-group">
+                  <div class="field">
+                    <label for="signup-id">Documento de identidad (ID)</label>
+                    <div class="input-container">
+                      <input id="signup-id" name="nationalId" type="text" placeholder="Ej: 1020304050" required />
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="signup-phone">Número de teléfono</label>
+                    <div class="input-container">
+                      <input id="signup-phone" name="phone" type="tel" placeholder="Ej: 3001234567" autocomplete="tel" required />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Correo -->
+                <div class="field">
+                  <label for="signup-email">Correo electrónico</label>
+                  <div class="input-container">
+                    <input id="signup-email" name="email" type="email" placeholder="ejemplo@correo.com" autocomplete="email" required />
+                  </div>
+                </div>
+
+                <!-- Contraseña y Re-contraseña -->
+                <div class="field-group">
+                  <div class="field">
+                    <label for="signup-password">Contraseña</label>
+                    <div class="input-container">
+                      <input id="signup-password" name="password" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required />
+                      <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="signup-password">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="signup-confirm-password">Confirmar contraseña</label>
+                    <div class="input-container">
+                      <input id="signup-confirm-password" name="confirmPassword" type="password" placeholder="Repite tu contraseña" autocomplete="new-password" required />
+                      <button class="btn-toggle-password" type="button" aria-label="Mostrar contraseña" data-target="signup-confirm-password">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Rol: Pasajero o Conductor -->
+                <div class="field">
+                  <label>Tipo de usuario (¿Cómo planeas usar Asiento Libre?)</label>
+                  <div class="role-selector" id="role-selector">
+                    <div class="role-option active" data-role="pasajero" role="button" tabindex="0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                      </svg>
+                      <span>Pasajero</span>
+                    </div>
+                    <div class="role-option" data-role="conductor" role="button" tabindex="0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="m4.93 4.93 4.24 4.24"/>
+                        <path d="m14.83 9.17 4.24-4.24"/>
+                        <path d="M12 2v7"/>
+                      </svg>
+                      <span>Conductor</span>
+                    </div>
+                  </div>
+                  <input type="hidden" id="signup-role" name="role" value="pasajero" />
+                </div>
+
+                <!-- ==============================================
+                     SECCIÓN DESPLEGABLE: REGISTRO DE VEHÍCULO (Conductor)
+                     ============================================== -->
+                <div class="vehicle-section" id="vehicle-section" hidden>
+                  <div class="vehicle-header">
+                    <div class="vehicle-header-title">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"/>
+                        <circle cx="7" cy="17" r="2"/>
+                        <path d="M9 17h6"/>
+                        <circle cx="17" cy="17" r="2"/>
+                      </svg>
+                      <span>Registro de Vehículo</span>
+                    </div>
+                    <label class="skip-vehicle-toggle" title="Puedes registrar tu vehículo después desde tu perfil">
+                      <input type="checkbox" id="skip-vehicle-checkbox" name="skipVehicle" value="true" />
+                      <span>Agregar después</span>
+                    </label>
+                  </div>
+
+                  <!-- Campos de datos del vehículo -->
+                  <div class="vehicle-fields-container" id="vehicle-fields-container">
+                    <div class="field-group">
+                      <div class="field">
+                        <label for="vehicle-brand">Marca</label>
+                        <div class="input-container">
+                          <input id="vehicle-brand" name="vehicleBrand" type="text" placeholder="Ej: Chevrolet, Renault" />
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label for="vehicle-model">Modelo</label>
+                        <div class="input-container">
+                          <input id="vehicle-model" name="vehicleModel" type="text" placeholder="Ej: Sandero 2022, Spark" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="field-group">
+                      <div class="field">
+                        <label for="vehicle-color">Color</label>
+                        <div class="input-container">
+                          <input id="vehicle-color" name="vehicleColor" type="text" placeholder="Ej: Gris plata, Blanco" />
+                        </div>
+                      </div>
+                      <div class="field">
+                        <label for="vehicle-plate">Placa</label>
+                        <div class="input-container">
+                          <input id="vehicle-plate" name="vehiclePlate" type="text" placeholder="Ej: ABC 123" style="text-transform: uppercase;" />
+                        </div>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <label for="vehicle-capacity">Capacidad de pasajeros (sin incluir al conductor)</label>
+                      <div class="input-container"><input id="vehicle-capacity" name="vehicleCapacity" type="number" min="1" max="8" step="1" placeholder="Ej: 4" /></div>
+                    </div>
+
+                    <!-- Apartado de Documentos (PDF, Word) -->
+                    <div class="documents-box">
+                      <div class="documents-header">
+                        <label>Documentos del vehículo (Opcional)</label>
+                        <span class="documents-subtitle">Sube tu SOAT, licencia o tarjeta de propiedad en formato PDF o Word</span>
+                      </div>
+
+                      <p id="documents-note" class="hint">Los documentos seleccionados solo se previsualizan en este dispositivo; su envío estará disponible en una próxima entrega.</p><div class="file-dropzone" id="file-dropzone" aria-describedby="documents-note">
+                        <input 
+                          type="file" 
+                          id="vehicle-documents" 
+                          name="vehicleDocuments" 
+                          multiple 
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                        />
+                        <div class="file-dropzone-icon">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                          </svg>
+                        </div>
+                        <div class="file-dropzone-text">
+                          Arrastra tus documentos o <span>explora tus archivos</span>
+                        </div>
+                        <div class="file-dropzone-hint">
+                          Archivos permitidos: PDF, DOC, DOCX (Máx. 10 MB c/u)
+                        </div>
+                        <div class="file-badges">
+                          <span class="file-badge pdf">PDF</span>
+                          <span class="file-badge word">Word .DOC / .DOCX</span>
+                        </div>
+                      </div>
+
+                      <div class="uploaded-files-list" id="uploaded-files-list"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Botón de envío -->
+                <button class="btn-submit" type="submit">
+                  Crear cuenta
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <line x1="19" y1="8" x2="19" y2="14"/>
+                    <line x1="22" y1="11" x2="16" y2="11"/>
                   </svg>
                 </button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Rol: Pasajero o Conductor -->
-          <div class="field">
-            <label>Tipo de usuario (¿Cómo planeas usar Asiento Libre?)</label>
-            <div class="role-selector" id="role-selector">
-              <div class="role-option active" data-role="pasajero" role="button" tabindex="0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>Pasajero</span>
-              </div>
-              <div class="role-option" data-role="conductor" role="button" tabindex="0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="m4.93 4.93 4.24 4.24"/>
-                  <path d="m14.83 9.17 4.24-4.24"/>
-                  <path d="M12 2v7"/>
-                </svg>
-                <span>Conductor</span>
-              </div>
-            </div>
-            <input type="hidden" id="signup-role" name="role" value="pasajero" />
-          </div>
-
-          <!-- ==============================================
-               SECCIÓN DESPLEGABLE: REGISTRO DE VEHÍCULO (Conductor)
-               ============================================== -->
-          <div class="vehicle-section" id="vehicle-section" hidden>
-            <div class="vehicle-header">
-              <div class="vehicle-header-title">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"/>
-                  <circle cx="7" cy="17" r="2"/>
-                  <path d="M9 17h6"/>
-                  <circle cx="17" cy="17" r="2"/>
-                </svg>
-                <span>Registro de Vehículo</span>
-              </div>
-              <label class="skip-vehicle-toggle" title="Puedes registrar tu vehículo después desde tu perfil">
-                <input type="checkbox" id="skip-vehicle-checkbox" name="skipVehicle" value="true" />
-                <span>Agregar después</span>
-              </label>
+                <div class="auth-footer">
+                  ¿Ya tienes una cuenta? <a href="#login" id="link-go-login">Inicia sesión</a>
+                </div>
+              </form>
             </div>
 
-            <!-- Campos de datos del vehículo -->
-            <div class="vehicle-fields-container" id="vehicle-fields-container">
-              <div class="field-group">
-                <div class="field">
-                  <label for="vehicle-brand">Marca</label>
-                  <div class="input-container">
-                    <input id="vehicle-brand" name="vehicleBrand" type="text" placeholder="Ej: Chevrolet, Renault" />
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="vehicle-model">Modelo</label>
-                  <div class="input-container">
-                    <input id="vehicle-model" name="vehicleModel" type="text" placeholder="Ej: Sandero 2022, Spark" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="field-group">
-                <div class="field">
-                  <label for="vehicle-color">Color</label>
-                  <div class="input-container">
-                    <input id="vehicle-color" name="vehicleColor" type="text" placeholder="Ej: Gris plata, Blanco" />
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="vehicle-plate">Placa</label>
-                  <div class="input-container">
-                    <input id="vehicle-plate" name="vehiclePlate" type="text" placeholder="Ej: ABC 123" style="text-transform: uppercase;" />
-                  </div>
-                </div>
-              </div>
-              <div class="field">
-                <label for="vehicle-capacity">Capacidad de pasajeros (sin incluir al conductor)</label>
-                <div class="input-container"><input id="vehicle-capacity" name="vehicleCapacity" type="number" min="1" max="8" step="1" placeholder="Ej: 4" /></div>
-              </div>
-
-
-              <!-- Apartado de Documentos (PDF, Word) -->
-              <div class="documents-box">
-                <div class="documents-header">
-                  <label>Documentos del vehículo (Opcional)</label>
-                  <span class="documents-subtitle">Sube tu SOAT, licencia o tarjeta de propiedad en formato PDF o Word</span>
-                </div>
-
-                <p id="documents-note" class="hint">Los documentos seleccionados solo se previsualizan en este dispositivo; su envío estará disponible en una próxima entrega.</p><div class="file-dropzone" id="file-dropzone" aria-describedby="documents-note">
-                  <input 
-                    type="file" 
-                    id="vehicle-documents" 
-                    name="vehicleDocuments" 
-                    multiple 
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                  />
-                  <div class="file-dropzone-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="17 8 12 3 7 8"/>
-                      <line x1="12" y1="3" x2="12" y2="15"/>
-                    </svg>
-                  </div>
-                  <div class="file-dropzone-text">
-                    Arrastra tus documentos o <span>explora tus archivos</span>
-                  </div>
-                  <div class="file-dropzone-hint">
-                    Archivos permitidos: PDF, DOC, DOCX (Máx. 10 MB c/u)
-                  </div>
-                  <div class="file-badges">
-                    <span class="file-badge pdf">PDF</span>
-                    <span class="file-badge word">Word .DOC / .DOCX</span>
-                  </div>
-                </div>
-
-                <div class="uploaded-files-list" id="uploaded-files-list"></div>
-              </div>
-            </div>
           </div>
-
-          <!-- Botón de envío -->
-          <button class="btn-submit" type="submit">
-            Crear cuenta
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <line x1="19" y1="8" x2="19" y2="14"/>
-              <line x1="22" y1="11" x2="16" y2="11"/>
-            </svg>
-          </button>
-
-          <div class="auth-footer">
-            ¿Ya tienes una cuenta? <a href="#login" id="link-go-login">Inicia sesión</a>
-          </div>
-        </form>
+        </div>
 
       </div>
     </div>

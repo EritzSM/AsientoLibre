@@ -118,6 +118,15 @@
               </svg>
               Vehículo
             </a>
+            <a href="#documentos" class="profile-nav-btn" id="nav-documentos">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              Documentos
+            </a>
             <a href="#seguridad" class="profile-nav-btn">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -199,6 +208,7 @@
                     <option value="conductor">Conductor (Ofrezco rutas y asientos)</option>
                   </select>
                 </div>
+                <p id="profile-role-hint" class="field-hint">Al cambiar a Conductor podrás registrar tu vehículo y publicar rutas al guardar los cambios.</p>
               </div>
 
               <button class="btn-save" type="submit">
@@ -275,6 +285,70 @@
                 Guardar vehículo
               </button>
             </form>
+          </section>
+
+          <!-- 2.5 Documentos del Conductor -->
+          <section class="profile-card" id="documentos">
+            <div class="profile-card-header">
+              <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                Documentos de Verificación
+              </h2>
+              <p>Sube tus documentos para que el equipo de Asiento Libre pueda verificarlos y habilitar tu cuenta como conductor activo.</p>
+            </div>
+
+            <div id="docs-loading" style="text-align:center; padding: 24px 0; color: var(--text-muted); font-size: 0.9rem;">
+              Cargando documentos...
+            </div>
+
+            <!-- Lista de documentos subidos -->
+            <div id="docs-list" hidden></div>
+
+            <!-- Selector para subir nuevo documento -->
+            <div class="doc-upload-area" id="doc-upload-area" hidden>
+              <h3 class="doc-upload-title">Subir nuevo documento</h3>
+              <div class="field">
+                <label for="doc-type-select">Tipo de documento</label>
+                <div class="input-container">
+                  <select id="doc-type-select">
+                    <option value="">-- Selecciona un tipo --</option>
+                    <option value="licencia">🪪 Licencia de Conducción</option>
+                    <option value="soat">📄 SOAT</option>
+                    <option value="cedula">🆔 Cédula de Ciudadanía</option>
+                    <option value="foto_vehiculo">🚗 Foto del Vehículo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field" id="doc-file-field" hidden>
+                <label for="doc-file-input">Archivo (imagen o PDF, máx. 5 MB)</label>
+                <div class="doc-dropzone" id="doc-dropzone">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <p>Arrastra tu archivo aquí o <span class="doc-browse-link">haz clic para seleccionar</span></p>
+                  <p style="font-size: 0.82rem; color: var(--text-faint);">JPG, PNG, PDF &mdash; Máx. 5 MB</p>
+                  <input type="file" id="doc-file-input" accept="image/*,.pdf" style="display:none;" />
+                </div>
+                <div id="doc-file-preview" hidden style="margin-top: 10px;"></div>
+              </div>
+
+              <button class="btn-save" id="btn-upload-doc" type="button" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Subir documento
+              </button>
+            </div>
           </section>
 
           <!-- 3. Seguridad y Contraseña -->

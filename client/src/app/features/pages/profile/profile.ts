@@ -6,6 +6,7 @@ import { clearActiveUser, getActiveUser, setActiveUser, initHeader } from "../..
 import type { AuthUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
 import { routesService } from "../../../core/services/routes.service";
+import type { ConductorDocument } from "../../../core/services/routes.service";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resendInterval: ReturnType<typeof setInterval> | undefined;
@@ -36,20 +37,19 @@ function getInitials(name: string): string {
     .join("");
 }
 
-// ---- Visibilidad según el Rol (Conductor vs Pasajero) ----
-function updateRoleVisibility(role: 'pasajero' | 'conductor'): void {
+// ---- Visibilidad según el Rol (Conductor vs Pasajero vs Admin) ----
+function updateRoleVisibility(role?: string): void {
   const navVehiculo = $<HTMLAnchorElement>("#nav-vehiculo");
   const sectionVehiculo = $<HTMLElement>("#vehiculo");
+  const navDocumentos = $<HTMLAnchorElement>("#nav-documentos");
+  const sectionDocumentos = $<HTMLElement>("#documentos");
 
   const isDriver = role === 'conductor';
 
-  if (navVehiculo) {
-    navVehiculo.style.display = isDriver ? "" : "none";
-  }
-
-  if (sectionVehiculo) {
-    sectionVehiculo.style.display = isDriver ? "" : "none";
-  }
+  if (navVehiculo) navVehiculo.style.display = isDriver ? "" : "none";
+  if (sectionVehiculo) sectionVehiculo.style.display = isDriver ? "" : "none";
+  if (navDocumentos) navDocumentos.style.display = isDriver ? "" : "none";
+  if (sectionDocumentos) sectionDocumentos.style.display = isDriver ? "" : "none";
 }
 
 // ---- Cargar datos en la UI ----
@@ -68,7 +68,9 @@ function populateProfileUI(user: AuthUser): void {
   if (sidebarName) sidebarName.textContent = fullName;
   if (sidebarEmail) sidebarEmail.textContent = user.email;
   if (sidebarRole) {
-    sidebarRole.textContent = user.role === 'conductor' ? '🚗 Conductor' : '👤 Pasajero';
+    sidebarRole.textContent = 
+      user.role === 'admin' ? '🛡️ Administrador' :
+      user.role === 'conductor' ? '🚗 Conductor' : '👤 Pasajero';
   }
 
   // Formulario 1: Datos Personales
@@ -166,7 +168,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
   const nationalId = String(data.get("nationalId") ?? "").trim();
   const phone = String(data.get("phone") ?? "").trim();
   const newEmail = String(data.get("email") ?? "").trim().toLowerCase();
-  const role = currentUser.role;
+  const selectedRole = (String(data.get("role") ?? "").trim() || currentUser.role) as 'pasajero' | 'conductor';
 
   if (!firstName || !lastName || !nationalId || !newEmail) {
     showToast("Nombre, apellido, documento y correo electrónico son obligatorios.");
@@ -196,6 +198,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         lastName,
         nationalId,
         phone,
+        role: selectedRole,
       });
 
       const updatedUser: AuthUser = {
@@ -204,8 +207,8 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         lastName,
         nationalId,
         phone,
-        role,
-        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+        role: selectedRole,
+        vehicle: selectedRole === 'conductor' ? currentUser.vehicle : undefined,
       };
       setActiveUser(updatedUser);
       populateProfileUI(updatedUser);
@@ -222,6 +225,7 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         lastName,
         nationalId,
         phone,
+        role: selectedRole,
       });
 
       const updatedUser: AuthUser = {
@@ -230,14 +234,19 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         lastName,
         nationalId,
         phone,
-        role,
-        vehicle: role === 'conductor' ? currentUser.vehicle : undefined,
+        role: selectedRole,
+        vehicle: selectedRole === 'conductor' ? currentUser.vehicle : undefined,
       };
 
       setActiveUser(updatedUser);
       populateProfileUI(updatedUser);
       void initHeader(updatedUser);
-      showToast("¡Tus datos personales fueron actualizados con éxito!");
+
+      const isRoleChanged = selectedRole !== currentUser.role;
+      const successMsg = isRoleChanged
+        ? `¡Datos personales y rol actualizados a ${selectedRole === 'conductor' ? 'Conductor' : 'Pasajero'} con éxito!`
+        : "¡Tus datos personales fueron actualizados con éxito!";
+      showToast(successMsg);
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -557,10 +566,14 @@ async function initProfile(): Promise<void> {
     });
   }
 
-  // Cambio dinámico de rol en el select de datos personales
+  // Selector interactivo de rol (actualiza vista previa y se guarda con 'Guardar cambios')
   const selectRole = $<HTMLSelectElement>("#profile-role");
   if (selectRole) {
-    selectRole.disabled = true;
+    selectRole.disabled = false;
+    selectRole.addEventListener("change", () => {
+      const chosenRole = selectRole.value as 'pasajero' | 'conductor';
+      updateRoleVisibility(chosenRole);
+    });
   }
 
   // Modal de Confirmación de Código de Correo
@@ -597,6 +610,206 @@ async function initProfile(): Promise<void> {
   // Eliminar Cuenta y Sidebar
   bindDeleteAccount();
   bindSidebarNav();
+
+  // Documentos (solo para conductores)
+  if (user.role === 'conductor') {
+    void initDocuments();
+  }
+}
+
+// =========================================================
+// Lógica de Documentos del Conductor
+// =========================================================
+
+function formatDocType(type: string): string {
+  const labels: Record<string, string> = {
+    licencia: '🪪 Licencia de Conducción',
+    soat: '📄 SOAT',
+    cedula: '🆔 Cédula de Ciudadanía',
+    foto_vehiculo: '🚗 Foto del Vehículo',
+  };
+  return labels[type] || type;
+}
+
+function formatDocDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-CO', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+}
+
+function renderDocList(docs: ConductorDocument[]): void {
+  const container = $<HTMLDivElement>('#docs-list');
+  const loading = $<HTMLDivElement>('#docs-loading');
+  const uploadArea = $<HTMLDivElement>('#doc-upload-area');
+  if (!container) return;
+
+  if (loading) loading.hidden = true;
+  if (uploadArea) uploadArea.hidden = false;
+  container.hidden = false;
+
+  if (docs.length === 0) {
+    container.innerHTML = '<p class="docs-empty">¡Aún no has subido ningún documento. Sube tus documentos para que el equipo pueda verificarte.</p>';
+    return;
+  }
+
+  container.innerHTML = `<div class="docs-grid">${docs.map((doc) => `
+    <div class="doc-card" data-doc-id="${doc.id}">
+      <div class="doc-card-top">
+        <div>
+          <div class="doc-card-type">${formatDocType(doc.document_type)}</div>
+          <div class="doc-card-date">Enviado: ${formatDocDate(doc.submitted_at)}</div>
+        </div>
+        <span class="doc-status-badge ${doc.status}">
+          ${doc.status === 'pendiente' ? '⏳' : doc.status === 'aprobado' ? '✅' : '❌'}
+          ${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+        </span>
+      </div>
+      ${doc.rejection_reason
+        ? `<div class="doc-rejection-note">⚠️ Motivo del rechazo: ${doc.rejection_reason}</div>`
+        : ''}
+      <div class="doc-card-actions">
+        <a href="${doc.file_url}" target="_blank" rel="noopener noreferrer" class="btn-doc-view">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Ver documento
+        </a>
+        <button class="btn-doc-delete" data-delete-id="${doc.id}" title="Eliminar documento">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+    </div>
+  `).join('')}</div>`;
+
+  // Bind delete buttons
+  container.querySelectorAll<HTMLButtonElement>('[data-delete-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.deleteId;
+      if (!id || !confirm('¿Eliminar este documento? Tendrás que volver a subirlo.')) return;
+      try {
+        await routesService.deleteDocument(id);
+        showToast('Documento eliminado.');
+        const docs = await routesService.getDocuments();
+        renderDocList(docs);
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : 'Error al eliminar el documento.');
+      }
+    });
+  });
+}
+
+let selectedFile: File | null = null;
+
+async function initDocuments(): Promise<void> {
+  try {
+    const docs = await routesService.getDocuments();
+    renderDocList(docs);
+  } catch {
+    const loading = $<HTMLDivElement>('#docs-loading');
+    if (loading) loading.textContent = 'No se pudieron cargar los documentos.';
+  }
+
+  // Dropzone interactions
+  const dropzone = $<HTMLDivElement>('#doc-dropzone');
+  const fileInput = $<HTMLInputElement>('#doc-file-input');
+  const fileField = $<HTMLDivElement>('#doc-file-field');
+  const filePreview = $<HTMLDivElement>('#doc-file-preview');
+  const typeSelect = $<HTMLSelectElement>('#doc-type-select');
+  const uploadBtn = $<HTMLButtonElement>('#btn-upload-doc');
+
+  // Show file field when type is selected
+  if (typeSelect && fileField) {
+    typeSelect.addEventListener('change', () => {
+      fileField.hidden = !typeSelect.value;
+    });
+  }
+
+  // Click dropzone
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleFileSelect(file, filePreview, uploadBtn, typeSelect);
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) handleFileSelect(file, filePreview, uploadBtn, typeSelect);
+    });
+  }
+
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile || !typeSelect?.value) return;
+      const docType = typeSelect.value as 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo';
+      const originalHtml = uploadBtn.innerHTML;
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Subiendo...';
+
+      try {
+        const fileData = await fileToBase64(selectedFile);
+        await routesService.uploadDocument({
+          documentType: docType,
+          fileName: selectedFile.name,
+          fileData,
+        });
+        showToast('✅ Documento subido exitosamente. Será revisado pronto.');
+        selectedFile = null;
+        if (filePreview) filePreview.hidden = true;
+        if (fileInput) fileInput.value = '';
+        if (typeSelect) typeSelect.value = '';
+        if (fileField) fileField.hidden = true;
+        uploadBtn.disabled = true;
+        // Reload list
+        const docs = await routesService.getDocuments();
+        renderDocList(docs);
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : 'Error al subir el documento.');
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalHtml;
+      }
+    });
+  }
+}
+
+function handleFileSelect(
+  file: File,
+  preview: HTMLDivElement | null,
+  uploadBtn: HTMLButtonElement | null,
+  typeSelect: HTMLSelectElement | null,
+): void {
+  const maxBytes = 5 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    showToast('El archivo supera el límite de 5 MB.');
+    return;
+  }
+  selectedFile = file;
+  if (preview) {
+    preview.hidden = false;
+    preview.innerHTML = `<div class="doc-file-preview-item">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span>${file.name}</span>
+      <small style="color:var(--text-faint);">${(file.size / 1024).toFixed(1)} KB</small>
+    </div>`;
+  }
+  if (uploadBtn) uploadBtn.disabled = !(typeSelect?.value);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 if (document.readyState === "loading") {

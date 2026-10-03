@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsString({ message: 'El nombre debe ser una cadena' })
@@ -23,4 +23,10 @@ export class UpdateProfileDto {
     message: 'El teléfono debe contener únicamente entre 7 y 15 dígitos',
   })
   phone: string;
+
+  @IsOptional()
+  @IsIn(['pasajero', 'conductor'], {
+    message: 'El rol debe ser pasajero o conductor',
+  })
+  role?: 'pasajero' | 'conductor';
 }
