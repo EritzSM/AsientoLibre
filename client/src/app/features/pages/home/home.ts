@@ -53,7 +53,7 @@ export function routeCardHtml(route: Route, owner = false): string {
   const initials = escape(route.driverName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase());
   return `<article class="route-card" data-id="${escape(route.id)}">
     <div class="route-card-top">
-      <div class="driver"><span class="avatar" aria-hidden="true">${initials}</span>
+      <div class="driver"><span class="avatar" aria-hidden="true">${initials}${route.driverPhotoUrl ? `<img class="avatar-photo" src="${escape(route.driverPhotoUrl)}" alt="" />` : ''}</span>
         <div><div class="driver-name">${name}</div><div class="driver-role">Conductor</div></div>
       </div>
       <span class="price-pill">${escape(priceFormatter.format(route.price ?? 0))} / asiento</span>
@@ -77,6 +77,12 @@ export function routeCardHtml(route: Route, owner = false): string {
       ${canFinish ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">Finalizar viaje</button>` : ''}
     </div>` : ''}
   </article>`;
+}
+
+function bindAvatarFallbacks(container: HTMLElement): void {
+  container.querySelectorAll<HTMLImageElement>(".avatar-photo").forEach((image) => {
+    image.addEventListener("error", () => image.remove(), { once: true });
+  });
 }
 
 const attendanceLabels: Record<AttendanceStatus, string> = {
@@ -136,7 +142,9 @@ async function loadReminders(): Promise<void> {
 }
 
 function renderPublicRoutes(): void {
-  $('#routes-list').innerHTML = publicRoutes.map((route) => routeCardHtml(route)).join('');
+  const list = $('#routes-list');
+  list.innerHTML = publicRoutes.map((route) => routeCardHtml(route)).join('');
+  bindAvatarFallbacks(list);
   $('#empty-state').hidden = publicRoutes.length > 0;
 }
 
@@ -176,7 +184,9 @@ async function loadMine(): Promise<void> {
   statusMessage('#mine-error', '');
   try {
     ownRoutes = (await routesService.mine()).filter((route) => route.status === 'published' && !route.driverFinishedAt);
-    $('#mine-list').innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
+    const list = $('#mine-list');
+    list.innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
+    bindAvatarFallbacks(list);
     $('#mine-empty').hidden = ownRoutes.length > 0;
   } catch (error) {
     statusMessage('#mine-error', errorMessage(error));
@@ -238,12 +248,16 @@ async function loadBookingRequests(): Promise<void> {
   statusMessage('#booking-requests-error', '');
   try {
     bookingRequests = await routesService.bookingRequests();
-    $('#booking-requests-list').innerHTML = bookingRequests.map((request) => `<article class="route-card">
-      <h3>${escape(request.passengerName)} solicita ${escape(request.seats)} cupo(s)</h3>
+    const list = $('#booking-requests-list');
+    list.innerHTML = bookingRequests.map((request) => `<article class="route-card">
+      <div class="driver"><span class="avatar" aria-hidden="true">${escape(request.passengerName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase())}${request.passengerPhotoUrl ? `<img class="avatar-photo" src="${escape(request.passengerPhotoUrl)}" alt="" />` : ''}</span>
+        <div><h3>${escape(request.passengerName)} solicita ${escape(request.seats)} cupo(s)</h3></div>
+      </div>
       <p>${escape(request.route.origin)} → ${escape(request.route.destination)}</p>
       <p>${escape(dateLabel(request.route.date))} · ${escape(request.route.time)} (Colombia)</p>
       <button type="button" class="btn btn-primary" data-accept-booking="${escape(request.id)}">Aceptar y confirmar reserva</button>
     </article>`).join('');
+    bindAvatarFallbacks(list);
     $('#booking-requests-empty').hidden = bookingRequests.length > 0;
   } catch (error) {
     statusMessage('#booking-requests-error', errorMessage(error));

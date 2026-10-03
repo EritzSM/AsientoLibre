@@ -46,7 +46,6 @@ export async function initHeader(
     .join("")
     .toUpperCase();
   const values: Record<string, string> = {
-    "header-user-avatar": initials,
     "header-user-name": user.firstName || "Mi perfil",
     "dropdown-user-name": name,
     "dropdown-user-role": user.role === "conductor" ? "Conductor" : "Pasajero",
@@ -55,6 +54,19 @@ export async function initHeader(
     const target = document.getElementById(id);
     if (target) target.textContent = value;
   });
+  const avatar = document.querySelector<HTMLElement>("#header-user-avatar");
+  if (avatar) {
+    avatar.replaceChildren(document.createTextNode(initials));
+    if (user.photoUrl) {
+      const image = document.createElement("img");
+      image.className = "avatar-photo";
+      image.src = user.photoUrl;
+      image.alt = "";
+      image.setAttribute("aria-hidden", "true");
+      image.addEventListener("error", () => image.remove(), { once: true });
+      avatar.append(image);
+    }
+  }
   const button = document.querySelector<HTMLButtonElement>("#user-profile-btn");
   const dropdown = document.querySelector<HTMLElement>("#profile-dropdown");
   if (button && dropdown) {

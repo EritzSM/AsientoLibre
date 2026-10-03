@@ -12,6 +12,7 @@ export interface AuthUser {
 	id: string;
 	firstName: string;
 	lastName: string;
+	photoUrl?: string | null;
 	nationalId?: string;
 	phone?: string;
 	email: string;
@@ -168,6 +169,19 @@ class AuthService {
 			body: JSON.stringify(data),
 		}, true);
 	}
+
+		async uploadProfilePhoto(photoData: string): Promise<{ success: boolean; photoUrl: string }> {
+			return this.request<{ success: boolean; photoUrl: string }>('/auth/profile-photo', {
+				method: 'POST',
+				body: JSON.stringify({ photoData }),
+			}, true);
+		}
+
+		async deleteProfilePhoto(): Promise<{ success: boolean }> {
+			return this.request<{ success: boolean }>('/auth/profile-photo', {
+				method: 'DELETE',
+			}, true);
+		}
 
 	async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
 		const response = await this.request<{ success: boolean; message: string }>('/auth/change-password', {

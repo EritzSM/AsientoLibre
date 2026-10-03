@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Delete,
   Get,
   Body,
   Headers,
@@ -22,6 +23,7 @@ import { ChangeUnverifiedEmailDto } from './dto/change-email.dto.js';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto.js';
 import { ConfirmEmailChangeDto } from './dto/confirm-email-change.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { ProfilePhotoDto } from './dto/profile-photo.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
@@ -168,6 +170,20 @@ export class AuthController {
       phone: dto.phone,
       role: dto.role,
     });
+  }
+
+  @Post('profile-photo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async uploadProfilePhoto(@Req() req: AuthenticatedRequest, @Body() dto: ProfilePhotoDto) {
+    return this.authService.uploadProfilePhoto(req.actorId, dto.photoData);
+  }
+
+  @Delete('profile-photo')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(SupabaseAuthGuard)
+  async deleteProfilePhoto(@Req() req: AuthenticatedRequest) {
+    return this.authService.deleteProfilePhoto(req.actorId);
   }
 
   @Post('change-password')

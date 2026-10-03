@@ -4,6 +4,7 @@ export interface Route {
   id: string;
   driverId: string;
   driverName: string;
+  driverPhotoUrl?: string | null;
   origin: string;
   destination: string;
   meetingPoint: string;
@@ -84,6 +85,7 @@ export interface FinishResult {
 export interface BookingRequest extends Booking {
   passengerId: string;
   passengerName: string;
+  passengerPhotoUrl?: string | null;
 }
 
 interface ErrorBody {

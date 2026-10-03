@@ -29,6 +29,7 @@ export interface AuthResponse {
     lastName: string;
     nationalId?: string;
     phone?: string;
+    photoUrl?: string | null;
     email: string;
     role: 'pasajero' | 'conductor' | 'admin';
     isActive: boolean;
@@ -432,6 +433,7 @@ export class AuthService {
         lastName,
         nationalId,
         phone: profile?.phone || '',
+        photoUrl: profile?.photo_url || null,
         email: user.email ?? loginDto.email,
         role,
         isActive,
@@ -488,6 +490,7 @@ export class AuthService {
       lastName: profile?.last_name || user.user_metadata?.lastName || '',
       nationalId: profile?.national_id || user.user_metadata?.nationalId || '',
       phone: profile?.phone || '',
+      photoUrl: profile?.photo_url || null,
       email: user.email || '',
       role: profile?.role || user.user_metadata?.role || 'pasajero',
       isActive: profile?.is_active ?? false,
@@ -629,6 +632,78 @@ export class AuthService {
     const { error } = await this.supabaseService.getClient().from('profiles').update(updatePayload).eq('id', actorId);
     if (error) throw new BadRequestException('No se pudieron actualizar los datos del perfil.');
     return { success: true, message: 'Perfil actualizado exitosamente.' };
+  }
+
+  async uploadProfilePhoto(actorId: string, photoData: string): Promise<{ success: boolean; photoUrl: string }> {
+    const match = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/]+={0,2})$/.exec(photoData);
+    if (!match) throw new BadRequestException('La foto debe ser una imagen JPG o PNG válida.');
+
+    const mimeType = `image/${match[1]}`;
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+      throw new BadRequestException('La foto debe pesar máximo 5 MB.');
+    }
+    const isJpeg = mimeType === 'image/jpeg' && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isPng = mimeType === 'image/png'
+      && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    if (!isJpeg && !isPng) throw new BadRequestException('El contenido de la foto no coincide con su formato JPG o PNG.');
+
+    const admin = this.supabaseService.getClient();
+    const bucket = 'profile-photos';
+    const filePath = `${actorId}/${randomUUID()}.${match[1] === 'jpeg' ? 'jpg' : 'png'}`;
+    const { data: buckets, error: bucketsError } = await admin.storage.listBuckets();
+    if (bucketsError) throw new ServiceUnavailableException('No se pudo preparar el almacenamiento de fotos.');
+    if (!buckets?.some((item) => item.name === bucket)) {
+      const { error: createError } = await admin.storage.createBucket(bucket, { public: true, fileSizeLimit: '5MB', allowedMimeTypes: ['image/jpeg', 'image/png'] });
+      if (createError) throw new ServiceUnavailableException('No se pudo preparar el almacenamiento de fotos.');
+    }
+
+    const { error: uploadError } = await admin.storage.from(bucket).upload(filePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+    if (uploadError) throw new ServiceUnavailableException('No se pudo guardar la foto de perfil.');
+
+    const { data: publicUrl } = admin.storage.from(bucket).getPublicUrl(filePath);
+    const { data: currentProfile, error: profileReadError } = await admin.from('profiles')
+      .select('photo_path').eq('id', actorId).maybeSingle();
+    if (profileReadError || !currentProfile) {
+      await admin.storage.from(bucket).remove([filePath]);
+      throw new ServiceUnavailableException('No se pudo consultar el perfil para guardar la foto.');
+    }
+    const { error: updateError } = await admin.from('profiles').update({
+      photo_url: publicUrl.publicUrl,
+      photo_path: filePath,
+    }).eq('id', actorId);
+    if (updateError) {
+      await admin.storage.from(bucket).remove([filePath]);
+      throw new ServiceUnavailableException('No se pudo asociar la foto al perfil.');
+    }
+    const previousPath = currentProfile.photo_path as string | null;
+    if (previousPath) {
+      const { error: removeError } = await admin.storage.from(bucket).remove([previousPath]);
+      if (removeError) this.logger.warn(`No se pudo limpiar la foto de perfil anterior: ${removeError.message}`);
+    }
+    return { success: true, photoUrl: publicUrl.publicUrl };
+  }
+
+  async deleteProfilePhoto(actorId: string): Promise<{ success: boolean }> {
+    const admin = this.supabaseService.getClient();
+    const { data: profile, error: readError } = await admin.from('profiles')
+      .select('photo_path').eq('id', actorId).maybeSingle();
+    if (readError || !profile) throw new ServiceUnavailableException('No se pudo consultar el perfil.');
+
+    const { error: updateError } = await admin.from('profiles').update({
+      photo_url: null,
+      photo_path: null,
+    }).eq('id', actorId);
+    if (updateError) throw new ServiceUnavailableException('No se pudo eliminar la foto del perfil.');
+
+    if (profile.photo_path) {
+      const { error: removeError } = await admin.storage.from('profile-photos').remove([profile.photo_path as string]);
+      if (removeError) this.logger.warn(`No se pudo limpiar la foto de perfil eliminada: ${removeError.message}`);
+    }
+    return { success: true };
   }
 
   private async verifyCurrentPassword(actorId: string, password: string): Promise<void> {

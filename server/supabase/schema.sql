@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     last_name TEXT NOT NULL,
     national_id TEXT NOT NULL,
     phone TEXT,
+    photo_url TEXT,
+    photo_path TEXT,
     role TEXT NOT NULL CHECK (role IN ('pasajero', 'conductor')),
     is_active BOOLEAN DEFAULT false NOT NULL,
     activation_token TEXT,
@@ -29,6 +31,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false NOT NULL;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS photo_path TEXT;
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_phone_format_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_phone_format_check
     CHECK (phone IS NULL OR phone ~ '^[0-9]{7,15}$');
@@ -37,6 +41,13 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pending_email TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_code TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_change_expires_at TIMESTAMP WITH TIME ZONE;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('profile-photos', 'profile-photos', true, 5242880, ARRAY['image/jpeg', 'image/png'])
+ON CONFLICT (id) DO UPDATE
+SET public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- 3. Tabla: Vehículos (vehicles)
 -- Asociada a los usuarios con rol 'conductor'
@@ -104,4 +115,3 @@ DROP POLICY IF EXISTS "Permitir eliminación de vehículos" ON public.vehicles;
 
 REVOKE ALL ON public.profiles, public.vehicles FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles, public.vehicles TO service_role;
-

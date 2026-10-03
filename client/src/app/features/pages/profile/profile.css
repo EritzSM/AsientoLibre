@@ -79,6 +79,8 @@ body {
 }
 
 .profile-avatar-large {
+  position: relative;
+  overflow: hidden;
   width: 90px;
   height: 90px;
   border-radius: 50%;
@@ -90,6 +92,48 @@ body {
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
+  box-shadow: 0 8px 20px rgba(23, 191, 172, 0.2);
+}
+
+.profile-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: -4px 0 16px;
+}
+
+.profile-photo-actions small {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.profile-photo-button,
+.profile-photo-delete {
+  border: 1px solid var(--teal, #17BFAC);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #fff;
+  color: var(--teal-dark, #109E8E);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-photo-button.is-uploading,
+.profile-photo-button[aria-disabled="true"] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.profile-photo-delete {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.profile-avatar-large > .avatar-photo {
   box-shadow: 0 8px 20px rgba(23, 191, 172, 0.2);
 }
 
