@@ -11,11 +11,17 @@ export interface RouteRow {
   driver_finished_at: string | null; passenger_finished_at?: string | null;
 }
 
-export function presentRoute(row: RouteRow) {
+export interface PaymentRow {
+  id: string; booking_id: string; route_id: string; passenger_id: string;
+  amount: number; status: string; confirmed_at: string | null; confirmed_by: string | null;
+  created_at: string; passenger_name?: string;
+}
+
+export function presentRoute(row: RouteRow, driverPhotoUrl?: string | null) {
   // Colombia does not observe daylight-saving time. Store UTC, expose local date and time.
   const local = new Date(new Date(row.departure_at).getTime() - 5 * 60 * 60 * 1000).toISOString();
   return {
-    id: row.id, driverId: row.driver_id, driverName: row.driver_name,
+    id: row.id, driverId: row.driver_id, driverName: row.driver_name, driverPhotoUrl: driverPhotoUrl ?? null,
     origin: row.origin, destination: row.destination, meetingPoint: row.meeting_point,
     date: local.slice(0, 10), time: local.slice(11, 16),
     seats: row.seats, availableSeats: row.available_seats, price: Number(row.price), note: row.note,
@@ -41,14 +47,14 @@ export class RoutesService {
     }
     const { data, error } = await query.order('departure_at').limit(100);
     if (error) throwDatabaseError(error);
-    return (data as RouteRow[]).map(presentRoute);
+    return this.presentRoutes(data as RouteRow[]);
   }
 
   async findMine(actorId: string) {
     const { data, error } = await this.supabase.getClient().from('route_catalog').select('*')
       .eq('driver_id', actorId).order('departure_at', { ascending: false }).limit(100);
     if (error) throwDatabaseError(error);
-    return (data as RouteRow[]).map(presentRoute);
+    return this.presentRoutes(data as RouteRow[]);
   }
 
   async create(actorId: string, dto: CreateRouteDto) {
@@ -97,16 +103,19 @@ export class RoutesService {
     if (!requests?.length) return [];
     const passengerIds = [...new Set(requests.map((request) => request.passenger_id as string))];
     const { data: passengers, error: passengerError } = await admin.from('profiles')
-      .select('id,first_name,last_name').in('id', passengerIds);
+      .select('id,first_name,last_name,photo_url').in('id', passengerIds);
     if (passengerError) throwDatabaseError(passengerError);
     const routeById = new Map((routes as RouteRow[]).map((row) => [row.id, presentRoute(row)]));
-    const passengerById = new Map((passengers ?? []).map((profile) => [profile.id as string,
-      [profile.first_name, profile.last_name].filter(Boolean).join(' ')]));
+    const passengerById = new Map((passengers ?? []).map((profile) => [profile.id as string, {
+      name: [profile.first_name, profile.last_name].filter(Boolean).join(' '),
+      photoUrl: profile.photo_url as string | null,
+    }]));
     return requests.map((request) => ({
       id: request.id,
       routeId: request.route_id,
       passengerId: request.passenger_id,
-      passengerName: passengerById.get(request.passenger_id as string) || 'Pasajero',
+      passengerName: passengerById.get(request.passenger_id as string)?.name || 'Pasajero',
+      passengerPhotoUrl: passengerById.get(request.passenger_id as string)?.photoUrl ?? null,
       seats: request.seats,
       status: request.status,
       createdAt: request.created_at,
@@ -122,13 +131,37 @@ export class RoutesService {
     const { data: routes, error: routesError } = await this.supabase.getClient().from('route_catalog').select('*')
       .in('id', [...new Set(bookings.map((booking) => booking.route_id))]);
     if (routesError) throwDatabaseError(routesError);
-    const byId = new Map((routes as RouteRow[]).map((row) => [row.id, presentRoute(row)]));
+    const presentedRoutes = await this.presentRoutes(routes as RouteRow[]);
+    const byId = new Map(presentedRoutes.map((route) => [route.id, route]));
     return bookings.map((booking) => ({ id: booking.id, routeId: booking.route_id, seats: booking.seats,
       status: booking.status, passengerFinishedAt: booking.passenger_finished_at, createdAt: booking.created_at, route: byId.get(booking.route_id) }));
   }
 
   finish(actorId: string, routeId: string) {
     return this.rpc('finish_route', { p_actor: actorId, p_route: routeId });
+  }
+
+  async payments(actorId: string) {
+    const routeIds = await this.ownedFinishedRouteIds(actorId);
+    if (!routeIds.length) return [];
+    const { data, error } = await this.supabase.getClient().from('trip_payments')
+      .select('id,booking_id,route_id,passenger_id,amount,status,confirmed_at,confirmed_by,created_at')
+      .eq('status', 'pending')
+      .in('route_id', routeIds);
+    if (error) throwDatabaseError(error);
+    return this.presentPayments(data as PaymentRow[]);
+  }
+
+  async myPayments(actorId: string) {
+    const { data, error } = await this.supabase.getClient().from('trip_payments')
+      .select('id,booking_id,route_id,passenger_id,amount,status,confirmed_at,confirmed_by,created_at')
+      .eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
+    if (error) throwDatabaseError(error);
+    return this.presentPayments(data as PaymentRow[]);
+  }
+
+  confirmPayment(actorId: string, paymentId: string) {
+    return this.rpc('confirm_trip_payment', { p_actor: actorId, p_payment: paymentId });
   }
 
   rate(actorId: string, routeId: string, ratedId: string, score: number, comment?: string) {
@@ -141,5 +174,50 @@ export class RoutesService {
     const { data, error } = await this.supabase.getClient().rpc(name, parameters);
     if (error) throwDatabaseError(error);
     return data;
+  }
+
+  private async presentRoutes(rows: RouteRow[]) {
+    if (!rows.length) return [];
+    const driverIds = [...new Set(rows.map((row) => row.driver_id))];
+    const { data: profiles, error } = await this.supabase.getClient().from('profiles')
+      .select('id,photo_url').in('id', driverIds);
+    if (error) throwDatabaseError(error);
+    const photoUrls = new Map((profiles ?? []).map((profile) => [profile.id as string, profile.photo_url as string | null]));
+    return rows.map((row) => presentRoute(row, photoUrls.get(row.driver_id)));
+  }
+
+  private async ownedFinishedRouteIds(actorId: string): Promise<string[]> {
+    const { data, error } = await this.supabase.getClient().from('routes')
+      .select('id').eq('driver_id', actorId).not('driver_finished_at', 'is', null);
+    if (error) throwDatabaseError(error);
+    return (data ?? []).map((row) => row.id as string);
+  }
+
+  private async presentPayments(rows: PaymentRow[]) {
+    if (!rows.length) return [];
+    const passengerIds = [...new Set(rows.map((row) => row.passenger_id))];
+    const client = this.supabase.getClient();
+    const { data, error } = await client.from('profiles')
+      .select('id,first_name,last_name').in('id', passengerIds);
+    if (error) throwDatabaseError(error);
+    const { data: routeRows, error: routeError } = await client.from('route_catalog')
+      .select('id,origin,destination,departure_at').in('id', [...new Set(rows.map((row) => row.route_id))]);
+    if (routeError) throwDatabaseError(routeError);
+    const names = new Map((data ?? []).map((profile) => [
+      profile.id as string, [profile.first_name, profile.last_name].filter(Boolean).join(' '),
+    ]));
+    const routes = new Map((routeRows ?? []).map((route) => {
+      const local = new Date(new Date(route.departure_at as string).getTime() - 5 * 60 * 60 * 1000).toISOString();
+      return [route.id as string, {
+        origin: route.origin as string, destination: route.destination as string,
+        date: local.slice(0, 10), time: local.slice(11, 16),
+      }];
+    }));
+    return rows.map((row) => ({
+      id: row.id, bookingId: row.booking_id, routeId: row.route_id, passengerId: row.passenger_id,
+      passengerName: names.get(row.passenger_id) || 'Pasajero', amount: Number(row.amount),
+      status: row.status, confirmedAt: row.confirmed_at, confirmedBy: row.confirmed_by,
+      createdAt: row.created_at, route: routes.get(row.route_id),
+    }));
   }
 }

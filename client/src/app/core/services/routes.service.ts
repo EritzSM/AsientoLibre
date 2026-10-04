@@ -4,6 +4,7 @@ export interface Route {
   id: string;
   driverId: string;
   driverName: string;
+  driverPhotoUrl?: string | null;
   origin: string;
   destination: string;
   meetingPoint: string;
@@ -61,6 +62,13 @@ export interface Booking {
   route: Route;
 }
 
+export interface TripPayment {
+  id: string; bookingId: string; routeId: string; passengerId: string; passengerName?: string;
+  amount: number; status: 'pending' | 'confirmed'; confirmedAt: string | null;
+  confirmedBy: string | null; createdAt: string;
+  route?: { origin: string; destination: string; date: string; time: string };
+}
+
 export interface RatingTarget {
   id: string;
   name: string;
@@ -77,6 +85,7 @@ export interface FinishResult {
 export interface BookingRequest extends Booking {
   passengerId: string;
   passengerName: string;
+  passengerPhotoUrl?: string | null;
 }
 
 interface ErrorBody {
@@ -134,6 +143,9 @@ export const routesService = {
   },
   mine: () => request<Route[]>('/routes/mine'),
   bookings: () => request<Booking[]>('/routes/bookings/mine'),
+  payments: () => request<TripPayment[]>('/routes/payments/mine'),
+  pendingPayments: () => request<TripPayment[]>('/routes/payments/pending'),
+  confirmPayment: (id: string) => request<TripPayment>(`/routes/payments/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
   bookingRequests: () => request<BookingRequest[]>('/routes/booking-requests/mine'),
   acceptBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
   create: (route: CreateRoute) => request<Route>('/routes', { method: 'POST', body: JSON.stringify(route) }),

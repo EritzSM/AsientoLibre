@@ -97,6 +97,14 @@
         <!-- Sidebar de Resumen -->
         <aside class="profile-sidebar">
           <div class="profile-avatar-large" id="profile-card-avatar">US</div>
+          <div class="profile-photo-actions">
+            <label class="profile-photo-button" id="btn-select-profile-photo" for="profile-photo-input">
+              Cambiar foto
+              <input id="profile-photo-input" type="file" accept="image/jpeg,image/png" capture="user" hidden />
+            </label>
+            <button class="profile-photo-delete" id="btn-delete-profile-photo" type="button" hidden>Eliminar foto</button>
+            <small>JPG o PNG · máximo 5 MB</small>
+          </div>
           <h1 class="profile-sidebar-name" id="profile-card-name">Cargando...</h1>
           <p class="profile-sidebar-email" id="profile-card-email">usuario@correo.com</p>
           <span class="profile-role-badge" id="profile-card-role">👤 Pasajero</span>

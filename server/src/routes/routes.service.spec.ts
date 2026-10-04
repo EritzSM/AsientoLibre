@@ -17,7 +17,9 @@ describe('consulta de rutas', () => {
     const query = { select: vi.fn(), eq: vi.fn(), gt: vi.fn(), ilike: vi.fn(), gte: vi.fn(), lt: vi.fn(), order: vi.fn(), limit: vi.fn() };
     for (const method of Object.values(query)) method.mockReturnValue(query);
     query.limit.mockResolvedValue({ data: [row], error: null });
-    const from = vi.fn().mockReturnValue(query);
+    const profileQuery = { select: vi.fn(), in: vi.fn().mockResolvedValue({ data: [{ id: 'driver', photo_url: 'https://example.test/photo.jpg' }], error: null }) };
+    profileQuery.select.mockReturnValue(profileQuery);
+    const from = vi.fn((table: string) => table === 'route_catalog' ? query : profileQuery);
     const service = new RoutesService({ getClient: () => ({ from }) } as unknown as SupabaseService);
     const result = await service.findAvailable({ origin: '100%_centro', destination: 'Chía', date: '2099-12-30' });
     expect(from).toHaveBeenCalledWith('route_catalog');
@@ -28,5 +30,6 @@ describe('consulta de rutas', () => {
     expect(query.gte).toHaveBeenCalledWith('departure_at', '2099-12-30T05:00:00.000Z');
     expect(query.lt).toHaveBeenCalledWith('departure_at', '2099-12-31T05:00:00.000Z');
     expect(result).toHaveLength(1);
+    expect(result[0].driverPhotoUrl).toBe('https://example.test/photo.jpg');
   });
 });

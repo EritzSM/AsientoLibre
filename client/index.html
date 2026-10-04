@@ -260,11 +260,18 @@
           <p id="reminders-empty" class="hint" hidden>No tienes viajes próximos.</p>
         </section>
         <section id="mis-rutas" class="routes-panel" hidden aria-labelledby="my-routes-title">
-          <div class="panel-heading"><h2 id="my-routes-title">Mis rutas</h2><button id="refresh-mine" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Gestiona tus publicaciones. Si hay pasajeros confirmados, deberás confirmar la cancelación.</p>
+          <div class="panel-heading"><h2 id="my-routes-title">Viajes activos</h2><button id="refresh-mine" type="button" class="btn btn-secondary">Actualizar</button></div>
+          <p class="muted">Gestiona tus publicaciones y finaliza los viajes que ya comenzaron.</p>
           <p id="mine-error" class="form-error" role="alert" hidden></p>
           <div id="mine-list" class="routes-list"></div>
           <p id="mine-empty" class="empty-state" hidden>Todavía no has publicado rutas.</p>
+        </section>
+        <section id="validacion-pagos" class="routes-panel" hidden aria-labelledby="payments-title">
+          <div class="panel-heading"><h2 id="payments-title">Validación de pagos</h2><button id="refresh-payments" type="button" class="btn btn-secondary">Actualizar</button></div>
+          <p class="muted">Confirma cada aporte después de finalizar el viaje. El valor conserva el precio definido al reservar.</p>
+          <p id="payments-error" class="form-error" role="alert" hidden></p>
+          <div id="payments-list" class="routes-list" aria-live="polite"></div>
+          <p id="payments-empty" class="empty-state" hidden>No hay pagos pendientes de validación.</p>
         </section>
         <section id="solicitudes-cupo" class="routes-panel" hidden aria-labelledby="booking-requests-title">
           <div class="panel-heading"><h2 id="booking-requests-title">Solicitudes de cupo</h2><button id="refresh-booking-requests" type="button" class="btn btn-secondary">Actualizar</button></div>

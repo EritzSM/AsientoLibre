@@ -37,6 +37,20 @@ function getInitials(name: string): string {
     .join("");
 }
 
+function renderAvatar(element: HTMLElement | null, name: string, photoUrl?: string | null): void {
+  if (!element) return;
+  element.replaceChildren(document.createTextNode(getInitials(name)));
+  if (!photoUrl) return;
+
+  const image = document.createElement("img");
+  image.className = "avatar-photo";
+  image.src = photoUrl;
+  image.alt = "";
+  image.setAttribute("aria-hidden", "true");
+  image.addEventListener("error", () => image.remove(), { once: true });
+  element.append(image);
+}
+
 // ---- Visibilidad según el Rol (Conductor vs Pasajero vs Admin) ----
 function updateRoleVisibility(role?: string): void {
   const navVehiculo = $<HTMLAnchorElement>("#nav-vehiculo");
@@ -56,7 +70,6 @@ function updateRoleVisibility(role?: string): void {
 function populateProfileUI(user: AuthUser): void {
   originalEmail = user.email || "";
   const fullName = `${user.firstName} ${user.lastName}`.trim() || user.email;
-  const initials = getInitials(fullName);
 
   // Sidebar
   const sidebarAvatar = $<HTMLDivElement>("#profile-card-avatar");
@@ -64,7 +77,7 @@ function populateProfileUI(user: AuthUser): void {
   const sidebarEmail = $<HTMLParagraphElement>("#profile-card-email");
   const sidebarRole = $<HTMLSpanElement>("#profile-card-role");
 
-  if (sidebarAvatar) sidebarAvatar.textContent = initials;
+  renderAvatar(sidebarAvatar, fullName, user.photoUrl);
   if (sidebarName) sidebarName.textContent = fullName;
   if (sidebarEmail) sidebarEmail.textContent = user.email;
   if (sidebarRole) {
@@ -105,6 +118,111 @@ function populateProfileUI(user: AuthUser): void {
     if (inputPlate) inputPlate.value = user.vehicle.plate || "";
     if (inputCapacity) inputCapacity.value = String(user.vehicle.capacity ?? "");
   }
+}
+
+const profilePhotoMaxBytes = 5 * 1024 * 1024;
+
+async function compressProfilePhoto(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const size = Math.min(bitmap.width, bitmap.height, 512);
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("No se pudo procesar la imagen.");
+    const cropSize = Math.min(bitmap.width, bitmap.height);
+    context.drawImage(
+      bitmap,
+      (bitmap.width - cropSize) / 2,
+      (bitmap.height - cropSize) / 2,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      size,
+      size,
+    );
+    const compressed = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("No se pudo comprimir la imagen.")),
+        "image/jpeg",
+        0.82,
+      );
+    });
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error("No se pudo leer la imagen procesada."));
+      reader.onerror = () => reject(new Error("No se pudo leer la imagen procesada."));
+      reader.readAsDataURL(compressed);
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
+function bindProfilePhoto(user: AuthUser): void {
+  const input = $<HTMLInputElement>("#profile-photo-input");
+  const deleteButton = $<HTMLButtonElement>("#btn-delete-profile-photo");
+  if (deleteButton) deleteButton.hidden = !user.photoUrl;
+
+  input?.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    input.value = "";
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      showToast("Selecciona una imagen JPG o PNG de máximo 5 MB.");
+      return;
+    }
+    if (file.size > profilePhotoMaxBytes) {
+      showToast("La imagen supera el límite de 5 MB. Selecciona un archivo JPG o PNG más pequeño.");
+      return;
+    }
+
+    const uploadButton = $<HTMLLabelElement>("#btn-select-profile-photo");
+    if (uploadButton) uploadButton.classList.add("is-uploading");
+    if (uploadButton) uploadButton.setAttribute("aria-disabled", "true");
+    try {
+      const photoData = await compressProfilePhoto(file);
+      const result = await authService.uploadProfilePhoto(photoData);
+      const updatedUser = { ...user, photoUrl: result.photoUrl };
+      setActiveUser(updatedUser);
+      populateProfileUI(updatedUser);
+      void initHeader(updatedUser);
+      user = updatedUser;
+      if (deleteButton) deleteButton.hidden = false;
+      showToast("Tu foto de perfil se actualizó correctamente.");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "No se pudo subir la foto de perfil.");
+    } finally {
+      if (uploadButton) {
+        uploadButton.classList.remove("is-uploading");
+        uploadButton.removeAttribute("aria-disabled");
+      }
+    }
+  });
+
+  deleteButton?.addEventListener("click", async () => {
+    if (!user.photoUrl) return;
+    deleteButton.disabled = true;
+    try {
+      await authService.deleteProfilePhoto();
+      const updatedUser = { ...user, photoUrl: null };
+      setActiveUser(updatedUser);
+      populateProfileUI(updatedUser);
+      void initHeader(updatedUser);
+      user = updatedUser;
+      deleteButton.hidden = true;
+      showToast("Tu foto de perfil fue eliminada.");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "No se pudo eliminar la foto de perfil.");
+    } finally {
+      deleteButton.disabled = false;
+    }
+  });
 }
 
 // ---- Modal de Verificación de Cambio de Correo ----
@@ -556,6 +674,7 @@ async function initProfile(): Promise<void> {
   }
 
   populateProfileUI(user);
+  bindProfilePhoto(user);
 
   // Formulario 1: Datos Personales
   const formPersonal = $<HTMLFormElement>("#form-personal-data");
