@@ -52,6 +52,19 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface AlternativeRoute {
+  id: string;
+  driverName: string;
+  driverPhotoUrl: string | null;
+  origin: string;
+  destination: string;
+  meetingPoint: string;
+  date: string;
+  time: string;
+  availableSeats: number;
+  price: number;
+}
+
 export interface Booking {
   id: string;
   routeId: string;
@@ -170,6 +183,8 @@ export const routesService = {
     }),
   notifications: () => request<Notification[]>('/notifications'),
   markRead: (id: string) => request(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
+  /** SCRUM-136: Obtiene rutas alternativas sugeridas para una ruta cancelada */
+  alternatives: (routeId: string) => request<AlternativeRoute[]>(`/routes/${encodeURIComponent(routeId)}/alternatives`, {}, false),
 };
 
 export interface ConductorDocument {

@@ -253,7 +253,6 @@
         <section id="recordatorios" class="card reminder-panel" hidden aria-labelledby="reminders-title">
           <div class="panel-heading">
             <div><h2 id="reminders-title">Próximos viajes</h2><p class="muted">Confirma tu asistencia y consulta el punto de encuentro.</p></div>
-            <button id="enable-push" type="button" class="btn btn-secondary">Activar avisos push</button>
           </div>
           <p id="reminders-error" class="form-error" role="alert" hidden></p>
           <div id="reminder-banner-list" class="reminder-list" aria-live="polite"></div>
@@ -341,6 +340,31 @@
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
+
+  <!-- SCRUM-138: Modal interactivo para responder a cambios de horario -->
+  <dialog id="time-changed-dialog" class="action-dialog time-changed-dialog" aria-labelledby="time-changed-title" aria-describedby="time-changed-message">
+    <div class="time-changed-header">
+      <span class="time-changed-icon" aria-hidden="true">⏰</span>
+      <h3 id="time-changed-title">Cambio de horario en tu viaje</h3>
+    </div>
+    <p id="time-changed-message" class="time-changed-body"></p>
+    <p class="time-changed-hint">¿Qué deseas hacer con tu reserva?</p>
+    <p id="time-changed-error" class="form-error" role="alert" hidden></p>
+    <div class="dialog-actions dialog-actions--stacked">
+      <button id="time-changed-keep" class="btn btn-primary" type="button">
+        ✅ Mantener mi reserva
+      </button>
+      <button id="time-changed-cancel-booking" class="btn btn-danger" type="button">
+        🚫 Cancelar mi reserva
+      </button>
+      <button id="time-changed-close" class="btn btn-ghost btn-sm" type="button">
+        Decidir después
+      </button>
+    </div>
+  </dialog>
+
+  <!-- SCRUM-140: Toast de alerta en tiempo real para el conductor -->
+  <div id="driver-toast" class="driver-toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
   <script type="module" src="/src/app/features/pages/home/home.ts"></script>
 </body>
