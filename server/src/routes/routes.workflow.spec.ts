@@ -6,10 +6,12 @@ import { SupabaseService } from '../supabase/supabase.service.js';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import { RoutesController } from './routes.controller.js';
 import { RoutesService } from './routes.service.js';
+import { RouteAlternativesService } from './route-alternatives.service.js';
 import { VehiclesController } from '../vehicles/vehicles.controller.js';
 import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { NotificationsController } from '../notifications/notifications.controller.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { ChangeNotificationService } from '../notifications/change-notification.service.js';
 
 const actorId = '20000000-0000-4000-8000-000000000001';
 const routeId = '30000000-0000-4000-8000-000000000001';
@@ -19,19 +21,34 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
   let app: INestApplication;
   const rpc = vi.fn();
   const getUser = vi.fn();
-  const from = vi.fn(() => ({
-    select: () => ({
-      eq: () => ({
-        maybeSingle: async () => ({ data: { is_active: true }, error: null }),
-      }),
-    }),
-  }));
+  const from = vi.fn(() => {
+    // Mock chainable que soporta cualquier profundidad de llamadas
+    const chainable: Record<string, unknown> = {};
+    const noop = () => chainable;
+    chainable.select = noop;
+    chainable.eq = noop;
+    chainable.in = noop;
+    chainable.neq = noop;
+    chainable.gt = noop;
+    chainable.gte = noop;
+    chainable.lte = noop;
+    chainable.ilike = noop;
+    chainable.order = noop;
+    chainable.limit = () => Promise.resolve({ data: [], error: null });
+    chainable.maybeSingle = async () => ({ data: { is_active: true, origin: 'Bogotá', destination: 'Chía', departure_at: '2099-12-31T19:30:00.000Z', driver_id: actorId, route_id: routeId, passenger_id: actorId }, error: null });
+    return chainable;
+  });
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [RoutesController, VehiclesController, NotificationsController],
-      providers: [RoutesService, VehiclesService, NotificationsService, SupabaseAuthGuard,
-        { provide: SupabaseService, useValue: { getClient: () => ({ auth: { getUser }, rpc, from }) } }],
+      providers: [
+        RoutesService, VehiclesService, NotificationsService, SupabaseAuthGuard,
+        { provide: SupabaseService, useValue: { getClient: () => ({ auth: { getUser }, rpc, from }) } },
+        // Mocks para las nuevas dependencias (SCRUM-135/136)
+        { provide: ChangeNotificationService, useValue: { dispatch: vi.fn().mockResolvedValue(undefined) } },
+        { provide: RouteAlternativesService, useValue: { findAlternatives: vi.fn().mockResolvedValue([]) } },
+      ],
     }).compile();
     app = module.createNestApplication({ logger: false });
     await app.init();

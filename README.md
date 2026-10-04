@@ -19,6 +19,7 @@ Aplicación universitaria de car pooling para conectar conductores y pasajeros, 
 - Confirmación de asistencia, estado de pasajeros y alerta al conductor 30 minutos antes.
 - Liberación manual del cupo de un pasajero que no confirmó.
 - Solicitudes de cupo pendientes, aceptación por el conductor y confirmación sin sobreventa.
+- **Notificaciones de cambio en tiempo real**: cambio de horario (con modal para mantener o cancelar reserva), cancelación de ruta (con rutas alternativas sugeridas en ventana de ±2 h), reserva aceptada (notificación push + correo al pasajero) y nueva reserva confirmada (toast en tiempo real para el conductor).
 
 El alcance y las pruebas se describen en [docs/SPRINT-1-RUTAS.md](docs/SPRINT-1-RUTAS.md), [docs/SPRINT-1-PERFIL.md](docs/SPRINT-1-PERFIL.md), [docs/SPRINT-2-HU09-RECORDATORIOS.md](docs/SPRINT-2-HU09-RECORDATORIOS.md) y [docs/SPRINT-2-HU04-RESERVAS.md](docs/SPRINT-2-HU04-RESERVAS.md).
 
@@ -67,6 +68,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 9. `server/supabase/migrations/202609200003_booking_management.sql`
 10. `server/supabase/migrations/202609230001_trip_payments.sql`
 11. `server/supabase/migrations/202610030001_profile_photos.sql`
+12. `server/supabase/migrations/202610030002_change_notifications.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida, guardan calificaciones anónimas agregadas por perfil, crean el snapshot/confirmación de pagos por reserva y habilitan el almacenamiento público de fotos de perfil (JPG/PNG, hasta 5 MB). Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
 
@@ -112,6 +114,7 @@ Las operaciones privadas requieren `Authorization: Bearer <access_token>`. El ba
 - `POST /routes/booking-requests/:bookingId/accept`: acepta una solicitud y confirma la reserva.
 - `GET /vehicles/me` y `PUT /vehicles/me`: consulta o guarda el vehículo del conductor.
 - `GET /notifications` y `PATCH /notifications/:id/read`: consulta y marca avisos como leídos.
+- `GET /routes/:id/alternatives`: sugiere hasta 5 rutas activas con mismo origen/destino en ventana de ±2 horas de la ruta cancelada.
 
 Las fechas y horas se interpretan en `America/Bogota` y se guardan en UTC.
 

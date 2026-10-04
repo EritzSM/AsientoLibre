@@ -1,7 +1,8 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { throwDatabaseError } from '../common/database-error.js';
 import type { CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
+import { ChangeNotificationService } from '../notifications/change-notification.service.js';
 
 export interface RouteRow {
   id: string; driver_id: string; driver_name: string; origin: string; destination: string;
@@ -32,7 +33,12 @@ export function presentRoute(row: RouteRow, driverPhotoUrl?: string | null) {
 
 @Injectable()
 export class RoutesService {
-  constructor(@Inject(SupabaseService) private readonly supabase: SupabaseService) {}
+  private readonly logger = new Logger(RoutesService.name);
+
+  constructor(
+    @Inject(SupabaseService) private readonly supabase: SupabaseService,
+    @Inject(ChangeNotificationService) private readonly changeNotification: ChangeNotificationService,
+  ) {}
 
   async findAvailable(filters: FindRoutesDto) {
     let query = this.supabase.getClient().from('route_catalog').select('*')
@@ -76,16 +82,73 @@ export class RoutesService {
     return this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: false });
   }
 
-  cancel(actorId: string, routeId: string) {
-    return this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
+  /**
+   * SCRUM-135: Cancela una ruta y emite el evento `route.cancelled`
+   * para que ChangeNotificationService notifique a los pasajeros afectados.
+   */
+  async cancel(actorId: string, routeId: string) {
+    const admin = this.supabase.getClient();
+
+    // Obtener datos de la ruta y pasajeros ANTES de cancelar
+    const [{ data: route }, { data: bookings }] = await Promise.all([
+      admin.from('route_catalog').select('origin,destination,departure_at').eq('id', routeId).maybeSingle(),
+      admin.from('bookings').select('passenger_id').eq('route_id', routeId).eq('status', 'confirmed'),
+    ]);
+
+    const result = await this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
+
+    // Emitir evento de cancelación (sin bloquear la respuesta al cliente)
+    if (route) {
+      const passengerIds = [...new Set((bookings ?? []).map((b) => b.passenger_id as string))];
+      void this.changeNotification.dispatch({
+        type: 'route.cancelled',
+        routeId,
+        origin: route.origin as string,
+        destination: route.destination as string,
+        departureAt: route.departure_at as string,
+        passengerIds,
+      }).catch((error) => this.logger.error(`Error emitiendo evento route.cancelled: ${String(error)}`));
+    }
+
+    return result;
   }
 
   requestBooking(actorId: string, routeId: string, seats: number) {
     return this.rpc('request_booking', { p_actor: actorId, p_route: routeId, p_seats: seats });
   }
 
-  acceptBookingRequest(actorId: string, bookingId: string) {
-    return this.rpc('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+  /**
+   * SCRUM-135: Acepta una solicitud de reserva y emite el evento `booking.accepted`
+   * para notificar al pasajero y confirmar al conductor.
+   */
+  async acceptBookingRequest(actorId: string, bookingId: string) {
+    const admin = this.supabase.getClient();
+
+    // Obtener datos del booking ANTES de aceptar
+    const { data: booking } = await admin.from('bookings')
+      .select('route_id,passenger_id').eq('id', bookingId).maybeSingle();
+
+    const result = await this.rpc('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+
+    // Emitir evento de reserva aceptada (sin bloquear la respuesta al cliente)
+    if (booking) {
+      const { data: route } = await admin.from('route_catalog')
+        .select('origin,destination,departure_at,driver_id').eq('id', booking.route_id).maybeSingle();
+      if (route) {
+        void this.changeNotification.dispatch({
+          type: 'booking.accepted',
+          bookingId,
+          routeId: booking.route_id as string,
+          origin: route.origin as string,
+          destination: route.destination as string,
+          departureAt: route.departure_at as string,
+          passengerId: booking.passenger_id as string,
+          driverId: route.driver_id as string,
+        }).catch((error) => this.logger.error(`Error emitiendo evento booking.accepted: ${String(error)}`));
+      }
+    }
+
+    return result;
   }
 
   async pendingBookingRequests(actorId: string) {

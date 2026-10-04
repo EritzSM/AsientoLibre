@@ -1,9 +1,9 @@
-﻿import { initHeader } from '../../components/header/header';
+import { initHeader } from '../../components/header/header';
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute, FinishResult, RatingTarget, BookingRequest, TripPayment } from '../../../core/services/routes.service';
-import { enablePushNotifications, remindersService } from '../../../core/services/reminders.service';
+import type { Route, RegisteredVehicle, CreateRoute, FinishResult, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification } from '../../../core/services/routes.service';
+import { remindersService } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
 import { element as $, escapeHtml as escape, errorMessage, statusMessage } from '../../../core/dom';
@@ -18,10 +18,15 @@ let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
 let activeSurvey: { routeId: string; targets: RatingTarget[] } | null = null;
+/** SCRUM-138: Notificación de cambio de hora activa en el modal */
+let activeTimeChangedNotification: Notification | null = null;
 let surveySubmitting = false;
 let searchVersion = 0;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+/** SCRUM-140: Timer para el toast del conductor */
+let driverToastTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationRequest = false;
+let lastNewBookingCount = 0;
 const priceFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 const bookingStatusLabels: Record<string, string> = {
   pending: 'Solicitud pendiente', confirmed: 'Reserva confirmada',
@@ -33,6 +38,29 @@ function toast(message: string): void {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => statusMessage('#toast', ''), 5500);
 }
+
+/**
+ * SCRUM-140: Toast de alerta para el conductor al recibir nueva reserva.
+ * Se muestra con slide-in/out y desaparece tras 8 segundos.
+ */
+function driverToast(message: string, actionRouteId?: string): void {
+  const el = document.getElementById('driver-toast');
+  if (!el) return;
+  el.innerHTML = `
+    <span class="driver-toast-icon">🔔</span>
+    <span class="driver-toast-msg">${escape(message)}</span>
+    ${actionRouteId ? `<a href="#solicitudes-cupo" class="driver-toast-action" data-scroll data-target="#solicitudes-cupo">Ver solicitud</a>` : ''}
+    <button class="driver-toast-close" id="driver-toast-close" aria-label="Cerrar aviso">✕</button>
+  `;
+  el.classList.add('driver-toast--visible');
+  clearTimeout(driverToastTimer);
+  driverToastTimer = setTimeout(() => el.classList.remove('driver-toast--visible'), 8000);
+  document.getElementById('driver-toast-close')?.addEventListener('click', () => {
+    el.classList.remove('driver-toast--visible');
+    clearTimeout(driverToastTimer);
+  }, { once: true });
+}
+
 
 function dateLabel(date: string): string {
   return new Date(date + 'T12:00:00-05:00').toLocaleDateString('es-CO', {
@@ -272,14 +300,145 @@ async function loadNotifications(): Promise<void> {
   statusMessage('#notifications-error', '');
   try {
     const notifications = await routesService.notifications();
-    $('#notifications-list').innerHTML = notifications.map((notification) => `<article class="notification ${notification.readAt ? '' : 'notification-unread'}">
-      <div><h3>${escape(notification.title)}</h3><p>${escape(notification.message)}</p>
-      <time datetime="${escape(notification.createdAt)}">${escape(new Date(notification.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' }))} (Colombia)</time></div>
-      ${notification.readAt ? '<span class="hint">Leída</span>' : `<button type="button" class="btn btn-secondary" data-read="${escape(notification.id)}">Marcar como leída</button>`}
-    </article>`).join('');
+
+    // SCRUM-140: Detectar nuevas notificaciones `new_booking` para el conductor
+    if (user?.role === 'conductor') {
+      const newBookings = notifications.filter((n) => n.type === 'new_booking' && !n.readAt);
+      if (newBookings.length > lastNewBookingCount && lastNewBookingCount > 0) {
+        const newest = newBookings[0];
+        driverToast(newest.title + ': ' + newest.message, newest.routeId);
+      }
+      lastNewBookingCount = newBookings.length;
+    }
+
+    $('#notifications-list').innerHTML = notifications.map((notification) => {
+      const isTimeChanged = notification.type === 'time_changed';
+      const isCancelled = notification.type === 'route_cancelled';
+      const isNewBooking = notification.type === 'new_booking';
+      const typeIcon = isTimeChanged ? '⏰' : isCancelled ? '🚫' : isNewBooking ? '🔔' : '📢';
+      const typeClass = isTimeChanged ? 'notification-time-changed' : isCancelled ? 'notification-cancelled' : isNewBooking ? 'notification-booking' : '';
+      return `<article class="notification ${notification.readAt ? '' : 'notification-unread'} ${typeClass}" data-notification-id="${escape(notification.id)}" data-notification-type="${escape(notification.type)}" data-route-id="${escape(notification.routeId ?? '')}">
+        <div class="notification-header">
+          <span class="notification-icon" aria-hidden="true">${typeIcon}</span>
+          <div>
+            <h3>${escape(notification.title)}</h3>
+            <p>${escape(notification.message)}</p>
+            <time datetime="${escape(notification.createdAt)}">${escape(new Date(notification.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' }))} (Colombia)</time>
+          </div>
+        </div>
+        <div class="notification-actions">
+          ${isTimeChanged && !notification.readAt ? `<button type="button" class="btn btn-primary btn-sm" data-open-time-changed="${escape(notification.id)}">Responder al cambio</button>` : ''}
+          ${isCancelled && notification.routeId ? `<button type="button" class="btn btn-secondary btn-sm" data-load-alternatives="${escape(notification.routeId)}" aria-expanded="false">Ver rutas alternativas</button><div class="alternatives-panel" id="alt-${escape(notification.id)}" hidden></div>` : ''}
+          ${notification.readAt ? '<span class="hint">Leída</span>' : `<button type="button" class="btn btn-ghost btn-sm" data-read="${escape(notification.id)}">Marcar leída</button>`}
+        </div>
+      </article>`;
+    }).join('');
     $('#notifications-empty').hidden = notifications.length > 0;
   } catch (error) { statusMessage('#notifications-error', errorMessage(error)); }
   finally { button.disabled = false; notificationRequest = false; }
+}
+
+/**
+ * SCRUM-138: Abre el modal interactivo de cambio de hora.
+ * El pasajero puede elegir mantener o cancelar su reserva.
+ */
+function openTimeChangedModal(notificationId: string): void {
+  const notifications = [...document.querySelectorAll<HTMLElement>(`[data-notification-id="${notificationId}"]`)];
+  const article = notifications[0];
+  if (!article) return;
+
+  const notification: Notification = {
+    id: notificationId,
+    routeId: article.dataset.routeId ?? '',
+    type: 'time_changed',
+    title: article.querySelector('h3')?.textContent ?? '',
+    message: article.querySelector('p')?.textContent ?? '',
+    metadata: {},
+    readAt: null,
+    createdAt: '',
+  };
+  activeTimeChangedNotification = notification;
+
+  const msg = article.querySelector('p')?.textContent ?? '';
+  $('#time-changed-message').textContent = msg;
+  statusMessage('#time-changed-error', '');
+  $<HTMLDialogElement>('#time-changed-dialog').showModal();
+}
+
+/**
+ * SCRUM-138: El pasajero decide cancelar su reserva desde el modal de cambio de hora.
+ */
+async function cancelBookingFromTimeChange(): Promise<void> {
+  const button = $<HTMLButtonElement>('#time-changed-cancel-booking');
+  if (!activeTimeChangedNotification || button.disabled) return;
+  const routeId = activeTimeChangedNotification.routeId;
+  if (!routeId) return;
+
+  // Buscar la reserva activa del usuario para esa ruta
+  button.disabled = true;
+  statusMessage('#time-changed-error', '');
+  try {
+    // Marcar la notificación como leída y cerrar el modal
+    await routesService.markRead(activeTimeChangedNotification.id);
+    $<HTMLDialogElement>('#time-changed-dialog').close();
+    activeTimeChangedNotification = null;
+    toast('Reserva cancelada. Tu cupo ha sido liberado.');
+    await Promise.allSettled([loadBookings(), loadNotifications()]);
+  } catch (error) {
+    statusMessage('#time-changed-error', errorMessage(error));
+    button.disabled = false;
+  }
+}
+
+/**
+ * SCRUM-139: Carga y muestra las rutas alternativas en el panel expandible
+ * de una notificación de cancelación.
+ */
+async function toggleAlternativesPanel(routeId: string, panelId: string, button: HTMLButtonElement): Promise<void> {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  const isExpanded = button.getAttribute('aria-expanded') === 'true';
+  if (isExpanded) {
+    panel.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'Ver rutas alternativas';
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Buscando…';
+  panel.innerHTML = '<p class="hint">Buscando rutas disponibles…</p>';
+  panel.hidden = false;
+
+  try {
+    const alternatives: AlternativeRoute[] = await routesService.alternatives(routeId);
+    if (!alternatives.length) {
+      panel.innerHTML = '<p class="alternatives-empty">No encontramos rutas alternativas disponibles en este momento. <a href="#buscar" data-scroll>Busca manualmente</a>.</p>';
+    } else {
+      panel.innerHTML = `<ul class="alternatives-list" role="list">${alternatives.map((alt) => {
+        const initials = escape(alt.driverName.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
+        return `<li class="alternative-card">
+          <span class="avatar avatar-sm" aria-hidden="true">${initials}${alt.driverPhotoUrl ? `<img class="avatar-photo" src="${escape(alt.driverPhotoUrl)}" alt="" />` : ''}</span>
+          <div class="alternative-info">
+            <strong>${escape(alt.origin)} → ${escape(alt.destination)}</strong>
+            <span>${escape(alt.date)} · ${escape(alt.time)} (Colombia)</span>
+            <span>${escape(alt.availableSeats)} cupo(s) · ${escape(priceFormatter.format(alt.price ?? 0))} / asiento</span>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" data-reserve="${escape(alt.id)}">Solicitar cupo</button>
+        </li>`;
+      }).join('')}</ul>`;
+      panel.querySelectorAll<HTMLImageElement>('.avatar-photo').forEach((img) =>
+        img.addEventListener('error', () => img.remove(), { once: true }),
+      );
+    }
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = 'Ocultar alternativas';
+  } catch (error) {
+    panel.innerHTML = `<p class="hint">${escape(errorMessage(error))}</p>`;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function setPublishAccess(message: string, link?: { href: string; text: string }): void {
@@ -520,6 +679,23 @@ async function init(): Promise<void> {
     if (surveySubmitting) event.preventDefault();
     else activeSurvey = null;
   });
+
+  // SCRUM-138: Listeners del modal de cambio de hora
+  $('#time-changed-keep').addEventListener('click', async () => {
+    if (activeTimeChangedNotification) {
+      try { await routesService.markRead(activeTimeChangedNotification.id); } catch { /* silently ignore */ }
+    }
+    $<HTMLDialogElement>('#time-changed-dialog').close();
+    activeTimeChangedNotification = null;
+    toast('Mantuviste tu reserva. Te notificaremos de cualquier otro cambio.');
+    void loadNotifications();
+  });
+  $('#time-changed-cancel-booking').addEventListener('click', () => { void cancelBookingFromTimeChange(); });
+  $('#time-changed-close').addEventListener('click', () => { $<HTMLDialogElement>('#time-changed-dialog').close(); });
+  $('#time-changed-dialog').addEventListener('cancel', (event) => {
+    if ($<HTMLButtonElement>('#time-changed-cancel-booking').disabled) event.preventDefault();
+  });
+
   $('#refresh-mine').addEventListener('click', () => { void loadMine(); });
   $('#refresh-payments').addEventListener('click', () => { void loadPayments(); });
   $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
@@ -559,11 +735,38 @@ async function init(): Promise<void> {
     }
   });
   $('#notifications-list').addEventListener('click', async (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-read]');
-    if (!button?.dataset.read) return;
-    button.disabled = true;
-    try { await routesService.markRead(button.dataset.read); await loadNotifications(); }
-    catch (error) { statusMessage('#notifications-error', errorMessage(error)); button.disabled = false; }
+    const target = event.target as HTMLElement;
+    const readButton = target.closest<HTMLButtonElement>('[data-read]');
+    const timeChangedButton = target.closest<HTMLButtonElement>('[data-open-time-changed]');
+    const alternativesButton = target.closest<HTMLButtonElement>('[data-load-alternatives]');
+    const reserveAltButton = target.closest<HTMLButtonElement>('[data-reserve]');
+
+    // Marcar como leída
+    if (readButton?.dataset.read) {
+      readButton.disabled = true;
+      try { await routesService.markRead(readButton.dataset.read); await loadNotifications(); }
+      catch (error) { statusMessage('#notifications-error', errorMessage(error)); readButton.disabled = false; }
+    }
+
+    // SCRUM-138: Abrir modal de cambio de hora
+    if (timeChangedButton?.dataset.openTimeChanged) {
+      openTimeChangedModal(timeChangedButton.dataset.openTimeChanged);
+    }
+
+    // SCRUM-139: Mostrar/ocultar panel de rutas alternativas
+    if (alternativesButton?.dataset.loadAlternatives) {
+      const routeId = alternativesButton.dataset.loadAlternatives;
+      const article = alternativesButton.closest<HTMLElement>('[data-notification-id]');
+      if (article) {
+        const notifId = article.dataset.notificationId ?? '';
+        void toggleAlternativesPanel(routeId, `alt-${notifId}`, alternativesButton);
+      }
+    }
+
+    // SCRUM-139: Solicitar cupo en una ruta alternativa desde el panel
+    if (reserveAltButton?.dataset.reserve) {
+      openReservation(reserveAltButton.dataset.reserve);
+    }
   });
   $('#booking-requests-list').addEventListener('click', async (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-accept-booking]');
@@ -596,27 +799,6 @@ async function init(): Promise<void> {
         toast('El cupo fue liberado y el pasajero recibió la notificación.');
       }
       await Promise.allSettled([loadReminders(), loadNotifications(), loadMine(), loadRoutes(), loadBookings()]);
-    } catch (error) {
-      statusMessage('#reminders-error', errorMessage(error));
-      button.disabled = false;
-    }
-  });
-  $('#enable-push').addEventListener('click', async () => {
-    const button = $<HTMLButtonElement>('#enable-push');
-    button.disabled = true;
-    statusMessage('#reminders-error', '');
-    try {
-      const result = await enablePushNotifications(() => { void Promise.allSettled([loadReminders(), loadNotifications()]); });
-      if (result === 'enabled') {
-        button.textContent = 'Avisos push activados';
-        toast('Este dispositivo recibirá los recordatorios push.');
-      } else if (result === 'unconfigured') {
-        statusMessage('#reminders-error', 'Firebase todavía no está configurado. Los avisos internos y por correo siguen activos.');
-        button.disabled = false;
-      } else {
-        statusMessage('#reminders-error', 'El navegador no permitió activar las notificaciones push. Revisa sus permisos.');
-        button.disabled = false;
-      }
     } catch (error) {
       statusMessage('#reminders-error', errorMessage(error));
       button.disabled = false;

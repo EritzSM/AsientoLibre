@@ -2,13 +2,17 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, ParseUUIDPipe, 
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 import { RoutesService } from './routes.service.js';
+import { RouteAlternativesService } from './route-alternatives.service.js';
 import { CancelRouteDto, CreateBookingDto, CreateRouteDto, FindRoutesDto, RateRouteDto } from './dto/route.dto.js';
 
 const dtoPipe = (expectedType: new () => object) => new ValidationPipe({ expectedType, transform: true, whitelist: true, forbidNonWhitelisted: true });
 
 @Controller('routes')
 export class RoutesController {
-  constructor(@Inject(RoutesService) private readonly routes: RoutesService) {}
+  constructor(
+    @Inject(RoutesService) private readonly routes: RoutesService,
+    @Inject(RouteAlternativesService) private readonly alternatives: RouteAlternativesService,
+  ) {}
 
   @Get()
   available(@Query(dtoPipe(FindRoutesDto)) query: FindRoutesDto) { return this.routes.findAvailable(query); }
@@ -65,5 +69,11 @@ export class RoutesController {
   @Post(':id/bookings') @UseGuards(SupabaseAuthGuard)
   book(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body(dtoPipe(CreateBookingDto)) body: CreateBookingDto) {
     return this.routes.requestBooking(req.actorId, id, body.seats);
+  }
+
+  /** SCRUM-136: Rutas alternativas sugeridas al pasajero cuando se cancela su viaje */
+  @Get(':id/alternatives')
+  getAlternatives(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.alternatives.findAlternatives(id);
   }
 }
