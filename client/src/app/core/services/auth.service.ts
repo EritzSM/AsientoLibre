@@ -24,6 +24,7 @@ export interface AuthUser {
 
 export interface AuthResponse {
 	message: string;
+	developmentActivationUrl?: string;
 	access_token: string | null;
 	refresh_token: string | null;
 	user: AuthUser;

@@ -47,7 +47,7 @@ Copy-Item client/.env.example client/.env
 
 El backend admite las claves actuales `SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_SECRET_KEY`. También conserva compatibilidad con `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`. La clave secreta debe existir solamente en `server/.env`; nunca debe incluirse en el cliente ni en Git.
 
-`BREVO_API_KEY` y `BREVO_SENDER_EMAIL` habilitan el envío real de correos. Sin esas variables, el backend usa el modo local y muestra el enlace o código en su consola.
+`BREVO_API_KEY` y `BREVO_SENDER_EMAIL` habilitan el envío real de correos. El remitente debe estar verificado en Brevo. Sin esas variables, el backend usa el modo local: al registrar una cuenta muestra un botón de activación en la interfaz y también registra el enlace o código en su consola.
 
 Las variables `FIREBASE_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS` y las variables `VITE_FIREBASE_*` habilitan las notificaciones push. La cuenta de servicio y sus credenciales deben permanecer fuera de Git. Los avisos internos y el correo funcionan aunque Firebase todavía no esté configurado.
 
@@ -69,6 +69,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 10. `server/supabase/migrations/202609230001_trip_payments.sql`
 11. `server/supabase/migrations/202610030001_profile_photos.sql`
 12. `server/supabase/migrations/202610030002_change_notifications.sql`
+13. `server/supabase/migrations/202610060001_presentation_readiness.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida, guardan calificaciones anónimas agregadas por perfil, crean el snapshot/confirmación de pagos por reserva y habilitan el almacenamiento público de fotos de perfil (JPG/PNG, hasta 5 MB). Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
 

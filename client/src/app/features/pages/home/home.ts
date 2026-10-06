@@ -76,7 +76,7 @@ export function routeCardHtml(route: Route, owner = false): string {
   const status = route.driverFinishedAt ? 'FINALIZADO' : { published: 'ACTIVO', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
   const canReserve = !owner && route.status === 'published' && route.availableSeats > 0 && route.driverId !== user?.id;
   const canCancel = route.status === 'published' && !routeHasStarted(route);
-  const canFinish = route.status === 'published' && routeHasStarted(route) && !route.driverFinishedAt;
+  const canFinish = route.status === 'published' && routeHasStarted(route);
   const name = escape(route.driverName);
   const initials = escape(route.driverName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase());
   return `<article class="route-card" data-id="${escape(route.id)}">
@@ -102,7 +102,7 @@ export function routeCardHtml(route: Route, owner = false): string {
     ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) con reserva</p>${attendanceHtml(route.id)}` : ''}
     ${owner && (canCancel || canFinish) ? `<div class="route-actions">
       ${canCancel ? `<button type="button" class="btn btn-danger" data-remove="${escape(route.id)}">${route.confirmedPassengers > 0 ? 'Cancelar ruta' : 'Eliminar ruta'}</button>` : ''}
-      ${canFinish ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">Finalizar viaje</button>` : ''}
+      ${canFinish ? `<button type="button" class="btn btn-secondary" data-finish="${escape(route.id)}">${route.driverFinishedAt ? 'Calificar viaje' : 'Finalizar viaje'}</button>` : ''}
     </div>` : ''}
   </article>`;
 }
@@ -211,7 +211,7 @@ async function loadMine(): Promise<void> {
   button.disabled = true;
   statusMessage('#mine-error', '');
   try {
-    ownRoutes = (await routesService.mine()).filter((route) => route.status === 'published' && !route.driverFinishedAt);
+    ownRoutes = (await routesService.mine()).filter((route) => route.status === 'published');
     const list = $('#mine-list');
     list.innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
     bindAvatarFallbacks(list);

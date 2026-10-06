@@ -21,6 +21,7 @@ const sameDigest = (left: string, right: string) => {
 
 export interface AuthResponse {
   message: string;
+  developmentActivationUrl?: string;
   access_token: string | null;
   refresh_token: string | null;
   user: {
@@ -125,6 +126,7 @@ export class AuthService {
       throw new ServiceUnavailableException('No se pudo conectar con el servicio de autenticación.');
     }
     const userId = data.user.id;
+    let developmentActivationUrl: string | undefined;
     try {
       const { error: profileError } = await admin.from('profiles').insert({
         id: userId,
@@ -149,7 +151,17 @@ export class AuthService {
         });
         if (vehicleError) throw vehicleError;
       }
-      await this.emailService.sendActivationEmail(registerDto.email, registerDto.firstName, activationToken);
+      const delivery = await this.emailService.sendActivationEmail(
+        registerDto.email,
+        registerDto.firstName,
+        activationToken,
+      );
+      if (delivery && !delivery.success && process.env.NODE_ENV === 'production') {
+        throw new Error('El proveedor de correo no pudo enviar la activacion.');
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        developmentActivationUrl = delivery?.verificationUrl;
+      }
     } catch {
       const { error: cleanupError } = await admin.auth.admin.deleteUser(userId);
       if (cleanupError) this.logger.error(`No se pudo revertir el registro incompleto ${userId}.`);
@@ -158,6 +170,7 @@ export class AuthService {
 
     return {
       message: 'Cuenta creada. Revisa tu correo para activarla.',
+      developmentActivationUrl,
       access_token: null,
       refresh_token: null,
       user: {
@@ -744,6 +757,13 @@ export class AuthService {
   ): Promise<{ success: boolean; message: string }> {
     await this.verifyCurrentPassword(actorId, password);
     const admin = this.supabaseService.getClient();
+
+    try {
+      await this.deleteProfilePhoto(actorId);
+    } catch (photoError: unknown) {
+      const message = photoError instanceof Error ? photoError.message : 'error desconocido';
+      this.logger.warn(`No se pudo limpiar la foto de perfil de ${actorId}: ${message}`);
+    }
 
     // Limpieza explícita de registros dependientes para asegurar liberación total sin fallos de FK
     try {

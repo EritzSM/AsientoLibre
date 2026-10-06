@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Post, Put, Req, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Post, Put, Req, UseGuards, ValidationPipe } from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsNotEmpty, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
@@ -27,10 +27,14 @@ export class UploadDocumentDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(10 * 1024 * 1024)
+  @Matches(/^data:(application\/pdf|image\/(jpeg|png));base64,[A-Za-z0-9+/]+={0,2}$/, { message: 'El documento debe ser PDF, JPG o PNG válido.' })
   fileData: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(160)
+  @Matches(/^[^\\/:*?"<>|]+\.(pdf|jpe?g|png)$/i, { message: 'El nombre debe terminar en PDF, JPG o PNG.' })
   fileName: string;
 }
 
@@ -61,7 +65,7 @@ export class VehiclesController {
   }
 
   @Delete('documents/:id')
-  deleteDoc(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+  deleteDoc(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.vehicles.deleteDocument(req.actorId, id);
   }
 }

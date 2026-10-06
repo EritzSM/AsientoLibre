@@ -58,7 +58,11 @@ before(async () => {
   await database.file(path('../../supabase/migrations/202609200001_profile_management.sql'));
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
   await database.file(path('../../supabase/migrations/202609200003_booking_management.sql'));
-  await database.file(path('../../supabase/migrations/202609200003_booking_management.sql'));
+  await database.file(path('../../supabase/migrations/202609230001_trip_payments.sql'));
+  await database.file(path('../../supabase/migrations/202610030001_profile_photos.sql'));
+  await database.file(path('../../supabase/migrations/202610030002_change_notifications.sql'));
+  await database.file(path('../../supabase/migrations/202610060001_presentation_readiness.sql'));
+  await database.file(path('../../supabase/migrations/202610060001_presentation_readiness.sql'));
   // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
@@ -184,6 +188,37 @@ test('guarda calificaciones anónimas, impide duplicados y calcula el promedio',
   assert.equal(await database.sql(`SELECT count(*) FROM public.route_ratings WHERE rated_id=${sqlValue(fixture.passenger)};`), '1');
   assert.equal(await database.sql(`SELECT avg(score) FROM public.route_ratings WHERE rated_id=${sqlValue(fixture.passenger)};`), '5.0000000000000000');
   await database.fails(service(ratingSql(route.id, fixture.otherPassenger, fixture.driver, 5)), /FORBIDDEN/);
+});
+
+test('finalizar crea pagos idempotentes y conserva la encuesta pendiente', async () => {
+  const route = await createRoute({ price: 7500 });
+  const booking = await book(route.id, fixture.passenger, 2);
+  await database.sql(`UPDATE public.routes SET departure_at=now()-interval '1 hour' WHERE id=${sqlValue(route.id)};`);
+
+  const first = await finish(route.id, fixture.driver);
+  assert.deepEqual(first.ratingTargets.map((target) => target.id), [fixture.passenger]);
+  assert.equal(await database.sql(`SELECT amount FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`), '15000.00');
+
+  const retry = await finish(route.id, fixture.driver);
+  assert.deepEqual(retry.ratingTargets.map((target) => target.id), [fixture.passenger]);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`), '1');
+
+  await rate(route.id, fixture.driver, fixture.passenger, 5, 'Buen viaje');
+  const afterRating = await finish(route.id, fixture.driver);
+  assert.deepEqual(afterRating.ratingTargets, []);
+});
+
+test('solo el conductor propietario confirma pagos una vez', async () => {
+  const route = await createRoute({ price: 6000 });
+  const booking = await book(route.id, fixture.passenger, 1);
+  await database.sql(`UPDATE public.routes SET departure_at=now()-interval '1 hour' WHERE id=${sqlValue(route.id)};`);
+  await finish(route.id, fixture.driver);
+  const paymentId = await database.sql(`SELECT id FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`);
+
+  await database.fails(service(`SELECT public.confirm_trip_payment(${sqlValue(fixture.otherDriver)},${sqlValue(paymentId)});`), /FORBIDDEN/);
+  const confirmed = await database.json(service(`SELECT public.confirm_trip_payment(${sqlValue(fixture.driver)},${sqlValue(paymentId)});`));
+  assert.equal(confirmed.status, 'confirmed');
+  await database.fails(service(`SELECT public.confirm_trip_payment(${sqlValue(fixture.driver)},${sqlValue(paymentId)});`), /CONFLICT/);
 });
 
 test('notification write failure rolls back both cancellation and booking changes', async () => {
