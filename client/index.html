@@ -71,12 +71,10 @@
               </svg>
               Mi Perfil
             </a>
-            <a href="#mis-rutas" class="dropdown-item" data-scroll>
+            <a href="#mis-viajes" class="dropdown-item" data-scroll id="nav-mis-viajes">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"></path>
+                <circle cx="12" cy="9" r="2.5"></circle>
               </svg>
               Mis Viajes
             </a>
@@ -284,6 +282,24 @@
           <p id="bookings-error" class="form-error" role="alert" hidden></p>
           <div id="bookings-list" class="routes-list"></div>
           <p id="bookings-empty" class="empty-state" hidden>Todavía no tienes reservas.</p>
+        </section>
+        <!-- ===== Mis Viajes (historial completo) ===== -->
+        <section id="mis-viajes" class="routes-panel past-trips-panel" hidden aria-labelledby="past-trips-title">
+          <div class="panel-heading">
+            <div>
+              <h2 id="past-trips-title">Mis Viajes</h2>
+              <p class="muted">Historial de todos tus viajes como conductor y como pasajero.</p>
+            </div>
+            <button id="refresh-past-trips" type="button" class="btn btn-secondary">Actualizar</button>
+          </div>
+          <p id="past-trips-error" class="form-error" role="alert" hidden></p>
+          <div id="past-trips-tabs" class="past-trips-tabs" hidden>
+            <button type="button" class="past-tab past-tab--active" data-tab="all" id="tab-all">Todos</button>
+            <button type="button" class="past-tab" data-tab="conductor" id="tab-conductor">Como conductor</button>
+            <button type="button" class="past-tab" data-tab="pasajero" id="tab-pasajero">Como pasajero</button>
+          </div>
+          <div id="past-trips-list" class="routes-list past-trips-list" aria-live="polite"></div>
+          <p id="past-trips-empty" class="empty-state" hidden>Aún no tienes viajes en tu historial.</p>
         </section>
         <section id="notificaciones" class="card" hidden aria-labelledby="notifications-title">
           <div class="panel-heading"><h2 id="notifications-title">Notificaciones</h2><button id="refresh-notifications" type="button" class="btn btn-secondary">Actualizar</button></div>

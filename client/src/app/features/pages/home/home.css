@@ -866,3 +866,78 @@ button:disabled { cursor: wait; opacity: 0.6; }
   .alternative-card { flex-wrap: wrap; }
   .dialog-actions--stacked .btn { font-size: 0.88rem; }
 }
+
+/* ── Sección Mis Viajes (historial) ── */
+.past-trips-panel { margin-top: 8px; }
+
+.past-trips-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.past-tab {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.past-tab:hover { border-color: var(--teal); color: var(--teal-dark); }
+.past-tab--active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--white);
+}
+
+.past-trips-list { margin-top: 4px; }
+
+.past-trip-card { position: relative; }
+
+.past-trip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.past-trip-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.past-trip-role--conductor {
+  background: #E8F7F5;
+  color: var(--teal-dark);
+}
+.past-trip-role--pasajero {
+  background: #EEF2FF;
+  color: #4338CA;
+}
+
+.past-trip-finished {
+  color: var(--teal-dark);
+  font-weight: 600;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.status-pill {
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--teal-pale);
+  color: var(--teal-dark);
+}
+.status-cancelled { background: #f2e7e7; color: #8c2d2d; }

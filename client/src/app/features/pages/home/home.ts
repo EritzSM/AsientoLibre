@@ -221,6 +221,159 @@ async function loadMine(): Promise<void> {
   } finally { button.disabled = false; }
 }
 
+/** Estado de las pestañas de Mis Viajes */
+let pastTripsTab: 'all' | 'conductor' | 'pasajero' = 'all';
+
+interface PastTrip {
+  type: 'conductor' | 'pasajero';
+  routeId: string;
+  origin: string;
+  destination: string;
+  date: string;
+  time: string;
+  price: number;
+  driverName: string;
+  driverPhotoUrl?: string | null;
+  status: string;
+  finishedAt: string | null;
+  seats?: number;
+  bookingStatus?: string;
+}
+
+let allPastTrips: PastTrip[] = [];
+
+function renderPastTrips(): void {
+  const filtered = pastTripsTab === 'all'
+    ? allPastTrips
+    : allPastTrips.filter((t) => t.type === pastTripsTab);
+  const list = $('#past-trips-list');
+  if (!filtered.length) {
+    list.innerHTML = '';
+    $('#past-trips-empty').hidden = false;
+    return;
+  }
+  $('#past-trips-empty').hidden = true;
+  list.innerHTML = filtered.map((trip) => {
+    const roleBadge = trip.type === 'conductor'
+      ? '<span class="past-trip-role past-trip-role--conductor">🚗 Conductor</span>'
+      : '<span class="past-trip-role past-trip-role--pasajero">🧳 Pasajero</span>';
+    const statusLabels: Record<string, string> = {
+      published: 'Activo', deleted: 'Eliminado', cancelled: 'Cancelado',
+      confirmed: 'Confirmado', pending: 'Pendiente',
+    };
+    const resolvedStatus = trip.status === 'published' && trip.finishedAt ? 'Finalizado' : (statusLabels[trip.status] ?? trip.status);
+    const statusClass = ['cancelled', 'deleted'].includes(trip.status) ? 'status-cancelled' : 'status-pill';
+    const initials = escape(trip.driverName.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase());
+    const avatarImg = trip.driverPhotoUrl ? `<img class="avatar-photo" src="${escape(trip.driverPhotoUrl)}" alt="" />` : '';
+    return `<article class="route-card past-trip-card" data-id="${escape(trip.routeId)}">
+      <div class="past-trip-header">
+        ${roleBadge}
+        <span class="${statusClass}">${escape(resolvedStatus)}</span>
+      </div>
+      <div class="route-card-top">
+        <div class="driver">
+          <span class="avatar" aria-hidden="true">${initials}${avatarImg}</span>
+          <div><div class="driver-name">${escape(trip.driverName)}</div><div class="driver-role">Conductor</div></div>
+        </div>
+        <span class="price-pill">${escape(priceFormatter.format(trip.price ?? 0))} / asiento</span>
+      </div>
+      <div class="route-points">
+        <div class="route-point"><div><div class="route-point-label">Desde</div><div class="route-point-value">${escape(trip.origin)}</div></div></div>
+        <div class="route-connector"></div>
+        <div class="route-point"><div><div class="route-point-label">Hasta</div><div class="route-point-value">${escape(trip.destination)}</div></div></div>
+      </div>
+      <div class="route-meta">
+        <span>${escape(dateLabel(trip.date))}</span>
+        <span>${escape(trip.time)} · Colombia</span>
+        ${trip.seats ? `<span>${escape(trip.seats)} asiento(s)</span>` : ''}
+      </div>
+      ${trip.finishedAt ? `<p class="hint past-trip-finished">✓ Finalizado el ${escape(new Date(trip.finishedAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short', year: 'numeric' }))}</p>` : ''}
+    </article>`;
+  }).join('');
+  list.querySelectorAll<HTMLImageElement>('.avatar-photo').forEach((img) => {
+    img.addEventListener('error', () => img.remove(), { once: true });
+  });
+}
+
+async function loadPastTrips(): Promise<void> {
+  if (!user) return;
+  const button = $<HTMLButtonElement>('#refresh-past-trips');
+  button.disabled = true;
+  statusMessage('#past-trips-error', '');
+  try {
+    const collected: PastTrip[] = [];
+
+    // Viajes como conductor: todos excepto los que están activos (published + no finalizado)
+    if (user.role === 'conductor') {
+      const conductorRoutes = await routesService.mine();
+      for (const route of conductorRoutes) {
+        const isPast = route.status !== 'published' || route.driverFinishedAt !== null
+          || new Date(`${route.date}T${route.time}:00-05:00`).getTime() < Date.now();
+        if (isPast) {
+          collected.push({
+            type: 'conductor',
+            routeId: route.id,
+            origin: route.origin,
+            destination: route.destination,
+            date: route.date,
+            time: route.time,
+            price: route.price,
+            driverName: route.driverName,
+            driverPhotoUrl: route.driverPhotoUrl,
+            status: route.status,
+            finishedAt: route.driverFinishedAt,
+          });
+        }
+      }
+    }
+
+    // Viajes como pasajero: reservas con estatus distinto de pending, o cuya fecha ya pasó
+    const bookings = await routesService.bookings();
+    for (const booking of bookings) {
+      const isPast = booking.status !== 'pending'
+        || new Date(`${booking.route.date}T${booking.route.time}:00-05:00`).getTime() < Date.now();
+      if (isPast && booking.status !== 'pending') {
+        collected.push({
+          type: 'pasajero',
+          routeId: booking.routeId,
+          origin: booking.route.origin,
+          destination: booking.route.destination,
+          date: booking.route.date,
+          time: booking.route.time,
+          price: booking.route.price,
+          driverName: booking.route.driverName,
+          driverPhotoUrl: booking.route.driverPhotoUrl,
+          status: booking.status,
+          finishedAt: booking.passengerFinishedAt,
+          seats: booking.seats,
+          bookingStatus: booking.status,
+        });
+      }
+    }
+
+    // Ordenar por fecha de viaje descendente (más recientes primero)
+    collected.sort((a, b) => {
+      const dateA = new Date(`${a.date}T${a.time}:00-05:00`).getTime();
+      const dateB = new Date(`${b.date}T${b.time}:00-05:00`).getTime();
+      return dateB - dateA;
+    });
+
+    allPastTrips = collected;
+
+    // Mostrar/ocultar pestañas según si el usuario es conductor
+    const hasConductorTrips = collected.some((t) => t.type === 'conductor');
+    const hasPassengerTrips = collected.some((t) => t.type === 'pasajero');
+    $('#past-trips-tabs').hidden = !(hasConductorTrips && hasPassengerTrips);
+
+    renderPastTrips();
+  } catch (error) {
+    statusMessage('#past-trips-error', errorMessage(error));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+
 async function loadBookings(): Promise<void> {
   if (!user) return;
   statusMessage('#bookings-error', '');
@@ -480,9 +633,11 @@ async function loadSession(): Promise<void> {
   } catch (error) {
     setPublishAccess(errorMessage(error), { href: '/login.html', text: 'Revisar sesión' });
   }
-  await Promise.allSettled([loadMine(), loadBookings(), loadPayments(), loadBookingRequests(), loadNotifications(), loadReminders()]);
+  await Promise.allSettled([loadMine(), loadBookings(), loadPayments(), loadBookingRequests(), loadNotifications(), loadReminders(), loadPastTrips()]);
   if (user?.role === 'conductor') await loadMine();
   renderPublicRoutes();
+  // Mostrar sección mis-viajes solo para usuarios autenticados
+  if (user) $('#mis-viajes').hidden = false;
 }
 
 export function renderRouteErrors(errors: ReturnType<typeof validateRoute>): void {
@@ -700,6 +855,15 @@ async function init(): Promise<void> {
   $('#refresh-payments').addEventListener('click', () => { void loadPayments(); });
   $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
   $('#refresh-notifications').addEventListener('click', () => { void loadNotifications(); void loadBookings(); });
+  $('#refresh-past-trips').addEventListener('click', () => { void loadPastTrips(); });
+  // Pestañas de Mis Viajes
+  document.querySelectorAll<HTMLButtonElement>('.past-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      pastTripsTab = (tab.dataset.tab as 'all' | 'conductor' | 'pasajero') ?? 'all';
+      document.querySelectorAll<HTMLButtonElement>('.past-tab').forEach((t) => t.classList.toggle('past-tab--active', t === tab));
+      renderPastTrips();
+    });
+  });
   for (const name of ['reserve', 'remove']) {
     $('#' + name + '-close').addEventListener('click', () => $<HTMLDialogElement>('#' + name + '-dialog').close());
     $('#' + name + '-dialog').addEventListener('cancel', (event) => {
