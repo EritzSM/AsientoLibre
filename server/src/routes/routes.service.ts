@@ -204,12 +204,19 @@ export class RoutesService {
     return this.rpc('finish_route', { p_actor: actorId, p_route: routeId });
   }
 
+  pendingRatingTargets(actorId: string, routeId: string) {
+    return this.rpc('get_pending_route_rating_targets', { p_actor: actorId, p_route: routeId });
+  }
+
   async payments(actorId: string) {
+    return (await this.ownedPayments(actorId)).filter((payment) => payment.status === 'pending');
+  }
+
+  async ownedPayments(actorId: string) {
     const routeIds = await this.ownedFinishedRouteIds(actorId);
     if (!routeIds.length) return [];
     const { data, error } = await this.supabase.getClient().from('trip_payments')
       .select('id,booking_id,route_id,passenger_id,amount,status,confirmed_at,confirmed_by,created_at')
-      .eq('status', 'pending')
       .in('route_id', routeIds);
     if (error) throwDatabaseError(error);
     return this.presentPayments(data as PaymentRow[]);
@@ -231,6 +238,10 @@ export class RoutesService {
     return this.rpc('submit_route_rating', {
       p_actor: actorId, p_route: routeId, p_rated: ratedId, p_score: score, p_comment: comment || null,
     });
+  }
+
+  ratingSummary(actorId: string) {
+    return this.rpc('get_profile_rating_summary', { p_profile: actorId });
   }
 
   private async rpc(name: string, parameters: Record<string, unknown>) {

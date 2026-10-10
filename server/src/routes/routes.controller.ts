@@ -29,6 +29,9 @@ export class RoutesController {
   @Get('payments/pending') @UseGuards(SupabaseAuthGuard)
   pendingPayments(@Req() req: AuthenticatedRequest) { return this.routes.payments(req.actorId); }
 
+  @Get('payments/owned') @UseGuards(SupabaseAuthGuard)
+  ownedPayments(@Req() req: AuthenticatedRequest) { return this.routes.ownedPayments(req.actorId); }
+
   @Post('payments/:paymentId/confirm') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
   confirmPayment(@Req() req: AuthenticatedRequest, @Param('paymentId', new ParseUUIDPipe()) paymentId: string) {
     return this.routes.confirmPayment(req.actorId, paymentId);
@@ -36,6 +39,9 @@ export class RoutesController {
 
   @Get('booking-requests/mine') @UseGuards(SupabaseAuthGuard)
   bookingRequests(@Req() req: AuthenticatedRequest) { return this.routes.pendingBookingRequests(req.actorId); }
+
+  @Get('ratings/mine') @UseGuards(SupabaseAuthGuard)
+  ratingSummary(@Req() req: AuthenticatedRequest) { return this.routes.ratingSummary(req.actorId); }
 
   @Post('booking-requests/:bookingId/accept') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
   acceptBookingRequest(
@@ -59,6 +65,11 @@ export class RoutesController {
   @Post(':id/finish') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
   finish(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.routes.finish(req.actorId, id);
+  }
+
+  @Get(':id/ratings/pending') @UseGuards(SupabaseAuthGuard)
+  pendingRatingTargets(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.routes.pendingRatingTargets(req.actorId, id);
   }
 
   @Post(':id/ratings') @HttpCode(200) @UseGuards(SupabaseAuthGuard)

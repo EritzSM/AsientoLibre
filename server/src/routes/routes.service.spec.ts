@@ -32,4 +32,13 @@ describe('consulta de rutas', () => {
     expect(result).toHaveLength(1);
     expect(result[0].driverPhotoUrl).toBe('https://example.test/photo.jpg');
   });
+
+  it('consulta únicamente el resumen anónimo del perfil autenticado', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { average: 4.5, count: 2 }, error: null });
+    const service = new RoutesService({ getClient: () => ({ rpc }) } as unknown as SupabaseService);
+
+    await expect(service.ratingSummary('profile-id')).resolves.toEqual({ average: 4.5, count: 2 });
+    expect(rpc).toHaveBeenCalledWith('get_profile_rating_summary', { p_profile: 'profile-id' });
+  });
+
 });

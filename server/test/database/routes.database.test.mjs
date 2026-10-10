@@ -63,6 +63,9 @@ before(async () => {
   await database.file(path('../../supabase/migrations/202610030002_change_notifications.sql'));
   await database.file(path('../../supabase/migrations/202610060001_presentation_readiness.sql'));
   await database.file(path('../../supabase/migrations/202610060001_presentation_readiness.sql'));
+  await database.file(path('../../supabase/migrations/202610090001_profile_rating_summary.sql'));
+  await database.file(path('../../supabase/migrations/202610090002_pending_route_rating_targets.sql'));
+  await database.file(path('../../supabase/migrations/202610090003_route_rating_payment_gate.sql'));
   // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
@@ -178,10 +181,15 @@ test('conductor y pasajeros finalizan su participación de forma independiente',
 
 test('guarda calificaciones anónimas, impide duplicados y calcula el promedio', async () => {
   const route = await createRoute();
-  await book(route.id, fixture.passenger, 2);
+  const booking = await book(route.id, fixture.passenger, 2);
   await database.sql(`UPDATE public.routes SET departure_at=now()-interval '1 hour' WHERE id=${sqlValue(route.id)};`);
   await finish(route.id, fixture.driver);
   await finish(route.id, fixture.passenger);
+  await database.fails(service(ratingSql(route.id, fixture.driver, fixture.passenger, 5)), /pago confirmado/);
+  await database.fails(service(ratingSql(route.id, fixture.passenger, fixture.driver, 4)), /pago confirmado/);
+  await database.fails(service(`SELECT public.get_pending_route_rating_targets(${sqlValue(fixture.passenger)},${sqlValue(route.id)});`), /pago confirmado/);
+  const paymentId = await database.sql(`SELECT id FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`);
+  await database.json(service(`SELECT public.confirm_trip_payment(${sqlValue(fixture.driver)},${sqlValue(paymentId)});`));
   const first = await rate(route.id, fixture.driver, fixture.passenger, 5, 'Excelente pasajero.');
   assert.equal((await rate(route.id, fixture.driver, fixture.passenger, 1, 'No debe reemplazar.')).id, first.id);
   await rate(route.id, fixture.passenger, fixture.driver, 4);
@@ -190,18 +198,27 @@ test('guarda calificaciones anónimas, impide duplicados y calcula el promedio',
   await database.fails(service(ratingSql(route.id, fixture.otherPassenger, fixture.driver, 5)), /FORBIDDEN/);
 });
 
-test('finalizar crea pagos idempotentes y conserva la encuesta pendiente', async () => {
+test('finalizar crea pagos idempotentes y habilita calificaciones solo al confirmar el pago', async () => {
   const route = await createRoute({ price: 7500 });
   const booking = await book(route.id, fixture.passenger, 2);
   await database.sql(`UPDATE public.routes SET departure_at=now()-interval '1 hour' WHERE id=${sqlValue(route.id)};`);
 
   const first = await finish(route.id, fixture.driver);
-  assert.deepEqual(first.ratingTargets.map((target) => target.id), [fixture.passenger]);
+  assert.deepEqual(first.ratingTargets, []);
   assert.equal(await database.sql(`SELECT amount FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`), '15000.00');
 
   const retry = await finish(route.id, fixture.driver);
-  assert.deepEqual(retry.ratingTargets.map((target) => target.id), [fixture.passenger]);
+  assert.deepEqual(retry.ratingTargets, []);
   assert.equal(await database.sql(`SELECT count(*) FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`), '1');
+
+  const paymentId = await database.sql(`SELECT id FROM public.trip_payments WHERE booking_id=${sqlValue(booking.id)};`);
+  await database.json(service(`SELECT public.confirm_trip_payment(${sqlValue(fixture.driver)},${sqlValue(paymentId)});`));
+  assert.deepEqual(
+    await database.json(service(`SELECT public.get_pending_route_rating_targets(${sqlValue(fixture.driver)},${sqlValue(route.id)});`)),
+    [{ id: fixture.passenger, name: 'passenger Prueba' }],
+  );
+  const paid = await finish(route.id, fixture.driver);
+  assert.deepEqual(paid.ratingTargets.map((target) => target.id), [fixture.passenger]);
 
   await rate(route.id, fixture.driver, fixture.passenger, 5, 'Buen viaje');
   const afterRating = await finish(route.id, fixture.driver);
