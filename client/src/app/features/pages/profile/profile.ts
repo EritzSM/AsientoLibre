@@ -6,7 +6,7 @@ import { clearActiveUser, getActiveUser, setActiveUser, initHeader } from "../..
 import type { AuthUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
 import { routesService } from "../../../core/services/routes.service";
-import type { ConductorDocument } from "../../../core/services/routes.service";
+import type { ConductorDocument, RatingSummary } from "../../../core/services/routes.service";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resendInterval: ReturnType<typeof setInterval> | undefined;
@@ -117,6 +117,19 @@ function populateProfileUI(user: AuthUser): void {
     if (inputColor) inputColor.value = user.vehicle.color || "";
     if (inputPlate) inputPlate.value = user.vehicle.plate || "";
     if (inputCapacity) inputCapacity.value = String(user.vehicle.capacity ?? "");
+  }
+}
+
+async function loadRatingSummary(): Promise<void> {
+  const summary = $<HTMLParagraphElement>("#profile-rating-summary");
+  if (!summary) return;
+  try {
+    const rating: RatingSummary = await routesService.myRatingSummary();
+    summary.textContent = rating.count
+      ? `★ ${rating.average?.toFixed(1) ?? "0.0"} · ${rating.count} calificacion${rating.count === 1 ? "" : "es"} anónima${rating.count === 1 ? "" : "s"}`
+      : "Aún no tienes calificaciones";
+  } catch {
+    summary.textContent = "No se pudieron cargar tus calificaciones.";
   }
 }
 
@@ -675,6 +688,7 @@ async function initProfile(): Promise<void> {
 
   populateProfileUI(user);
   bindProfilePhoto(user);
+  void loadRatingSummary();
 
   // Formulario 1: Datos Personales
   const formPersonal = $<HTMLFormElement>("#form-personal-data");

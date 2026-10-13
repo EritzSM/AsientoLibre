@@ -164,6 +164,13 @@ body {
   margin-bottom: 24px;
 }
 
+.profile-rating-summary {
+  color: var(--orange-text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: -12px 0 24px;
+}
+
 .profile-nav-links {
   width: 100%;
   display: flex;

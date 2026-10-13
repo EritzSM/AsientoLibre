@@ -157,13 +157,37 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     });
   });
 
+  it('devuelve solo el resumen anónimo de calificaciones del actor autenticado', async () => {
+    rpc.mockResolvedValue({ data: { average: 4.5, count: 2 }, error: null });
+    const result = await request(app.getHttpServer()).get('/routes/ratings/mine')
+      .set('Authorization', 'Bearer valid-session').expect(200);
+
+    expect(result.body).toEqual({ average: 4.5, count: 2 });
+    expect(rpc).toHaveBeenCalledWith('get_profile_rating_summary', { p_profile: actorId });
+  });
+
+  it('consulta las calificaciones pendientes para el viaje del actor autenticado', async () => {
+    const targets = [{ id: '40000000-0000-4000-8000-000000000001', name: 'Pasajero' }];
+    rpc.mockResolvedValue({ data: targets, error: null });
+    const result = await request(app.getHttpServer()).get(`/routes/${routeId}/ratings/pending`)
+      .set('Authorization', 'Bearer valid-session').expect(200);
+
+    expect(result.body).toEqual(targets);
+    expect(rpc).toHaveBeenCalledWith('get_pending_route_rating_targets', { p_actor: actorId, p_route: routeId });
+  });
+
+  it('requiere autenticación para consultar los pagos de rutas propias', async () => {
+    await request(app.getHttpServer()).get('/routes/payments/owned').expect(401);
+    expect(from).not.toHaveBeenCalled();
+  });
+
   it('valida el identificador de ruta antes de consultar la base de datos', async () => {
     await request(app.getHttpServer()).delete('/routes/invalid').set('Authorization', 'Bearer valid-session').expect(400);
     expect(rpc).not.toHaveBeenCalled();
   });
 
   it('requiere autenticación para historial, vehículo, reservas y notificaciones', async () => {
-    for (const path of ['/routes/mine', '/vehicles/me', '/routes/bookings/mine', '/routes/booking-requests/mine', '/notifications']) {
+    for (const path of ['/routes/mine', '/vehicles/me', '/routes/bookings/mine', '/routes/booking-requests/mine', '/routes/ratings/mine', `/routes/${routeId}/ratings/pending`, '/notifications']) {
       await request(app.getHttpServer()).get(path).expect(401);
     }
     expect(from).not.toHaveBeenCalled();
