@@ -12,6 +12,7 @@ import { VehiclesService } from '../vehicles/vehicles.service.js';
 import { NotificationsController } from '../notifications/notifications.controller.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { ChangeNotificationService } from '../notifications/change-notification.service.js';
+import { GeminiService } from '../ai/gemini.service.js';
 
 const actorId = '20000000-0000-4000-8000-000000000001';
 const routeId = '30000000-0000-4000-8000-000000000001';
@@ -48,6 +49,7 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
         // Mocks para las nuevas dependencias (SCRUM-135/136)
         { provide: ChangeNotificationService, useValue: { dispatch: vi.fn().mockResolvedValue(undefined) } },
         { provide: RouteAlternativesService, useValue: { findAlternatives: vi.fn().mockResolvedValue([]) } },
+        { provide: GeminiService, useValue: { analyzeDocument: vi.fn() } },
       ],
     }).compile();
     app = module.createNestApplication({ logger: false });
