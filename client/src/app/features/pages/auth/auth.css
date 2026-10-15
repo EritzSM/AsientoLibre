@@ -753,6 +753,7 @@ body {
   border-radius: 10px;
   background: linear-gradient(135deg, var(--teal), var(--teal-dark));
   color: #fff;
+  text-decoration: none;
   font-size: 0.95rem;
   font-weight: 600;
   border: none;

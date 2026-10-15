@@ -72,12 +72,18 @@ function hideError(): void {
  * Muestra la pantalla de "Correo en verificación" y oculta los formularios.
  * El usuario no puede acceder a ninguna funcionalidad hasta verificar.
  */
-export function showVerificationPending(user: AuthUser): void {
+export function showVerificationPending(user: AuthUser, developmentActivationUrl?: string): void {
   // Guardar datos del usuario en session storage (sin token de acceso, no está activo)
   sessionStorage.setItem('pending_verification_user', JSON.stringify(user));
 
   const authCard = $<HTMLDivElement>(".auth-card");
   if (!authCard) return;
+
+  const localActivationLink = developmentActivationUrl
+    ? `<a class="btn-verify-primary" href="${escapeHtml(developmentActivationUrl)}">
+        Activar cuenta en modo local
+      </a>`
+    : '';
 
   authCard.innerHTML = `
     <div class="verification-pending" id="verification-pending-screen">
@@ -108,6 +114,8 @@ export function showVerificationPending(user: AuthUser): void {
       <p class="verification-hint">
         Revisa tu carpeta de <strong>bandeja de entrada</strong> y también <strong>spam</strong>. El enlace es válido por <strong>24 horas</strong>.
       </p>
+
+      ${localActivationLink}
 
       <!-- Botón principal: Reenviar correo -->
       <button
@@ -1010,7 +1018,7 @@ async function handleSignUpSubmit(event: Event): Promise<void> {
     });
 
     // Mostrar pantalla de verificación (is_active = false recién registrado)
-    showVerificationPending(response.user);
+    showVerificationPending(response.user, response.developmentActivationUrl);
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Error al registrar la cuenta.";
     showError(errorMsg);

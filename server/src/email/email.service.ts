@@ -71,7 +71,7 @@ export class EmailService {
     toEmail: string,
     firstName: string,
     token: string,
-  ): Promise<{ success: boolean; messageId?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; verificationUrl: string }> {
     const verificationUrl = `${this.backendUrl}/auth/verify-email?token=${encodeURIComponent(token)}`;
     const safeFirstName = escapeHtml(firstName || 'viajero/a');
     const safeVerificationUrl = escapeHtml(verificationUrl);
@@ -256,12 +256,12 @@ export class EmailService {
             `Enlace de Verificación Directo:\n${verificationUrl}\n` +
             `======================================================\n`
           );
-          return { success: false };
+          return { success: false, verificationUrl };
         }
 
         const messageId = data?.messageId;
         this.logger.log(`Correo de verificación enviado exitosamente vía Brevo a ${toEmail} (ID: ${messageId})`);
-        return { success: true, messageId };
+        return { success: true, messageId, verificationUrl };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.error(`Excepción al enviar correo vía Brevo a ${toEmail}: ${msg}`);
@@ -273,7 +273,7 @@ export class EmailService {
           `Enlace de Verificación Directo:\n${verificationUrl}\n` +
           `======================================================\n`
         );
-        return { success: false };
+        return { success: false, verificationUrl };
       }
     } else {
       // Modo desarrollo / sin API key: log en consola
@@ -286,7 +286,7 @@ export class EmailService {
         `Enlace de Verificación Directo:\n${verificationUrl}\n` +
         `======================================================\n`
       );
-      return { success: true };
+      return { success: true, verificationUrl };
     }
   }
 

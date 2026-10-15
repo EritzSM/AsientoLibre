@@ -87,6 +87,11 @@ export interface RatingTarget {
   name: string;
 }
 
+export interface RatingSummary {
+  average: number | null;
+  count: number;
+}
+
 export interface FinishResult {
   routeId: string;
   role: 'driver' | 'passenger';
@@ -158,6 +163,7 @@ export const routesService = {
   bookings: () => request<Booking[]>('/routes/bookings/mine'),
   payments: () => request<TripPayment[]>('/routes/payments/mine'),
   pendingPayments: () => request<TripPayment[]>('/routes/payments/pending'),
+  ownedPayments: () => request<TripPayment[]>('/routes/payments/owned'),
   confirmPayment: (id: string) => request<TripPayment>(`/routes/payments/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
   bookingRequests: () => request<BookingRequest[]>('/routes/booking-requests/mine'),
   acceptBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
@@ -165,6 +171,8 @@ export const routesService = {
   remove: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   cancel: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
   finish: (id: string) => request<FinishResult>(`/routes/${encodeURIComponent(id)}/finish`, { method: 'POST' }),
+  pendingRatingTargets: (id: string) => request<RatingTarget[]>(`/routes/${encodeURIComponent(id)}/ratings/pending`),
+  myRatingSummary: () => request<RatingSummary>('/routes/ratings/mine'),
   rate: (routeId: string, ratedId: string, score: number, comment?: string) => request(`/routes/${encodeURIComponent(routeId)}/ratings`, {
     method: 'POST', body: JSON.stringify({ ratedId, score, comment }),
   }),
