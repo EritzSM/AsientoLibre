@@ -9,6 +9,7 @@ export class ReviewDocumentDto {
 
 export class FilterDocumentsDto {
   @IsOptional()
-  @IsIn(['pendiente', 'aprobado', 'rechazado', 'all'])
-  status?: 'pendiente' | 'aprobado' | 'rechazado' | 'all';
+  @IsIn(['pendiente', 'aprobado', 'rechazado', 'revision_manual', 'all'])
+  status?: 'pendiente' | 'aprobado' | 'rechazado' | 'revision_manual' | 'all';
 }
+

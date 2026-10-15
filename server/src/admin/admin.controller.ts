@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -20,38 +20,26 @@ import type { AdminRequest } from '../common/admin.guard.js';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  /**
-   * GET /admin/stats
-   * Estadísticas generales del panel de administración.
-   */
+  /** GET /admin/stats */
   @Get('stats')
   async getStats() {
     return this.adminService.getStats();
   }
 
-  /**
-   * GET /admin/documents?status=pendiente|aprobado|rechazado|all
-   * Lista documentos de conductores filtrados por estado.
-   */
+  /** GET /admin/documents?status=... */
   @Get('documents')
   async getDocuments(@Query() query: FilterDocumentsDto) {
     return this.adminService.getDocuments(query.status);
   }
 
-  /**
-   * POST /admin/documents/:id/approve
-   * Aprueba un documento de conductor.
-   */
+  /** POST /admin/documents/:id/approve */
   @Post('documents/:id/approve')
   @HttpCode(HttpStatus.OK)
   async approveDocument(@Param('id') id: string, @Req() req: AdminRequest) {
     return this.adminService.approveDocument(id, req.actorId);
   }
 
-  /**
-   * POST /admin/documents/:id/reject
-   * Rechaza un documento de conductor con motivo opcional.
-   */
+  /** POST /admin/documents/:id/reject */
   @Post('documents/:id/reject')
   @HttpCode(HttpStatus.OK)
   async rejectDocument(
@@ -60,5 +48,23 @@ export class AdminController {
     @Req() req: AdminRequest,
   ) {
     return this.adminService.rejectDocument(id, req.actorId, dto.reason);
+  }
+
+  /** POST /admin/documents/:id/manual-review */
+  @Post('documents/:id/manual-review')
+  @HttpCode(HttpStatus.OK)
+  async markForManualReview(
+    @Param('id') id: string,
+    @Body() dto: ReviewDocumentDto,
+    @Req() req: AdminRequest,
+  ) {
+    return this.adminService.markForManualReview(id, req.actorId, dto.reason);
+  }
+
+  /** POST /admin/documents/:id/ai-review */
+  @Post('documents/:id/ai-review')
+  @HttpCode(HttpStatus.OK)
+  async aiReview(@Param('id') id: string, @Req() req: AdminRequest) {
+    return this.adminService.analyzeDocumentWithAi(id, req.actorId);
   }
 }

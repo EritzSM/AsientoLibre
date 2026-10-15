@@ -1,8 +1,22 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+﻿const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const TOKEN_KEY = 'asiento_libre_token';
 
 export type DocumentType = 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo';
-export type DocumentStatus = 'pendiente' | 'aprobado' | 'rechazado';
+export type DocumentStatus = 'pendiente' | 'aprobado' | 'rechazado' | 'revision_manual';
+
+export interface AiRuleResult {
+	ruleId: string;
+	description: string;
+	verdict: string;
+	confidence: number;
+}
+
+export interface AiAnalysisResult {
+	verdict: DocumentStatus;
+	reason: string;
+	rules_triggered: AiRuleResult[];
+	scheduled_activation?: string | null;
+}
 
 export interface ConductorDocument {
 	id: string;
@@ -12,6 +26,7 @@ export interface ConductorDocument {
 	file_name: string | null;
 	status: DocumentStatus;
 	rejection_reason: string | null;
+	ai_analysis?: AiAnalysisResult | null;
 	submitted_at: string;
 	reviewed_at: string | null;
 	reviewed_by: string | null;
@@ -29,6 +44,7 @@ export interface AdminStats {
 	pending_documents: number;
 	approved_documents: number;
 	rejected_documents: number;
+	manual_review_documents: number;
 	total_documents: number;
 }
 
@@ -40,7 +56,7 @@ interface ApiErrorBody {
 class AdminService {
 	private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		const token = localStorage.getItem(TOKEN_KEY);
-		if (!token) throw new Error('No hay sesión activa.');
+		if (!token) throw new Error('No hay sesion activa.');
 
 		const headers = new Headers(options.headers);
 		headers.set('Content-Type', 'application/json');
@@ -86,6 +102,20 @@ class AdminService {
 			method: 'POST',
 			body: JSON.stringify({ reason }),
 		});
+	}
+
+	async markForManualReview(id: string, reason?: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>(`/admin/documents/${id}/manual-review`, {
+			method: 'POST',
+			body: JSON.stringify({ reason }),
+		});
+	}
+
+	async analyzeWithAi(id: string): Promise<{ success: boolean; message: string; analysis: AiAnalysisResult }> {
+		return this.request<{ success: boolean; message: string; analysis: AiAnalysisResult }>(
+			`/admin/documents/${id}/ai-review`,
+			{ method: 'POST' },
+		);
 	}
 }
 
