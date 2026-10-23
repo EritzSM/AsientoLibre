@@ -197,7 +197,34 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
 
   it('registra una solicitud usando la identidad verificada del pasajero', async () => {
     await request(app.getHttpServer()).post(`/routes/${routeId}/bookings`).set('Authorization', 'Bearer valid-session').send({ seats: 2 }).expect(201);
-    expect(rpc).toHaveBeenCalledWith('request_booking', { p_actor: actorId, p_route: routeId, p_seats: 2 });
+    expect(rpc).toHaveBeenCalledWith('request_booking_with_promotion', {
+      p_actor: actorId, p_route: routeId, p_seats: 2, p_promotion: null,
+    });
+  });
+
+  it('permite seleccionar una promoción vigente al solicitar cupos', async () => {
+    const promotionId = '50000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/${routeId}/bookings`)
+      .set('Authorization', 'Bearer valid-session').send({ seats: 2, promotionId }).expect(201);
+    expect(rpc).toHaveBeenCalledWith('request_booking_with_promotion', {
+      p_actor: actorId, p_route: routeId, p_seats: 2, p_promotion: promotionId,
+    });
+  });
+
+  it('informa cuando la promoción seleccionada dejó de estar disponible', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'P0001', message: JSON.stringify({ code: 'PROMOTION_UNAVAILABLE', message: 'La promoción ya no está disponible.' }) },
+    });
+    const result = await request(app.getHttpServer()).post(`/routes/${routeId}/bookings`)
+      .set('Authorization', 'Bearer valid-session')
+      .send({ seats: 2, promotionId: '50000000-0000-4000-8000-000000000001' })
+      .expect(409);
+    expect(result.body.message).toBe('La promoción ya no está disponible.');
+  });
+
+  it('expone las promociones vigentes sin requerir autenticación', async () => {
+    await request(app.getHttpServer()).get('/routes/promotions').expect(200);
   });
 
   it('acepta una solicitud usando la identidad verificada del conductor', async () => {

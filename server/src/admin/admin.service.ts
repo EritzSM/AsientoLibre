@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,6 +10,7 @@ import { SupabaseService } from '../supabase/supabase.service.js';
 import { GeminiService } from '../ai/gemini.service.js';
 import type { AiAnalysisResult } from '../ai/gemini.service.js';
 import { ChangeNotificationService } from '../notifications/change-notification.service.js';
+import type { CreatePromotionDto } from './dto/promotion.dto.js';
 
 export interface ConductorDocument {
   id: string;
@@ -38,6 +40,19 @@ export interface AdminStats {
   rejected_documents: number;
   manual_review_documents: number;
   total_documents: number;
+}
+
+export interface PromotionRow {
+  id: string;
+  title: string;
+  description: string;
+  code: string | null;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  starts_at: string;
+  ends_at: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 @Injectable()
@@ -383,6 +398,81 @@ export class AdminService {
       approved_documents: docList.filter((d) => d.status === 'aprobado').length,
       rejected_documents: docList.filter((d) => d.status === 'rechazado').length,
       manual_review_documents: docList.filter((d) => d.status === 'revision_manual').length,
+    };
+  }
+
+  async getPromotions(): Promise<PromotionRow[]> {
+    const { data, error } = await this.supabaseService.getClient().from('promotions')
+      .select('id,title,description,code,discount_type,discount_value,starts_at,ends_at,is_active,created_at')
+      .order('created_at', { ascending: false });
+    if (error) {
+      this.logger.error(`Error al obtener promociones: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudieron obtener las promociones.');
+    }
+    return (data ?? []) as PromotionRow[];
+  }
+
+  async createPromotion(dto: CreatePromotionDto, adminId: string): Promise<PromotionRow> {
+    this.validatePromotionDates(dto);
+    const { data, error } = await this.supabaseService.getClient().from('promotions')
+      .insert(this.promotionPayload(dto, adminId))
+      .select('id,title,description,code,discount_type,discount_value,starts_at,ends_at,is_active,created_at')
+      .single();
+    if (error) {
+      this.logger.error(`Error al crear promoción: ${error.message}`);
+      if (error.code === '23505') throw new ConflictException('Ya existe una promoción con ese código.');
+      throw new ServiceUnavailableException('No se pudo crear la promoción.');
+    }
+    return data as PromotionRow;
+  }
+
+  async updatePromotion(id: string, dto: CreatePromotionDto): Promise<PromotionRow> {
+    this.validatePromotionDates(dto);
+    const { data, error } = await this.supabaseService.getClient().from('promotions')
+      .update(this.promotionPayload(dto))
+      .eq('id', id)
+      .select('id,title,description,code,discount_type,discount_value,starts_at,ends_at,is_active,created_at')
+      .maybeSingle();
+    if (error) {
+      this.logger.error(`Error al actualizar promoción ${id}: ${error.message}`);
+      if (error.code === '23505') throw new ConflictException('Ya existe una promoción con ese código.');
+      throw new ServiceUnavailableException('No se pudo actualizar la promoción.');
+    }
+    if (!data) throw new NotFoundException('Promoción no encontrada.');
+    return data as PromotionRow;
+  }
+
+  async deletePromotion(id: string): Promise<{ success: boolean; message: string }> {
+    const { data, error } = await this.supabaseService.getClient().from('promotions')
+      .delete().eq('id', id).select('id').maybeSingle();
+    if (error) {
+      this.logger.error(`Error al eliminar promoción ${id}: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudo eliminar la promoción.');
+    }
+    if (!data) throw new NotFoundException('Promoción no encontrada.');
+    return { success: true, message: 'Promoción eliminada.' };
+  }
+
+  private validatePromotionDates(dto: CreatePromotionDto): void {
+    if (new Date(dto.endsAt).getTime() <= new Date(dto.startsAt).getTime()) {
+      throw new BadRequestException('La fecha de fin debe ser posterior a la fecha de inicio.');
+    }
+    if (dto.discountType === 'percentage' && dto.discountValue > 100) {
+      throw new BadRequestException('El descuento porcentual no puede superar el 100%.');
+    }
+  }
+
+  private promotionPayload(dto: CreatePromotionDto, adminId?: string) {
+    return {
+      title: dto.title,
+      description: dto.description,
+      code: dto.code || null,
+      discount_type: dto.discountType,
+      discount_value: dto.discountValue,
+      starts_at: dto.startsAt,
+      ends_at: dto.endsAt,
+      is_active: dto.isActive ?? true,
+      ...(adminId ? { created_by: adminId } : {}),
     };
   }
 }

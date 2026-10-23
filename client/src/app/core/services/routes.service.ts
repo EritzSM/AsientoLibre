@@ -72,7 +72,21 @@ export interface Booking {
   status: string;
   passengerFinishedAt: string | null;
   createdAt: string;
+  promotionId: string | null;
+  discountAmount: number;
+  totalAmount: number;
   route: Route;
+}
+
+export interface Promotion {
+  id: string;
+  title: string;
+  description: string;
+  code: string | null;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  startsAt: string;
+  endsAt: string;
 }
 
 export interface TripPayment {
@@ -159,6 +173,7 @@ export const routesService = {
     Object.entries(filters).forEach(([key, value]) => { if (value?.trim()) query.set(key, value.trim()); });
     return request<Route[]>(`/routes?${query}`, {}, false);
   },
+  activePromotions: () => request<Promotion[]>('/routes/promotions', {}, false),
   mine: () => request<Route[]>('/routes/mine'),
   bookings: () => request<Booking[]>('/routes/bookings/mine'),
   payments: () => request<TripPayment[]>('/routes/payments/mine'),
@@ -176,7 +191,10 @@ export const routesService = {
   rate: (routeId: string, ratedId: string, score: number, comment?: string) => request(`/routes/${encodeURIComponent(routeId)}/ratings`, {
     method: 'POST', body: JSON.stringify({ ratedId, score, comment }),
   }),
-  reserve: (id: string, seats: number) => request(`/routes/${encodeURIComponent(id)}/bookings`, { method: 'POST', body: JSON.stringify({ seats }) }),
+  reserve: (id: string, seats: number, promotionId: string | null = null) =>
+    request(`/routes/${encodeURIComponent(id)}/bookings`, {
+      method: 'POST', body: JSON.stringify({ seats, ...(promotionId ? { promotionId } : {}) }),
+    }),
   vehicle: () => request<RegisteredVehicle | null>('/vehicles/me'),
   saveVehicle: (vehicle: Omit<RegisteredVehicle, 'id'>) => request<RegisteredVehicle>('/vehicles/me', { method: 'PUT', body: JSON.stringify(vehicle) }),
   getDocuments: () => request<ConductorDocument[]>('/vehicles/documents'),

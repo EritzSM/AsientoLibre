@@ -5,12 +5,14 @@
 
 import { authService } from "../../../core/services/auth.service";
 import { adminService } from "../../../core/services/admin.service";
-import type { ConductorDocument, AdminStats, DocumentStatus, AiAnalysisResult } from "../../../core/services/admin.service";
+import type { ConductorDocument, AdminStats, DocumentStatus, AiAnalysisResult, Promotion, PromotionPayload } from "../../../core/services/admin.service";
 import { escapeHtml } from "../../../core/dom";
 
 let allDocuments: ConductorDocument[] = [];
 let currentFilter: 'all' | DocumentStatus = 'pendiente';
 let currentSearch = '';
+let promotions: Promotion[] = [];
+let editingPromotionId: string | null = null;
 let targetDocIdToReject: string | null = null;
 let toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -82,6 +84,139 @@ async function loadDashboardData(): Promise<void> {
     showToast(errorMsg, 'error');
   } finally {
     if (refreshBtn) refreshBtn.classList.remove("loading");
+  }
+}
+
+function promotionDateTimeInput(value: string): string {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Bogota',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+function promotionStatus(promotion: Promotion): string {
+  const now = Date.now();
+  if (!promotion.is_active) return 'Inactiva';
+  if (new Date(promotion.starts_at).getTime() > now) return 'Programada';
+  if (new Date(promotion.ends_at).getTime() <= now) return 'Vencida';
+  return 'Activa';
+}
+
+function renderPromotions(): void {
+  const list = $<HTMLDivElement>('#promotion-admin-list');
+  if (!list) return;
+  list.innerHTML = promotions.length ? promotions.map((promotion) => {
+    const discount = promotion.discount_type === 'percentage'
+      ? `${promotion.discount_value}%`
+      : `$${new Intl.NumberFormat('es-CO').format(promotion.discount_value)} COP`;
+    return `<article class="promotion-admin-card">
+      <div><span class="promotion-admin-status">${escapeHtml(promotionStatus(promotion))}</span>
+        <h3>${escapeHtml(promotion.title)}</h3>
+        <p>${escapeHtml(promotion.description)}</p>
+        ${promotion.code ? `<code>${escapeHtml(promotion.code)}</code>` : ''}
+        <small>${escapeHtml(discount)} · ${escapeHtml(promotionDateTimeInput(promotion.starts_at).replace('T', ' '))} a ${escapeHtml(promotionDateTimeInput(promotion.ends_at).replace('T', ' '))} (Colombia)</small>
+      </div>
+      <div class="promotion-admin-card-actions">
+        <button class="btn-action view" type="button" data-edit-promotion="${escapeHtml(promotion.id)}">Editar</button>
+        <button class="btn-action reject" type="button" data-delete-promotion="${escapeHtml(promotion.id)}">Eliminar</button>
+      </div>
+    </article>`;
+  }).join('') : '<p class="promotion-admin-empty">Todavía no hay promociones creadas.</p>';
+}
+
+async function loadPromotions(): Promise<void> {
+  const error = $<HTMLParagraphElement>('#promotion-list-error');
+  if (error) { error.hidden = true; error.textContent = ''; }
+  try {
+    promotions = await adminService.getPromotions();
+    renderPromotions();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'No se pudieron cargar las promociones.';
+    if (error) { error.textContent = message; error.hidden = false; }
+  }
+}
+
+function resetPromotionForm(): void {
+  const form = $<HTMLFormElement>('#promotion-form');
+  if (!form) return;
+  form.reset();
+  editingPromotionId = null;
+  const submit = $<HTMLButtonElement>('#promotion-submit');
+  if (submit) submit.textContent = 'Crear promoción';
+  const cancel = $<HTMLButtonElement>('#promotion-cancel-edit');
+  if (cancel) cancel.hidden = true;
+  const active = form.elements.namedItem('isActive') as HTMLInputElement | null;
+  if (active) active.checked = true;
+  const error = $<HTMLParagraphElement>('#promotion-form-error');
+  if (error) error.hidden = true;
+}
+
+function editPromotion(id: string): void {
+  const promotion = promotions.find((item) => item.id === id);
+  const form = $<HTMLFormElement>('#promotion-form');
+  if (!promotion || !form) return;
+  editingPromotionId = id;
+  (form.elements.namedItem('title') as HTMLInputElement).value = promotion.title;
+  (form.elements.namedItem('description') as HTMLInputElement).value = promotion.description;
+  (form.elements.namedItem('code') as HTMLInputElement).value = promotion.code ?? '';
+  (form.elements.namedItem('discountType') as HTMLSelectElement).value = promotion.discount_type;
+  (form.elements.namedItem('discountValue') as HTMLInputElement).value = String(promotion.discount_value);
+  (form.elements.namedItem('startsAt') as HTMLInputElement).value = promotionDateTimeInput(promotion.starts_at);
+  (form.elements.namedItem('endsAt') as HTMLInputElement).value = promotionDateTimeInput(promotion.ends_at);
+  (form.elements.namedItem('isActive') as HTMLInputElement).checked = promotion.is_active;
+  const submit = $<HTMLButtonElement>('#promotion-submit');
+  if (submit) submit.textContent = 'Guardar cambios';
+  const cancel = $<HTMLButtonElement>('#promotion-cancel-edit');
+  if (cancel) cancel.hidden = false;
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function submitPromotion(event: SubmitEvent): Promise<void> {
+  event.preventDefault();
+  const form = $<HTMLFormElement>('#promotion-form');
+  const button = $<HTMLButtonElement>('#promotion-submit');
+  const error = $<HTMLParagraphElement>('#promotion-form-error');
+  if (!form || !button || !error || button.disabled) return;
+  const values = new FormData(form);
+  const payload: PromotionPayload = {
+    title: String(values.get('title') ?? '').trim(),
+    description: String(values.get('description') ?? '').trim(),
+    code: String(values.get('code') ?? '').trim() || null,
+    discountType: String(values.get('discountType')) as PromotionPayload['discountType'],
+    discountValue: Number(values.get('discountValue')),
+    startsAt: new Date(`${String(values.get('startsAt'))}:00-05:00`).toISOString(),
+    endsAt: new Date(`${String(values.get('endsAt'))}:00-05:00`).toISOString(),
+    isActive: values.get('isActive') === 'on',
+  };
+  error.hidden = true;
+  button.disabled = true;
+  try {
+    if (editingPromotionId) await adminService.updatePromotion(editingPromotionId, payload);
+    else await adminService.createPromotion(payload);
+    showToast(editingPromotionId ? 'Promoción actualizada.' : 'Promoción creada.', 'success');
+    resetPromotionForm();
+    await loadPromotions();
+  } catch (err: unknown) {
+    error.textContent = err instanceof Error ? err.message : 'No se pudo guardar la promoción.';
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deletePromotion(id: string): Promise<void> {
+  const promotion = promotions.find((item) => item.id === id);
+  if (!promotion || !confirm(`¿Eliminar la promoción "${promotion.title}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await adminService.deletePromotion(id);
+    if (editingPromotionId === id) resetPromotionForm();
+    showToast('Promoción eliminada. Los descuentos de reservas anteriores se conservan.', 'success');
+    await loadPromotions();
+  } catch (err: unknown) {
+    showToast(err instanceof Error ? err.message : 'No se pudo eliminar la promoción.', 'error');
   }
 }
 
@@ -539,8 +674,16 @@ function bindEvents(): void {
   // Boton refrescar
   const refreshBtn = $<HTMLButtonElement>("#btn-refresh");
   if (refreshBtn) {
-    refreshBtn.addEventListener("click", loadDashboardData);
+    refreshBtn.addEventListener("click", () => { void loadDashboardData(); void loadPromotions(); });
   }
+
+  $<HTMLFormElement>('#promotion-form')?.addEventListener('submit', (event) => { void submitPromotion(event); });
+  $<HTMLButtonElement>('#promotion-cancel-edit')?.addEventListener('click', resetPromotionForm);
+  $<HTMLDivElement>('#promotion-admin-list')?.addEventListener('click', (event) => {
+    const target = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-edit-promotion], [data-delete-promotion]');
+    if (target?.dataset.editPromotion) editPromotion(target.dataset.editPromotion);
+    if (target?.dataset.deletePromotion) void deletePromotion(target.dataset.deletePromotion);
+  });
 
   // Delegacion de eventos en la tabla para ver/aprobar/rechazar/IA
   const tbody = $<HTMLTableSectionElement>("#documents-table-body");
@@ -608,7 +751,7 @@ function bindEvents(): void {
 async function initAdmin(): Promise<void> {
   await checkAdminAuth();
   bindEvents();
-  await loadDashboardData();
+  await Promise.all([loadDashboardData(), loadPromotions()]);
 }
 
 if (document.readyState === "loading") {
@@ -616,4 +759,3 @@ if (document.readyState === "loading") {
 } else {
   initAdmin();
 }
-

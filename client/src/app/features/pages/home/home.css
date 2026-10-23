@@ -310,6 +310,68 @@ textarea { resize: vertical; min-height: 80px; }
   animation: card-in 0.35s ease;
 }
 
+.promotions-panel { margin-top: 28px; }
+.promotions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.promotion-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 20px;
+  background: linear-gradient(145deg, #ffffff, #f2fbf9);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.promotion-card h3 { font-size: 1.05rem; }
+.promotion-card p { margin: 0; color: var(--navy-soft); }
+.promotion-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.promotion-discount {
+  color: var(--teal-dark);
+  background: var(--teal-pale);
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.promotion-code {
+  padding: 4px 8px;
+  border: 1px dashed var(--teal-dark);
+  border-radius: 6px;
+  color: var(--navy);
+  font-weight: 800;
+}
+.promotion-card .promotion-validity { color: var(--text-muted); font-size: .85rem; }
+
+.reservation-total {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: #f4f8fa;
+}
+.reservation-total > div { display: flex; justify-content: space-between; gap: 16px; }
+.reservation-grand-total {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+.booking-price-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: #f4f8fa;
+  color: var(--navy-soft);
+  font-size: .9rem;
+}
+.booking-price-summary strong { color: var(--navy); }
+
 .payment-summary {
   display: grid;
   gap: .35rem;

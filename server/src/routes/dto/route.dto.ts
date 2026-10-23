@@ -48,6 +48,9 @@ export class CancelRouteDto {
 export class CreateBookingDto {
   @IsInt() @Min(1) @Max(8)
   seats: number;
+
+  @IsOptional() @IsUUID()
+  promotionId?: string;
 }
 
 export class RateRouteDto {

@@ -1,5 +1,6 @@
 ﻿import {
   Controller,
+  Delete,
   Get,
   Post,
   Param,
@@ -7,6 +8,8 @@
   Query,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
+  Put,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -14,6 +17,7 @@ import { AdminService } from './admin.service.js';
 import { ReviewDocumentDto, FilterDocumentsDto } from './dto/review-document.dto.js';
 import { AdminGuard } from '../common/admin.guard.js';
 import type { AdminRequest } from '../common/admin.guard.js';
+import { CreatePromotionDto } from './dto/promotion.dto.js';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -66,5 +70,30 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   async aiReview(@Param('id') id: string, @Req() req: AdminRequest) {
     return this.adminService.analyzeDocumentWithAi(id, req.actorId);
+  }
+
+  @Get('promotions')
+  async getPromotions() {
+    return this.adminService.getPromotions();
+  }
+
+  @Post('promotions')
+  @HttpCode(HttpStatus.CREATED)
+  async createPromotion(@Body() dto: CreatePromotionDto, @Req() req: AdminRequest) {
+    return this.adminService.createPromotion(dto, req.actorId);
+  }
+
+  @Put('promotions/:id')
+  async updatePromotion(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreatePromotionDto,
+  ) {
+    return this.adminService.updatePromotion(id, dto);
+  }
+
+  @Delete('promotions/:id')
+  @HttpCode(HttpStatus.OK)
+  async deletePromotion(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.adminService.deletePromotion(id);
   }
 }
