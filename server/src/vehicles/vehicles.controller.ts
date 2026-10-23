@@ -68,4 +68,13 @@ export class VehiclesController {
   deleteDoc(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.vehicles.deleteDocument(req.actorId, id);
   }
+
+  @Post('documents/:id/request-manual-review')
+  @HttpCode(HttpStatus.OK)
+  requestManualReview(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.vehicles.requestManualReview(req.actorId, id);
+  }
 }

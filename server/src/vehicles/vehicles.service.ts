@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { throwDatabaseError } from '../common/database-error.js';
 import { GeminiService } from '../ai/gemini.service.js';
+import { ChangeNotificationService } from '../notifications/change-notification.service.js';
 import type { SaveVehicleDto, UploadDocumentDto } from './vehicles.controller.js';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class VehiclesService {
   constructor(
     @Inject(SupabaseService) private readonly supabase: SupabaseService,
     private readonly geminiService: GeminiService,
+    private readonly changeNotification: ChangeNotificationService,
   ) {}
 
   async findMine(actorId: string) {
@@ -212,7 +214,64 @@ export class VehiclesService {
       this.logger.error(`Error al actualizar estado del documento ${document.id}: ${updateError.message}`);
     } else {
       this.logger.log(`[AI] Doc ${document.id} actualizado automáticamente a "${newStatus}" — ${analysis.reason.substring(0, 80)}`);
+      // Notificar al conductor por push y correo
+      await this.notifyDocumentReviewed(actorId, document, newStatus, rejectionReason).catch((err) => {
+        this.logger.warn(`No se pudo enviar notificación de documento al conductor ${actorId}: ${err?.message}`);
+      });
     }
+  }
+
+  /**
+   * Envía notificación push + correo al conductor con el resultado del análisis de su documento.
+   */
+  private async notifyDocumentReviewed(
+    conductorId: string,
+    document: any,
+    status: 'aprobado' | 'rechazado' | 'revision_manual' | 'pendiente',
+    rejectionReason: string | null,
+  ): Promise<void> {
+    const docTypeLabels: Record<string, string> = {
+      cedula: 'Cédula de ciudadanía',
+      licencia: 'Licencia de conducción',
+      soat: 'SOAT',
+      tecnomecanica: 'Tecnomecánica',
+      tarjeta_propiedad: 'Tarjeta de propiedad',
+    };
+    const docLabel = docTypeLabels[document.document_type] ?? document.document_type;
+
+    let title: string;
+    let message: string;
+
+    switch (status) {
+      case 'aprobado':
+        title = `✅ Documento aprobado: ${docLabel}`;
+        message = `Tu documento "${docLabel}" fue revisado y aprobado exitosamente. ¡Ya puedes publicar rutas!`;
+        break;
+      case 'rechazado':
+        title = `❌ Documento rechazado: ${docLabel}`;
+        message = `Tu documento "${docLabel}" fue rechazado.${ rejectionReason ? ` Motivo: ${rejectionReason}` : '' } Por favor vuelve a subirlo corrigiendo el problema.`;
+        break;
+      case 'revision_manual':
+        title = `🔍 Documento en revisión: ${docLabel}`;
+        message = `Tu documento "${docLabel}" requiere revisión manual por nuestro equipo. Te notificaremos cuando sea procesado.`;
+        break;
+      default:
+        title = `📋 Documento recibido: ${docLabel}`;
+        message = `Recibimos tu documento "${docLabel}". Te notificaremos cuando sea revisado.`;
+    }
+
+    // Reutiliza el canal unificado (interna + push + email)
+    await this.changeNotification.sendToUser(conductorId, {
+      type: `document_${status}`,
+      title,
+      message,
+      link: `${this.changeNotification.frontendUrl}/index.html?section=documents`,
+      metadata: {
+        documentId: document.id,
+        documentType: document.document_type,
+        status,
+      },
+    });
   }
 
   async deleteDocument(actorId: string, documentId: string) {
@@ -224,5 +283,68 @@ export class VehiclesService {
       .eq('conductor_id', actorId);
     if (error) throwDatabaseError(error);
     return { success: true, message: 'Documento eliminado.' };
+  }
+
+  async requestManualReview(actorId: string, documentId: string) {
+    const admin = this.supabase.getClient();
+    const { data: doc, error: fetchError } = await admin
+      .from('conductor_documents')
+      .select('id,conductor_id,document_type,status,rejection_reason')
+      .eq('id', documentId)
+      .eq('conductor_id', actorId)
+      .maybeSingle();
+
+    if (fetchError || !doc) {
+      throw new NotFoundException('Documento no encontrado o no pertenece a tu cuenta.');
+    }
+
+    if (doc.status === 'aprobado') {
+      throw new BadRequestException('El documento ya está aprobado.');
+    }
+
+    if (doc.status === 'revision_manual') {
+      return { success: true, message: 'El documento ya se encuentra en revisión manual.' };
+    }
+
+    const note = '[Conductor] Solicitó revisión manual tras validación';
+    let { error } = await admin
+      .from('conductor_documents')
+      .update({
+        status: 'revision_manual',
+        rejection_reason: note,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', documentId);
+
+    if (error) {
+      // Fallback si Postgres enum document_status no tiene 'revision_manual'
+      const fallback = await admin
+        .from('conductor_documents')
+        .update({
+          status: 'pendiente',
+          rejection_reason: note,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', documentId);
+      error = fallback.error;
+    }
+
+    if (error) {
+      this.logger.error(`Error al solicitar revisión manual para doc ${documentId}: ${error.message}`);
+      throwDatabaseError(error);
+    }
+
+    // Notificar al conductor por push y email
+    void this.notifyDocumentReviewed(
+      actorId,
+      { id: documentId, document_type: doc.document_type },
+      'revision_manual',
+      null,
+    );
+
+    return {
+      success: true,
+      message: 'Solicitud de revisión manual enviada al equipo de administración.',
+    };
   }
 }

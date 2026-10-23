@@ -8,6 +8,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { GeminiService } from '../ai/gemini.service.js';
 import type { AiAnalysisResult } from '../ai/gemini.service.js';
+import { ChangeNotificationService } from '../notifications/change-notification.service.js';
 
 export interface ConductorDocument {
   id: string;
@@ -46,7 +47,61 @@ export class AdminService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly geminiService: GeminiService,
+    private readonly changeNotification: ChangeNotificationService,
   ) {}
+
+  private async notifyDocumentDecision(
+    conductorId: string,
+    document: { id: string; document_type: string },
+    status: 'aprobado' | 'rechazado' | 'revision_manual',
+    reason?: string | null,
+  ): Promise<void> {
+    const docTypeLabels: Record<string, string> = {
+      cedula: 'Cédula de ciudadanía',
+      licencia: 'Licencia de conducción',
+      soat: 'SOAT',
+      foto_vehiculo: 'Foto del vehículo',
+      tecnomecanica: 'Tecnomecánica',
+      tarjeta_propiedad: 'Tarjeta de propiedad',
+    };
+    const docLabel = docTypeLabels[document.document_type] ?? document.document_type;
+
+    let title: string;
+    let message: string;
+
+    switch (status) {
+      case 'aprobado':
+        title = `✅ Documento aprobado: ${docLabel}`;
+        message = `Tu documento "${docLabel}" fue revisado y aprobado exitosamente por la administración. ¡Ya puedes publicar rutas!`;
+        break;
+      case 'rechazado':
+        title = `❌ Documento rechazado: ${docLabel}`;
+        message = `Tu documento "${docLabel}" fue revisado y rechazado.${reason ? ` Motivo: ${reason}` : ''} Por favor vuelve a subirlo con las correcciones necesarias.`;
+        break;
+      case 'revision_manual':
+        title = `🔍 Documento en revisión: ${docLabel}`;
+        message = `Tu documento "${docLabel}" ha sido marcado para revisión manual por el equipo.`;
+        break;
+    }
+
+    try {
+      await this.changeNotification.sendToUser(conductorId, {
+        type: `document_${status}`,
+        title,
+        message,
+        link: `${this.changeNotification.frontendUrl}/profile.html`,
+        metadata: {
+          documentId: document.id,
+          documentType: document.document_type,
+          status,
+          ...(reason ? { reason } : {}),
+        },
+      });
+      this.logger.log(`[Push/Email] Notificación enviada a conductor ${conductorId} por documento ${document.id} (${status})`);
+    } catch (err: unknown) {
+      this.logger.error(`Error al notificar decisión de documento a ${conductorId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   async getDocuments(status?: string): Promise<ConductorDocument[]> {
     const admin = this.supabaseService.getClient();
@@ -117,7 +172,10 @@ export class AdminService {
     const admin = this.supabaseService.getClient();
 
     const { data: existing, error: fetchError } = await admin
-      .from('conductor_documents').select('id, status').eq('id', documentId).maybeSingle();
+      .from('conductor_documents')
+      .select('id, conductor_id, document_type, status')
+      .eq('id', documentId)
+      .maybeSingle();
 
     if (fetchError || !existing) throw new NotFoundException('Documento no encontrado.');
     if (existing.status === 'aprobado') throw new BadRequestException('El documento ya fue aprobado.');
@@ -134,6 +192,12 @@ export class AdminService {
       throw new ServiceUnavailableException('No se pudo aprobar el documento.');
     }
 
+    void this.notifyDocumentDecision(
+      existing.conductor_id,
+      { id: documentId, document_type: existing.document_type },
+      'aprobado',
+    );
+
     return { success: true, message: 'Documento aprobado exitosamente.' };
   }
 
@@ -141,7 +205,10 @@ export class AdminService {
     const admin = this.supabaseService.getClient();
 
     const { data: existing, error: fetchError } = await admin
-      .from('conductor_documents').select('id, status').eq('id', documentId).maybeSingle();
+      .from('conductor_documents')
+      .select('id, conductor_id, document_type, status')
+      .eq('id', documentId)
+      .maybeSingle();
 
     if (fetchError || !existing) throw new NotFoundException('Documento no encontrado.');
     if (existing.status === 'rechazado') throw new BadRequestException('El documento ya fue rechazado.');
@@ -158,6 +225,13 @@ export class AdminService {
       throw new ServiceUnavailableException('No se pudo rechazar el documento.');
     }
 
+    void this.notifyDocumentDecision(
+      existing.conductor_id,
+      { id: documentId, document_type: existing.document_type },
+      'rechazado',
+      reason,
+    );
+
     return { success: true, message: 'Documento rechazado.' };
   }
 
@@ -165,7 +239,10 @@ export class AdminService {
     const admin = this.supabaseService.getClient();
 
     const { data: existing, error: fetchError } = await admin
-      .from('conductor_documents').select('id, status').eq('id', documentId).maybeSingle();
+      .from('conductor_documents')
+      .select('id, conductor_id, document_type, status')
+      .eq('id', documentId)
+      .maybeSingle();
 
     if (fetchError || !existing) throw new NotFoundException('Documento no encontrado.');
 
@@ -191,6 +268,13 @@ export class AdminService {
       this.logger.error(`Error al marcar revision manual ${documentId}: ${error.message}`);
       throw new ServiceUnavailableException('No se pudo actualizar el estado del documento.');
     }
+
+    void this.notifyDocumentDecision(
+      existing.conductor_id,
+      { id: documentId, document_type: existing.document_type },
+      'revision_manual',
+      reason,
+    );
 
     return { success: true, message: 'Documento marcado para revision manual.' };
   }

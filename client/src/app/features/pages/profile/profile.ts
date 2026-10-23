@@ -7,6 +7,7 @@ import type { AuthUser } from "../../components/header/header";
 import { authService } from "../../../core/services/auth.service";
 import { routesService } from "../../../core/services/routes.service";
 import type { ConductorDocument, RatingSummary } from "../../../core/services/routes.service";
+import { enablePushNotifications } from "../../../core/services/reminders.service";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resendInterval: ReturnType<typeof setInterval> | undefined;
@@ -747,6 +748,17 @@ async function initProfile(): Promise<void> {
   // Documentos (solo para conductores)
   if (user.role === 'conductor') {
     void initDocuments();
+    // Activar push notifications en segundo plano (pide permiso al navegador si no lo ha dado)
+    void enablePushNotifications(() => {
+      // Mensaje recibido en primer plano: recargar la lista de documentos
+      void routesService.getDocuments().then(renderDocList).catch(() => undefined);
+    }).then((result) => {
+      if (result === 'enabled') {
+        console.info('[Push] Notificaciones push activadas correctamente.');
+      } else if (result === 'unconfigured') {
+        console.info('[Push] Firebase no configurado. Solo recibirás notificaciones por correo.');
+      }
+    });
   }
 }
 
@@ -754,20 +766,55 @@ async function initProfile(): Promise<void> {
 // Lógica de Documentos del Conductor
 // =========================================================
 
+function getDocIconSvg(type: string): string {
+  switch (type) {
+    case 'licencia':
+      return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="3"></rect>
+        <circle cx="8" cy="10" r="2"></circle>
+        <line x1="14" y1="8" x2="18" y2="8"></line>
+        <line x1="14" y1="12" x2="18" y2="12"></line>
+        <line x1="6" y1="16" x2="18" y2="16"></line>
+      </svg>`;
+    case 'soat':
+      return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        <polyline points="9 12 11 14 15 10"></polyline>
+      </svg>`;
+    case 'foto_vehiculo':
+      return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2"></path>
+        <circle cx="7" cy="17" r="2"></circle>
+        <path d="M9 17h6"></path>
+        <circle cx="17" cy="17" r="2"></circle>
+      </svg>`;
+    case 'cedula':
+    default:
+      return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <circle cx="12" cy="10" r="3"></circle>
+        <path d="M7 18c0-2.2 2.2-4 5-4s5 1.8 5 4"></path>
+      </svg>`;
+  }
+}
+
 function formatDocType(type: string): string {
   const labels: Record<string, string> = {
-    licencia: '🪪 Licencia de Conducción',
-    soat: '📄 SOAT',
-    cedula: '🆔 Cédula de Ciudadanía',
-    foto_vehiculo: '🚗 Foto del Vehículo',
+    licencia: 'Licencia de conducción',
+    soat: 'SOAT',
+    cedula: 'Cédula de ciudadanía',
+    foto_vehiculo: 'Foto del vehículo',
   };
   return labels[type] || type;
 }
 
 function formatDocDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-CO', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  const d = new Date(iso);
+  const day = d.getDate();
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const month = months[d.getMonth()] || '';
+  const year = d.getFullYear();
+  return `Enviado el ${day} ${month} ${year}`;
 }
 
 function renderDocList(docs: ConductorDocument[]): void {
@@ -787,30 +834,97 @@ function renderDocList(docs: ConductorDocument[]): void {
 
   container.innerHTML = `<div class="docs-grid">${docs.map((doc) => `
     <div class="doc-card" data-doc-id="${doc.id}">
-      <div class="doc-card-top">
-        <div>
-          <div class="doc-card-type">${formatDocType(doc.document_type)}</div>
-          <div class="doc-card-date">Enviado: ${formatDocDate(doc.submitted_at)}</div>
+      <!-- Top header with icon, title and date -->
+      <div class="doc-card-header">
+        <div class="doc-type-icon">
+          ${getDocIconSvg(doc.document_type)}
         </div>
-        <span class="doc-status-badge ${doc.status}">
-          ${doc.status === 'pendiente' ? '⏳' : doc.status === 'aprobado' ? '✅' : '❌'}
-          ${doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-        </span>
+        <div class="doc-header-text">
+          <div class="doc-card-title">${formatDocType(doc.document_type)}</div>
+          <div class="doc-card-date">${formatDocDate(doc.submitted_at)}</div>
+        </div>
       </div>
-      ${doc.rejection_reason
-        ? `<div class="doc-rejection-note">⚠️ Motivo del rechazo: ${doc.rejection_reason}</div>`
-        : ''}
+
+      <!-- Status pill -->
+      <div class="doc-status-pill ${doc.status === 'revision_manual' ? 'pendiente' : doc.status}">
+        ${doc.status === 'aprobado'
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg><span>Aprobado</span>`
+          : doc.status === 'rechazado'
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span>Rechazado</span>`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 14"/></svg><span>${doc.status === 'revision_manual' ? 'En revisión manual' : 'En revisión'}</span>`
+        }
+      </div>
+
+      <!-- Status Info Box -->
+      ${doc.status === 'rechazado'
+        ? `<div class="doc-status-box rechazado">
+            <div class="doc-box-tag">MOTIVO DEL RECHAZO</div>
+            <div class="doc-box-text">${doc.rejection_reason || 'El documento no cumplió con los criterios requeridos.'}</div>
+           </div>`
+        : doc.status === 'aprobado'
+        ? `<div class="doc-status-box aprobado">
+            <div class="doc-box-text">Documento verificado. Ya puedes publicar rutas con este vehículo.</div>
+           </div>`
+        : `<div class="doc-status-box pendiente">
+            <div class="doc-box-tag">ESTADO</div>
+            <div class="doc-box-text">
+              ${doc.status === 'revision_manual'
+                ? 'Estamos revisando tu documento manualmente. Te avisaremos apenas tengamos el resultado.'
+                : 'Estamos revisando tu documento. Te avisaremos apenas tengamos el resultado.'}
+            </div>
+           </div>`
+      }
+
+      <!-- Dispute section -->
+      ${doc.status === 'rechazado'
+        ? `<div class="doc-dispute-section">
+            <div class="doc-dispute-question">¿Crees que la validación fue errónea?</div>
+            <button type="button" class="btn-request-manual" data-manual-id="${doc.id}">
+              Solicitar revisión manual
+            </button>
+           </div>`
+        : ''
+      }
+
+      <!-- Bottom Actions -->
       <div class="doc-card-actions">
         <a href="${doc.file_url}" target="_blank" rel="noopener noreferrer" class="btn-doc-view">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
           Ver documento
         </a>
-        <button class="btn-doc-delete" data-delete-id="${doc.id}" title="Eliminar documento">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        <button class="btn-doc-delete" data-delete-id="${doc.id}" title="Eliminar documento" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
         </button>
       </div>
     </div>
   `).join('')}</div>`;
+
+  // Bind manual review request buttons
+  container.querySelectorAll<HTMLButtonElement>('[data-manual-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.manualId;
+      if (!id) return;
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = 'Solicitando revisión...';
+      try {
+        const res = await routesService.requestManualReview(id);
+        showToast(res.message || 'Revisión manual solicitada con éxito.');
+        const updatedDocs = await routesService.getDocuments();
+        renderDocList(updatedDocs);
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : 'Error al solicitar revisión manual.');
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    });
+  });
 
   // Bind delete buttons
   container.querySelectorAll<HTMLButtonElement>('[data-delete-id]').forEach((btn) => {

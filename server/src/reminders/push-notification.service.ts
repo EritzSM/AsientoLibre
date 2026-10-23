@@ -30,14 +30,23 @@ export class PushNotificationService {
       .select('token').eq('user_id', userId).order('last_seen_at', { ascending: false }).limit(500);
     if (error) throw new Error(`No se pudieron consultar los destinos push: ${error.message}`);
     const tokens = [...new Set((rows ?? []).map((row) => row.token as string))];
-    if (!this.app || !tokens.length) return { configured: Boolean(this.app), attempted: tokens.length, sent: 0 };
+    if (!this.app) {
+      this.logger.warn(`[Push] No se envió notificación a ${userId}: Firebase Admin no está inicializado.`);
+      return { configured: false, attempted: 0, sent: 0 };
+    }
+    if (!tokens.length) {
+      this.logger.warn(`[Push] No se envió notificación a ${userId}: no tiene tokens registrados en la tabla push_tokens.`);
+      return { configured: true, attempted: 0, sent: 0 };
+    }
 
+    this.logger.log(`[Push] Enviando notificación a ${tokens.length} dispositivo(s) de ${userId}...`);
     const result = await getMessaging(this.app).sendEachForMulticast({
       tokens,
       notification: { title: input.title, body: input.body },
       data: { ...input.data, link: input.link },
       webpush: { fcmOptions: { link: input.link } },
     });
+    this.logger.log(`[Push] Resultado para ${userId}: ${result.successCount} enviados, ${result.failureCount} fallidos.`);
     const invalidTokens = result.responses.flatMap((response, index) => {
       const code = response.error?.code ?? '';
       return code.includes('registration-token-not-registered') || code.includes('invalid-registration-token')

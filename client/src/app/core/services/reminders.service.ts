@@ -66,17 +66,56 @@ export async function enablePushNotifications(onForegroundMessage: () => void): 
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
   };
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-  if (!config.apiKey || !config.projectId || !config.messagingSenderId || !config.appId || !vapidKey) return 'unconfigured';
+  const isPlaceholder = (val?: string) => !val || val.startsWith('tu-');
+  if (
+    isPlaceholder(config.apiKey) ||
+    isPlaceholder(config.projectId) ||
+    isPlaceholder(config.messagingSenderId) ||
+    isPlaceholder(config.appId) ||
+    isPlaceholder(vapidKey)
+  ) {
+    console.warn('[Push] Firebase no está configurado con valores reales en client/.env');
+    return 'unconfigured';
+  }
   if (!('serviceWorker' in navigator) || !await isSupported()) return 'unsupported';
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return 'unsupported';
 
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-  const app = getApps().length ? getApp() : initializeApp(config);
-  const messaging = getMessaging(app);
-  const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-  if (!token) return 'unsupported';
-  await remindersService.savePushToken(token);
-  onMessage(messaging, () => onForegroundMessage());
-  return 'enabled';
+  try {
+    const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    // Enviar la config de Firebase al SW para que pueda inicializar el SDK compat
+    const swTarget = registration.installing ?? registration.waiting ?? registration.active;
+    if (swTarget) {
+      const sendConfig = () => swTarget.postMessage({ type: 'FIREBASE_CONFIG', config });
+      swTarget.state === 'activated' ? sendConfig() : swTarget.addEventListener('statechange', () => {
+        if (swTarget.state === 'activated') sendConfig();
+      });
+    }
+    const app = getApps().length ? getApp() : initializeApp(config);
+    const messaging = getMessaging(app);
+    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+    if (!token) return 'unsupported';
+    await remindersService.savePushToken(token);
+    onMessage(messaging, (payload) => {
+      console.log('[Push] Notificación recibida en primer plano:', payload);
+      const title = payload.notification?.title || payload.data?.title || 'Asiento Libre';
+      const body = payload.notification?.body || payload.data?.body || '';
+      if (Notification.permission === 'granted') {
+        try {
+          void registration.showNotification(title, {
+            body,
+            icon: '/images/logo.png',
+            data: payload.data,
+          });
+        } catch {
+          new Notification(title, { body, icon: '/images/logo.png' });
+        }
+      }
+      onForegroundMessage();
+    });
+    return 'enabled';
+  } catch (error) {
+    console.warn('[Push] Error al inicializar notificaciones push:', error);
+    return 'unsupported';
+  }
 }

@@ -189,6 +189,10 @@ export const routesService = {
     request<{ success: boolean; message: string }>(`/vehicles/documents/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
+  requestManualReview: (id: string) =>
+    request<{ success: boolean; message: string }>(`/vehicles/documents/${encodeURIComponent(id)}/request-manual-review`, {
+      method: 'POST',
+    }),
   notifications: () => request<Notification[]>('/notifications'),
   markRead: (id: string) => request(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
   /** SCRUM-136: Obtiene rutas alternativas sugeridas para una ruta cancelada */
@@ -201,7 +205,7 @@ export interface ConductorDocument {
   document_type: 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo';
   file_url: string;
   file_name: string | null;
-  status: 'pendiente' | 'aprobado' | 'rechazado';
+  status: 'pendiente' | 'aprobado' | 'rechazado' | 'revision_manual';
   rejection_reason: string | null;
   submitted_at: string;
   reviewed_at: string | null;

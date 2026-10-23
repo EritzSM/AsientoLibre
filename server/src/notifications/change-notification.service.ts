@@ -20,7 +20,7 @@ import type { RouteEvent } from '../routes/events/route-events.js';
 @Injectable()
 export class ChangeNotificationService {
   private readonly logger = new Logger(ChangeNotificationService.name);
-  private readonly frontendUrl: string;
+  readonly frontendUrl: string;
 
   constructor(
     @Inject(SupabaseService) private readonly supabase: SupabaseService,
@@ -128,10 +128,10 @@ export class ChangeNotificationService {
 
   // ─── Canal unificado ──────────────────────────────────────────────────────
 
-  private async sendToUser(
+  async sendToUser(
     userId: string,
     input: {
-      routeId: string;
+      routeId?: string | null;
       type: string;
       title: string;
       message: string;
@@ -142,16 +142,20 @@ export class ChangeNotificationService {
     const admin = this.supabase.getClient();
 
     // 1. Persistir notificación interna (siempre, independiente de push/email)
-    const { error: insertError } = await admin.from('notifications').insert({
+    const insertPayload: Record<string, unknown> = {
       recipient_id: userId,
-      route_id: input.routeId,
       type: input.type,
       title: input.title,
       message: input.message,
       metadata: input.metadata ?? {},
-    });
+    };
+    if (input.routeId) {
+      insertPayload.route_id = input.routeId;
+    }
+
+    const { error: insertError } = await admin.from('notifications').insert(insertPayload);
     if (insertError) {
-      this.logger.error(`No se pudo guardar la notificación ${input.type} para ${userId}: ${insertError.message}`);
+      this.logger.warn(`No se pudo guardar la notificación ${input.type} para ${userId}: ${insertError.message}`);
     }
 
     // 2. Obtener datos de contacto del usuario
@@ -180,7 +184,7 @@ export class ChangeNotificationService {
         body: input.message,
         link: input.link,
         data: {
-          routeId: input.routeId,
+          ...(input.routeId ? { routeId: input.routeId } : {}),
           type: input.type,
         },
       }),
