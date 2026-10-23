@@ -17,6 +17,9 @@ export class RoutesController {
   @Get()
   available(@Query(dtoPipe(FindRoutesDto)) query: FindRoutesDto) { return this.routes.findAvailable(query); }
 
+  @Get('promotions')
+  activePromotions() { return this.routes.activePromotions(); }
+
   @Get('mine') @UseGuards(SupabaseAuthGuard)
   mine(@Req() req: AuthenticatedRequest) { return this.routes.findMine(req.actorId); }
 
@@ -79,7 +82,7 @@ export class RoutesController {
 
   @Post(':id/bookings') @UseGuards(SupabaseAuthGuard)
   book(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string, @Body(dtoPipe(CreateBookingDto)) body: CreateBookingDto) {
-    return this.routes.requestBooking(req.actorId, id, body.seats);
+    return this.routes.requestBookingWithPromotion(req.actorId, id, body.seats, body.promotionId ?? null);
   }
 
   /** SCRUM-136: Rutas alternativas sugeridas al pasajero cuando se cancela su viaje */

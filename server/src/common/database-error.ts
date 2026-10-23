@@ -13,6 +13,7 @@ export function throwDatabaseError(error: DatabaseError): never {
       case 'NOT_FOUND': throw new NotFoundException(details.message);
       case 'CANCELLATION_CONFIRMATION_REQUIRED': throw new ConflictException(details);
       case 'CONFLICT': throw new ConflictException(details.message);
+      case 'PROMOTION_UNAVAILABLE': throw new ConflictException(details.message);
       case 'VALIDATION_ERROR': throw new BadRequestException(details.message);
     }
   }

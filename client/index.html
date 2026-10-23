@@ -43,6 +43,7 @@
       <nav class="main-nav" aria-label="Navegación principal">
         <a href="#publicar" data-scroll>Publicar ruta</a>
         <a href="#buscar" data-scroll>Buscar asiento</a>
+        <a href="#promociones" data-scroll>Promociones</a>
         
         <!-- Botón Iniciar sesión (para usuarios no autenticados) -->
         <a href="/login.html" class="btn btn-primary btn-login" id="btn-login">Iniciar sesión</a>
@@ -247,6 +248,15 @@
           <p id="empty-state" class="empty-state" hidden>No hay rutas disponibles para estos filtros.</p>
         </section>
       </div>
+      <div class="container">
+        <section class="routes-panel promotions-panel" id="promociones" aria-labelledby="promotions-title">
+          <h2 id="promotions-title">Promociones activas</h2>
+          <p class="muted">Aprovecha descuentos vigentes en tus reservas.</p>
+          <p id="promotions-error" class="form-error" role="alert" hidden></p>
+          <div id="promotions-list" class="promotions-list" aria-live="polite"></div>
+          <p id="promotions-empty" class="empty-state" hidden>No hay promociones activas por el momento.</p>
+        </section>
+      </div>
       <div class="container account-panels">
         <section id="recordatorios" class="card reminder-panel" hidden aria-labelledby="reminders-title">
           <div class="panel-heading">
@@ -265,7 +275,7 @@
         </section>
         <section id="validacion-pagos" class="routes-panel" hidden aria-labelledby="payments-title">
           <div class="panel-heading"><h2 id="payments-title">Validación de pagos</h2><button id="refresh-payments" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Confirma cada aporte después de finalizar el viaje. El valor conserva el precio definido al reservar.</p>
+          <p class="muted">Confirma cada aporte después de finalizar el viaje. El valor conserva el total y los descuentos definidos al reservar.</p>
           <p id="payments-error" class="form-error" role="alert" hidden></p>
           <div id="payments-list" class="routes-list" aria-live="polite"></div>
           <p id="payments-empty" class="empty-state" hidden>No hay pagos pendientes de validación.</p>
@@ -326,6 +336,17 @@
         <label for="reserve-seats">¿Cuántos asientos necesitas?</label>
         <input id="reserve-seats" type="number" value="1" min="1" step="1" required aria-describedby="reserve-hint" />
         <p id="reserve-hint" class="hint"></p>
+      </div>
+      <div class="field" id="reserve-promotion-field" hidden>
+        <label for="reserve-promotion">Promoción disponible</label>
+        <select id="reserve-promotion">
+          <option value="">Sin promoción</option>
+        </select>
+      </div>
+      <div class="reservation-total" aria-live="polite">
+        <div><span>Subtotal</span><strong id="reserve-subtotal"></strong></div>
+        <div id="reserve-discount-row" hidden><span>Descuento</span><strong id="reserve-discount"></strong></div>
+        <div class="reservation-grand-total"><span>Total</span><strong id="reserve-total"></strong></div>
       </div>
       <p id="reserve-error" class="form-error" role="alert" hidden></p>
       <div class="dialog-actions">

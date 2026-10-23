@@ -114,7 +114,32 @@ export class RoutesService {
   }
 
   requestBooking(actorId: string, routeId: string, seats: number) {
-    return this.rpc('request_booking', { p_actor: actorId, p_route: routeId, p_seats: seats });
+    return this.requestBookingWithPromotion(actorId, routeId, seats, null);
+  }
+
+  requestBookingWithPromotion(actorId: string, routeId: string, seats: number, promotionId: string | null) {
+    return this.rpc('request_booking_with_promotion', {
+      p_actor: actorId, p_route: routeId, p_seats: seats, p_promotion: promotionId,
+    });
+  }
+
+  async activePromotions() {
+    const now = new Date().toISOString();
+    const { data, error } = await this.supabase.getClient().from('promotions')
+      .select('id,title,description,code,discount_type,discount_value,starts_at,ends_at')
+      .eq('is_active', true).lte('starts_at', now).gt('ends_at', now)
+      .order('ends_at');
+    if (error) throwDatabaseError(error);
+    return (data ?? []).map((promotion) => ({
+      id: promotion.id as string,
+      title: promotion.title as string,
+      description: promotion.description as string,
+      code: promotion.code as string | null,
+      discountType: promotion.discount_type as 'percentage' | 'fixed',
+      discountValue: Number(promotion.discount_value),
+      startsAt: promotion.starts_at as string,
+      endsAt: promotion.ends_at as string,
+    }));
   }
 
   /**
@@ -160,7 +185,7 @@ export class RoutesService {
     if (!routes?.length) return [];
     const routeIds = routes.map((route) => route.id as string);
     const { data: requests, error } = await admin.from('bookings')
-      .select('id,route_id,passenger_id,seats,status,created_at')
+      .select('id,route_id,passenger_id,seats,status,created_at,promotion_id,discount_amount,total_amount')
       .in('route_id', routeIds).eq('status', 'pending').order('created_at').limit(200);
     if (error) throwDatabaseError(error);
     if (!requests?.length) return [];
@@ -182,13 +207,16 @@ export class RoutesService {
       seats: request.seats,
       status: request.status,
       createdAt: request.created_at,
+      promotionId: request.promotion_id,
+      discountAmount: Number(request.discount_amount),
+      totalAmount: Number(request.total_amount),
       route: routeById.get(request.route_id as string),
     }));
   }
 
   async myBookings(actorId: string) {
     const { data: bookings, error } = await this.supabase.getClient().from('bookings')
-      .select('id,route_id,seats,status,passenger_finished_at,created_at').eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
+      .select('id,route_id,seats,status,passenger_finished_at,created_at,promotion_id,discount_amount,total_amount').eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
     if (error) throwDatabaseError(error);
     if (!bookings?.length) return [];
     const { data: routes, error: routesError } = await this.supabase.getClient().from('route_catalog').select('*')
@@ -197,7 +225,9 @@ export class RoutesService {
     const presentedRoutes = await this.presentRoutes(routes as RouteRow[]);
     const byId = new Map(presentedRoutes.map((route) => [route.id, route]));
     return bookings.map((booking) => ({ id: booking.id, routeId: booking.route_id, seats: booking.seats,
-      status: booking.status, passengerFinishedAt: booking.passenger_finished_at, createdAt: booking.created_at, route: byId.get(booking.route_id) }));
+      status: booking.status, passengerFinishedAt: booking.passenger_finished_at, createdAt: booking.created_at,
+      promotionId: booking.promotion_id, discountAmount: Number(booking.discount_amount), totalAmount: Number(booking.total_amount),
+      route: byId.get(booking.route_id) }));
   }
 
   finish(actorId: string, routeId: string) {

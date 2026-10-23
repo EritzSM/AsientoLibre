@@ -28,6 +28,7 @@
       </a>
 
       <div class="admin-user-nav">
+        <a class="admin-promotions-link" href="#promotion-admin-title">Promociones</a>
         <div class="admin-user-pill">
           <div class="admin-user-avatar" id="admin-user-avatar">A</div>
           <span class="admin-user-email" id="admin-user-email">admin@asientolibre.com</span>
@@ -209,6 +210,39 @@
         <p class="empty-subtitle">Cuando los conductores suban sus documentos o cambies los filtros, aparecerán aquí.</p>
       </div>
     </div>
+
+    <section class="promotion-admin-section" aria-labelledby="promotion-admin-title">
+      <div class="promotion-admin-heading">
+        <div>
+          <h2 id="promotion-admin-title">Gestión de promociones</h2>
+          <p>Define los descuentos y su vigencia para pasajeros y conductores.</p>
+        </div>
+      </div>
+      <form id="promotion-form" class="promotion-admin-form">
+        <div class="promotion-admin-fields">
+          <label>Título<input name="title" maxlength="120" required /></label>
+          <label>Código (opcional)<input name="code" maxlength="40" /></label>
+          <label class="promotion-wide">Descripción<input name="description" maxlength="500" required /></label>
+          <label>Tipo de descuento
+            <select name="discountType">
+              <option value="percentage">Porcentaje</option>
+              <option value="fixed">Valor fijo (COP)</option>
+            </select>
+          </label>
+          <label>Valor<input name="discountValue" type="number" min="0.01" step="0.01" required /></label>
+          <label>Inicio (hora Colombia)<input name="startsAt" type="datetime-local" required /></label>
+          <label>Fin (hora Colombia)<input name="endsAt" type="datetime-local" required /></label>
+          <label class="promotion-admin-active"><input name="isActive" type="checkbox" checked /> Campaña activa</label>
+        </div>
+        <p id="promotion-form-error" class="promotion-admin-error" role="alert" hidden></p>
+        <div class="promotion-admin-actions">
+          <button id="promotion-submit" class="btn-refresh" type="submit">Crear promoción</button>
+          <button id="promotion-cancel-edit" class="btn-refresh" type="button" hidden>Cancelar edición</button>
+        </div>
+      </form>
+      <p id="promotion-list-error" class="promotion-admin-error" role="alert" hidden></p>
+      <div id="promotion-admin-list" class="promotion-admin-list" aria-live="polite"></div>
+    </section>
 
   </main>
 

@@ -2,7 +2,7 @@ import { initHeader } from '../../components/header/header';
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification } from '../../../core/services/routes.service';
+import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification, Promotion } from '../../../core/services/routes.service';
 import { remindersService } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
@@ -14,6 +14,7 @@ let publicRoutes: Route[] = [];
 let ownRoutes: Route[] = [];
 let bookingRequests: BookingRequest[] = [];
 let payments: TripPayment[] = [];
+let promotions: Promotion[] = [];
 let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
@@ -68,13 +69,77 @@ function dateLabel(date: string): string {
   });
 }
 
+function promotionDateLabel(value: string): string {
+  return new Date(value).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function promotionDiscount(promotion: Promotion): string {
+  return promotion.discountType === 'percentage'
+    ? `${promotion.discountValue}%`
+    : priceFormatter.format(promotion.discountValue);
+}
+
+function renderPromotions(): void {
+  const list = $('#promotions-list');
+  list.innerHTML = promotions.map((promotion) => `<article class="promotion-card">
+    <div class="promotion-card-heading">
+      <span class="promotion-discount">${escape(promotionDiscount(promotion))} de descuento</span>
+      ${promotion.code ? `<code class="promotion-code">${escape(promotion.code)}</code>` : ''}
+    </div>
+    <h3>${escape(promotion.title)}</h3>
+    <p>${escape(promotion.description)}</p>
+    <p class="promotion-validity">Vigencia: ${escape(promotionDateLabel(promotion.startsAt))} – ${escape(promotionDateLabel(promotion.endsAt))} (Colombia)</p>
+  </article>`).join('');
+  $('#promotions-empty').hidden = promotions.length > 0;
+}
+
+async function loadPromotions(): Promise<void> {
+  statusMessage('#promotions-error', '');
+  try {
+    promotions = await routesService.activePromotions();
+    renderPromotions();
+  } catch (error) {
+    promotions = [];
+    renderPromotions();
+    statusMessage('#promotions-error', errorMessage(error));
+  }
+}
+
+function renderReservationTotal(): void {
+  if (!activeReservation) return;
+  const seats = Number($<HTMLInputElement>('#reserve-seats').value);
+  if (!Number.isInteger(seats) || seats < 1 || seats > activeReservation.availableSeats) {
+    $('#reserve-subtotal').textContent = '—';
+    $('#reserve-discount').textContent = '—';
+    $('#reserve-discount-row').hidden = true;
+    $('#reserve-total').textContent = '—';
+    return;
+  }
+  const subtotal = Math.round(activeReservation.price * seats * 100) / 100;
+  const selectedId = $<HTMLSelectElement>('#reserve-promotion').value;
+  const promotion = promotions.find((item) => item.id === selectedId);
+  const discount = promotion
+    ? Math.min(subtotal, promotion.discountType === 'percentage'
+      ? Math.round(subtotal * promotion.discountValue) / 100
+      : promotion.discountValue)
+    : 0;
+  $('#reserve-subtotal').textContent = priceFormatter.format(subtotal);
+  $('#reserve-discount').textContent = `−${priceFormatter.format(discount)}`;
+  $('#reserve-discount-row').hidden = discount <= 0;
+  $('#reserve-total').textContent = priceFormatter.format(Math.max(0, subtotal - discount));
+}
+
 function routeHasStarted(route: Route): boolean {
   return new Date(`${route.date}T${route.time}:00-05:00`).getTime() <= Date.now();
 }
 
 export function routeCardHtml(route: Route, owner = false): string {
   const status = route.driverFinishedAt ? 'FINALIZADO' : { published: 'ACTIVO', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
-  const canReserve = !owner && route.status === 'published' && route.availableSeats > 0 && route.driverId !== user?.id;
+  const canReserve = !owner && (!user || user.role === 'pasajero') && route.status === 'published'
+    && route.availableSeats > 0 && route.driverId !== user?.id;
   const canCancel = route.status === 'published' && !routeHasStarted(route);
   const canFinish = route.status === 'published' && routeHasStarted(route);
   const hasConfirmedPayment = payments.some((payment) => payment.routeId === route.id && payment.status === 'confirmed');
@@ -389,6 +454,11 @@ async function loadBookings(): Promise<void> {
       <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
       <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
       <p>${escape(booking.seats)} asiento(s) · ${escape(bookingStatusLabels[booking.status] ?? booking.status)}</p>
+      <div class="booking-price-summary">
+        <span>Subtotal: ${escape(priceFormatter.format(booking.totalAmount + booking.discountAmount))}</span>
+        ${booking.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(booking.discountAmount))}</span>` : ''}
+        <strong>Total: ${escape(priceFormatter.format(booking.totalAmount))}</strong>
+      </div>
       ${paymentForBooking(booking.id) ? paymentHtml(paymentForBooking(booking.id)!, false) : ''}
       ${booking.status === 'confirmed' && booking.route.status === 'published' && routeHasStarted(booking.route)
         ? booking.passengerFinishedAt
@@ -448,6 +518,11 @@ async function loadBookingRequests(): Promise<void> {
       </div>
       <p>${escape(request.route.origin)} → ${escape(request.route.destination)}</p>
       <p>${escape(dateLabel(request.route.date))} · ${escape(request.route.time)} (Colombia)</p>
+      <div class="booking-price-summary">
+        <span>Subtotal: ${escape(priceFormatter.format(request.totalAmount + request.discountAmount))}</span>
+        ${request.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(request.discountAmount))}</span>` : ''}
+        <strong>Total a recibir: ${escape(priceFormatter.format(request.totalAmount))}</strong>
+      </div>
       <button type="button" class="btn btn-primary" data-accept-booking="${escape(request.id)}">Aceptar y confirmar reserva</button>
     </article>`).join('');
     bindAvatarFallbacks(list);
@@ -701,6 +776,14 @@ function openReservation(id: string): void {
   const seats = $<HTMLInputElement>('#reserve-seats');
   seats.value = '1';
   seats.max = String(route.availableSeats);
+  const promotionField = $<HTMLElement>('#reserve-promotion-field');
+  const promotionSelect = $<HTMLSelectElement>('#reserve-promotion');
+  promotionField.hidden = user.role !== 'pasajero' || promotions.length === 0;
+  promotionSelect.innerHTML = '<option value="">Sin promoción</option>' + promotions.map((promotion) =>
+    `<option value="${escape(promotion.id)}">${escape(promotion.title)} · ${escape(promotionDiscount(promotion))}${promotion.code ? ` · ${escape(promotion.code)}` : ''}</option>`,
+  ).join('');
+  promotionSelect.value = '';
+  renderReservationTotal();
   statusMessage('#reserve-error', '');
   $<HTMLDialogElement>('#reserve-dialog').showModal();
   seats.focus();
@@ -718,7 +801,8 @@ async function reserve(event: SubmitEvent): Promise<void> {
   button.disabled = true;
   $<HTMLButtonElement>('#reserve-close').disabled = true;
   try {
-    await routesService.reserve(activeReservation.id, seats);
+    const promotionId = $<HTMLSelectElement>('#reserve-promotion').value || null;
+    await routesService.reserve(activeReservation.id, seats, promotionId);
     $<HTMLDialogElement>('#reserve-dialog').close();
     toast('Solicitud enviada. El conductor recibirá una notificación para aceptarla.');
     activeReservation = null;
@@ -852,6 +936,8 @@ async function init(): Promise<void> {
   $('#publish-form').addEventListener('submit', (event) => { void publish(event as SubmitEvent); });
   $('#search-form').addEventListener('submit', (event) => { event.preventDefault(); void loadRoutes(); });
   $('#reserve-form').addEventListener('submit', (event) => { void reserve(event as SubmitEvent); });
+  $('#reserve-seats').addEventListener('input', renderReservationTotal);
+  $('#reserve-promotion').addEventListener('change', renderReservationTotal);
   $('#remove-confirm').addEventListener('click', () => { void confirmRemoval(); });
   $('#survey-form').addEventListener('submit', (event) => { void submitSurvey(event as SubmitEvent); });
   $('#survey-later').addEventListener('click', () => { activeSurvey = null; $<HTMLDialogElement>('#survey-dialog').close(); });
@@ -1002,7 +1088,7 @@ async function init(): Promise<void> {
       if (selector?.startsWith('#')) { event.preventDefault(); document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' }); }
     });
   });
-  await Promise.allSettled([loadRoutes(), loadSession()]);
+  await Promise.allSettled([loadRoutes(), loadSession(), loadPromotions()]);
   const refreshAccount = () => {
     if (document.visibilityState === 'visible') {
       void loadNotifications();

@@ -102,6 +102,14 @@ body.admin-body {
   gap: 16px;
 }
 
+.admin-promotions-link {
+  color: var(--teal-accent);
+  font-size: .88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.admin-promotions-link:hover { color: #fff; }
+
 .admin-user-pill {
   display: flex;
   align-items: center;
@@ -617,6 +625,82 @@ body.admin-body {
   margin: 0 auto;
 }
 
+.promotion-admin-section {
+  margin-top: 32px;
+  padding: 24px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-md);
+  background: var(--admin-surface-card);
+}
+.promotion-admin-heading { margin-bottom: 20px; }
+.promotion-admin-heading h2 { margin: 0 0 6px; color: var(--admin-text-main); }
+.promotion-admin-heading p { margin: 0; color: var(--admin-text-muted); }
+.promotion-admin-form {
+  margin-bottom: 22px;
+  padding: 20px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 14, 27, .45);
+}
+.promotion-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.promotion-admin-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--admin-text-muted);
+  font-size: .85rem;
+  font-weight: 600;
+}
+.promotion-admin-fields input,
+.promotion-admin-fields select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface);
+  color: var(--admin-text-main);
+  font: inherit;
+}
+.promotion-admin-fields input:focus,
+.promotion-admin-fields select:focus { outline: 2px solid var(--teal-accent); outline-offset: 1px; }
+.promotion-admin-fields .promotion-wide { grid-column: 1 / -1; }
+.promotion-admin-fields .promotion-admin-active {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.promotion-admin-active input { width: auto; min-height: auto; accent-color: var(--teal-accent); }
+.promotion-admin-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.promotion-admin-error { margin: 12px 0; color: #F87171; }
+.promotion-admin-list { display: grid; gap: 12px; }
+.promotion-admin-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-sm);
+  background: rgba(7, 14, 27, .35);
+}
+.promotion-admin-card h3 { margin: 6px 0; color: var(--admin-text-main); }
+.promotion-admin-card p { margin: 5px 0; color: var(--admin-text-muted); }
+.promotion-admin-card small { display: block; margin-top: 8px; color: var(--admin-text-faint); }
+.promotion-admin-card code { color: var(--teal-accent); font-weight: 700; }
+.promotion-admin-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.promotion-admin-status {
+  color: var(--teal-accent);
+  font-size: .75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.promotion-admin-empty { color: var(--admin-text-muted); text-align: center; padding: 24px; }
+
 /* Modals */
 .modal-overlay {
   position: fixed;
@@ -828,6 +912,9 @@ body.admin-body {
   .search-input-wrapper {
     width: 100%;
   }
+  .promotion-admin-fields { grid-template-columns: 1fr; }
+  .promotion-admin-fields .promotion-wide { grid-column: auto; }
+  .promotion-admin-card { align-items: flex-start; flex-direction: column; }
 }
 
 /* =========================================================
@@ -1058,4 +1145,3 @@ body.admin-body {
 .admin-toast.toast-error { border-color: #F87171; }
 .admin-toast.toast-warning { border-color: #fbbf24; }
 .admin-toast.toast-info { border-color: var(--teal-accent); }
-

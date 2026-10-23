@@ -48,6 +48,30 @@ export interface AdminStats {
 	total_documents: number;
 }
 
+export interface Promotion {
+  id: string;
+  title: string;
+  description: string;
+  code: string | null;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  starts_at: string;
+  ends_at: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PromotionPayload {
+  title: string;
+  description: string;
+  code: string | null;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+}
+
 interface ApiErrorBody {
 	message?: string | string[];
 	error?: string;
@@ -84,6 +108,28 @@ class AdminService {
 
 	async getStats(): Promise<AdminStats> {
 		return this.request<AdminStats>('/admin/stats');
+	}
+
+	getPromotions(): Promise<Promotion[]> {
+		return this.request<Promotion[]>('/admin/promotions');
+	}
+
+	createPromotion(promotion: PromotionPayload): Promise<Promotion> {
+		return this.request<Promotion>('/admin/promotions', {
+			method: 'POST', body: JSON.stringify(promotion),
+		});
+	}
+
+	updatePromotion(id: string, promotion: PromotionPayload): Promise<Promotion> {
+		return this.request<Promotion>(`/admin/promotions/${encodeURIComponent(id)}`, {
+			method: 'PUT', body: JSON.stringify(promotion),
+		});
+	}
+
+	deletePromotion(id: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>(`/admin/promotions/${encodeURIComponent(id)}`, {
+			method: 'DELETE',
+		});
 	}
 
 	async getDocuments(status?: string): Promise<ConductorDocument[]> {
