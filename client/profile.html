@@ -41,6 +41,26 @@
         <!-- Botón Iniciar sesión (para no autenticados) -->
         <a href="/login.html" class="btn btn-primary btn-login" id="btn-login" style="display: none;">Iniciar sesión</a>
 
+        <!-- Campana de Notificaciones (solo para usuarios autenticados) -->
+        <div class="notif-bell-wrapper" id="notif-bell-wrapper" style="display:none;" aria-label="Notificaciones">
+          <button class="notif-bell-btn" id="notif-bell-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir notificaciones">
+            <svg class="notif-bell-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notif-badge" hidden>0</span>
+          </button>
+          <div class="notif-panel" id="notif-panel" hidden role="dialog" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-mark-all-btn" id="notif-mark-all-btn" type="button">Marcar todas leídas</button>
+            </div>
+            <div class="notif-panel-body" id="notif-panel-body">
+              <p class="notif-empty" id="notif-panel-empty">No tienes notificaciones nuevas.</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Apartado de Perfil de Usuario -->
         <div class="user-profile-menu" id="user-profile-menu">
           <button class="user-profile-btn" id="user-profile-btn" type="button" aria-expanded="false" aria-haspopup="true">
@@ -83,6 +103,7 @@
             </button>
           </div>
         </div>
+
       </nav>
     </div>
   </header>
@@ -528,6 +549,7 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
+  <div id="in-app-push-toast" class="driver-toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
   <script type="module" src="/src/app/features/pages/profile/profile.ts"></script>
 </body>

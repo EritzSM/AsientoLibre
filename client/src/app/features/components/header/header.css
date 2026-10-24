@@ -352,3 +352,273 @@
     display: none;
   }
 }
+
+/* =========================================================
+   Campana de Notificaciones
+   ========================================================= */
+
+.notif-bell-wrapper {
+  position: relative;
+}
+
+.notif-bell-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  color: var(--navy-soft, #3E4A63);
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+.notif-bell-btn:hover {
+  background: var(--teal-pale, #E3F7F4);
+  color: var(--teal-dark, #109E8E);
+  transform: scale(1.08);
+}
+
+.notif-bell-btn:active {
+  transform: scale(0.96);
+}
+
+.notif-bell-btn[aria-expanded="true"] {
+  background: var(--teal-pale, #E3F7F4);
+  color: var(--teal-dark, #109E8E);
+}
+
+/* Animación de la campana */
+@keyframes bellRing {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); }
+  60% { transform: rotate(-5deg); }
+}
+.notif-bell-icon {
+  transition: transform 0.15s ease;
+}
+.notif-bell-btn.notif-has-unread .notif-bell-icon {
+  animation: bellRing 1.2s ease both;
+}
+
+/* Badge contador */
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #E63946;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  line-height: 1;
+  animation: badgePop 0.25s cubic-bezier(.36,.07,.19,.97) both;
+}
+.notif-badge[hidden] { display: none; }
+
+@keyframes badgePop {
+  0% { transform: scale(0); }
+  80% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* Panel desplegable */
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -8px;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  background: #fff;
+  border: 1px solid var(--border, #E1E6EA);
+  border-radius: 20px;
+  box-shadow: 0 20px 48px rgba(11, 30, 59, 0.14), 0 4px 12px rgba(11, 30, 59, 0.06);
+  z-index: 100;
+  overflow: hidden;
+  animation: dropdownIn 0.22s cubic-bezier(.16,1,.3,1);
+}
+.notif-panel[hidden] { display: none; }
+
+.notif-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border, #E1E6EA);
+  background: linear-gradient(135deg, #f8fbff 0%, #f0faf8 100%);
+}
+
+.notif-panel-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--navy, #0B1E3B);
+  letter-spacing: -0.01em;
+}
+
+.notif-mark-all-btn {
+  background: none;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--teal-dark, #109E8E);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+.notif-mark-all-btn:hover {
+  background: var(--teal-pale, #E3F7F4);
+}
+
+/* Cuerpo con scroll */
+.notif-panel-body {
+  max-height: 380px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border, #E1E6EA) transparent;
+}
+.notif-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+.notif-panel-body::-webkit-scrollbar-thumb {
+  background: var(--border, #E1E6EA);
+  border-radius: 4px;
+}
+
+/* Estado vacío */
+.notif-empty {
+  text-align: center;
+  color: var(--text-muted, #667085);
+  font-size: 0.875rem;
+  padding: 28px 20px;
+  margin: 0;
+}
+
+/* Item de notificación */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid #f0f2f4;
+  cursor: default;
+  transition: background 0.14s ease;
+  position: relative;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: #f8fbff; }
+
+.notif-item--unread {
+  background: linear-gradient(90deg, rgba(23,191,172,0.05) 0%, transparent 100%);
+}
+.notif-item--unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--teal, #17BFAC);
+  border-radius: 0 3px 3px 0;
+}
+
+.notif-item-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--teal-pale, #E3F7F4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  margin-top: 1px;
+}
+.notif-item--cancelled .notif-item-icon { background: #fde8ea; }
+.notif-item--rejected .notif-item-icon { background: #fde8ea; }
+.notif-item--accepted .notif-item-icon { background: #e8f5e9; }
+
+.notif-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.notif-item-title {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--navy, #0B1E3B);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.notif-item-msg {
+  font-size: 0.78rem;
+  color: var(--text-muted, #667085);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notif-item-time {
+  font-size: 0.7rem;
+  color: #adb5bd;
+  margin-top: 4px;
+  display: block;
+}
+
+.notif-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.notif-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: #adb5bd;
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.1s ease;
+  padding: 0;
+}
+.notif-read-btn:hover {
+  background: var(--teal-pale, #E3F7F4);
+  color: var(--teal-dark, #109E8E);
+  transform: scale(1.1);
+}
+.notif-delete-btn:hover {
+  background: #fde8ea;
+  color: #E63946;
+  transform: scale(1.1);
+}
+.notif-action-btn:active {
+  transform: scale(0.92);
+}
+
+@media (max-width: 480px) {
+  .notif-panel {
+    width: calc(100vw - 16px);
+    right: calc(-8px - ((100vw - 16px - 360px) / 2));
+  }
+}

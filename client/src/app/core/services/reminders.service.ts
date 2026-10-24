@@ -56,7 +56,15 @@ export const remindersService = {
   }),
 };
 
-export async function enablePushNotifications(onForegroundMessage: () => void): Promise<'enabled' | 'unsupported' | 'unconfigured'> {
+export interface ForegroundPushPayload {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}
+
+export async function enablePushNotifications(
+  onForegroundMessage?: (payload?: ForegroundPushPayload) => void,
+): Promise<'enabled' | 'unsupported' | 'unconfigured'> {
   const config = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -96,23 +104,35 @@ export async function enablePushNotifications(onForegroundMessage: () => void): 
     const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
     if (!token) return 'unsupported';
     await remindersService.savePushToken(token);
+
+    // Recibir mensajes en primer plano del SDK
     onMessage(messaging, (payload) => {
       console.log('[Push] Notificación recibida en primer plano:', payload);
-      const title = payload.notification?.title || payload.data?.title || 'Asiento Libre';
-      const body = payload.notification?.body || payload.data?.body || '';
-      if (Notification.permission === 'granted') {
-        try {
-          void registration.showNotification(title, {
-            body,
-            icon: '/images/logo.png',
-            data: payload.data,
-          });
-        } catch {
-          new Notification(title, { body, icon: '/images/logo.png' });
-        }
+      const title = payload.notification?.title || (payload.data?.title as string) || 'Asiento Libre';
+      const body = payload.notification?.body || (payload.data?.body as string) || '';
+      // Se delega al callback dentro de la aplicación sin mostrar la notificación nativa de Windows
+      if (onForegroundMessage) {
+        onForegroundMessage({ title, body, data: payload.data });
       }
-      onForegroundMessage();
     });
+
+    // Recibir mensajes en primer plano reenviados por el Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'PUSH_NOTIFICATION') {
+          console.log('[Push] Notificación recibida en primer plano (SW):', event.data);
+          const p = event.data.payload || {};
+          if (onForegroundMessage) {
+            onForegroundMessage({
+              title: p.title || 'Asiento Libre',
+              body: p.body || '',
+              data: p.data,
+            });
+          }
+        }
+      });
+    }
+
     return 'enabled';
   } catch (error) {
     console.warn('[Push] Error al inicializar notificaciones push:', error);

@@ -33,4 +33,49 @@ export interface BookingAcceptedEvent {
   driverId: string;
 }
 
-export type RouteEvent = RouteTimeChangedEvent | RouteCancelledEvent | BookingAcceptedEvent;
+export interface BookingRejectedEvent {
+  type: 'booking.rejected';
+  bookingId: string;
+  routeId: string;
+  origin: string;
+  destination: string;
+  departureAt: string;
+  passengerId: string;
+  driverId: string;
+  seats: number;
+}
+
+export interface BookingCancelledEvent {
+  type: 'booking.cancelled';
+  bookingId: string;
+  routeId: string;
+  origin: string;
+  destination: string;
+  departureAt: string;
+  passengerId: string;
+  driverId: string;
+  seats: number;
+  cancelledBy: 'passenger' | 'driver';
+  wasConfirmed?: boolean;
+}
+
+export interface BookingRequestedEvent {
+  type: 'booking.requested';
+  bookingId?: string;
+  routeId: string;
+  origin: string;
+  destination: string;
+  departureAt: string;
+  passengerId: string;
+  passengerName?: string;
+  driverId: string;
+  seats: number;
+}
+
+export type RouteEvent =
+  | RouteTimeChangedEvent
+  | RouteCancelledEvent
+  | BookingRequestedEvent
+  | BookingAcceptedEvent
+  | BookingRejectedEvent
+  | BookingCancelledEvent;

@@ -65,9 +65,9 @@ async function checkAdminAuth(): Promise<void> {
 // =========================================================
 // Cargar Estadisticas y Documentos
 // =========================================================
-async function loadDashboardData(): Promise<void> {
+async function loadDashboardData(silent = false): Promise<void> {
   const refreshBtn = $<HTMLButtonElement>("#btn-refresh");
-  if (refreshBtn) refreshBtn.classList.add("loading");
+  if (!silent && refreshBtn) refreshBtn.classList.add("loading");
 
   try {
     const [stats, docs] = await Promise.all([
@@ -76,14 +76,20 @@ async function loadDashboardData(): Promise<void> {
     ]);
 
     if (stats) renderStats(stats);
-    allDocuments = docs;
-    renderDocuments();
-    updateTabBadges();
+    const key = docs.map((d) => `${d.id}:${d.status}:${d.reviewed_at}`).join('|');
+    const prevKey = allDocuments.map((d) => `${d.id}:${d.status}:${d.reviewed_at}`).join('|');
+    if (key !== prevKey || !silent) {
+      allDocuments = docs;
+      renderDocuments();
+      updateTabBadges();
+    }
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Error al cargar datos.';
-    showToast(errorMsg, 'error');
+    if (!silent) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al cargar datos.';
+      showToast(errorMsg, 'error');
+    }
   } finally {
-    if (refreshBtn) refreshBtn.classList.remove("loading");
+    if (!silent && refreshBtn) refreshBtn.classList.remove("loading");
   }
 }
 
@@ -752,6 +758,22 @@ async function initAdmin(): Promise<void> {
   await checkAdminAuth();
   bindEvents();
   await Promise.all([loadDashboardData(), loadPromotions()]);
+
+  let isWatching = false;
+  const pollAdmin = async () => {
+    if (document.visibilityState !== 'visible' || isWatching) return;
+    isWatching = true;
+    try {
+      await loadDashboardData(true);
+    } finally {
+      isWatching = false;
+    }
+  };
+  setInterval(() => { void pollAdmin(); }, 4000);
+  window.addEventListener('focus', () => { void pollAdmin(); });
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void pollAdmin();
+  });
 }
 
 if (document.readyState === "loading") {

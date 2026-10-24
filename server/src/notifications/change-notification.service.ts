@@ -42,8 +42,17 @@ export class ChangeNotificationService {
       case 'route.cancelled':
         await this.notifyRouteCancelled(event);
         break;
+      case 'booking.requested':
+        await this.notifyBookingRequested(event);
+        break;
       case 'booking.accepted':
         await this.notifyBookingAccepted(event);
+        break;
+      case 'booking.rejected':
+        await this.notifyBookingRejected(event);
+        break;
+      case 'booking.cancelled':
+        await this.notifyBookingCancelled(event);
         break;
     }
   }
@@ -126,6 +135,67 @@ export class ChangeNotificationService {
     });
   }
 
+  // ─── Solicitud de cupo realizada por pasajero ─────────────────────────────
+
+  private async notifyBookingRequested(event: Extract<RouteEvent, { type: 'booking.requested' }>): Promise<void> {
+    const departureDateLocal = this.toLocalTime(event.departureAt);
+    const passengerLabel = event.passengerName || 'Un pasajero';
+    const title = '🔔 Nueva solicitud de cupo';
+    const message = `${passengerLabel} solicitó ${event.seats} cupo(s) para tu viaje de ${event.origin} a ${event.destination} (${departureDateLocal}).`;
+    const link = `${this.frontendUrl}/index.html#solicitudes-cupo`;
+
+    await this.sendToUser(event.driverId, {
+      routeId: event.routeId,
+      type: 'booking_requested',
+      title,
+      message,
+      link,
+      metadata: {
+        bookingId: event.bookingId,
+        passengerId: event.passengerId,
+        seats: event.seats,
+        action: 'review_booking',
+      },
+    });
+  }
+
+  // ─── Reserva rechazada por conductor ────────────────────────────────────────
+
+  private async notifyBookingRejected(event: Extract<RouteEvent, { type: 'booking.rejected' }>): Promise<void> {
+    const departureDateLocal = this.toLocalTime(event.departureAt);
+    const title = '❌ Solicitud rechazada';
+    const message = `El conductor no pudo aceptar tu solicitud de ${event.seats} cupo(s) para el viaje de ${event.origin} a ${event.destination} (${departureDateLocal}).`;
+    const link = `${this.frontendUrl}/index.html`;
+
+    await this.sendToUser(event.passengerId, {
+      routeId: event.routeId,
+      type: 'booking_rejected',
+      title,
+      message,
+      link,
+      metadata: { bookingId: event.bookingId },
+    });
+  }
+
+  // ─── Cancelación de solicitud / reserva por pasajero ────────────────────────
+
+  private async notifyBookingCancelled(event: Extract<RouteEvent, { type: 'booking.cancelled' }>): Promise<void> {
+    const departureDateLocal = this.toLocalTime(event.departureAt);
+    const noun = event.wasConfirmed ? 'reserva' : 'solicitud';
+    const title = `🚫 ${event.wasConfirmed ? 'Reserva' : 'Solicitud'} cancelada por pasajero`;
+    const message = `Un pasajero canceló su ${noun} de ${event.seats} cupo(s) en la ruta de ${event.origin} a ${event.destination} (${departureDateLocal}).`;
+    const link = `${this.frontendUrl}/index.html`;
+
+    await this.sendToUser(event.driverId, {
+      routeId: event.routeId,
+      type: 'booking_cancelled',
+      title,
+      message,
+      link,
+      metadata: { bookingId: event.bookingId, passengerId: event.passengerId },
+    });
+  }
+
   // ─── Canal unificado ──────────────────────────────────────────────────────
 
   async sendToUser(
@@ -153,7 +223,14 @@ export class ChangeNotificationService {
       insertPayload.route_id = input.routeId;
     }
 
-    const { error: insertError } = await admin.from('notifications').insert(insertPayload);
+    let { error: insertError } = await admin.from('notifications').insert(insertPayload);
+    if (insertError && insertError.code === '23514') {
+      // Fallback si el tipo no está en el constraint antiguo de la BD
+      const fallbackType = input.type.includes('cancel') ? 'route_cancelled_passenger' : 'route_cancelled';
+      insertPayload.type = fallbackType;
+      const retry = await admin.from('notifications').insert(insertPayload);
+      insertError = retry.error;
+    }
     if (insertError) {
       this.logger.warn(`No se pudo guardar la notificación ${input.type} para ${userId}: ${insertError.message}`);
     }

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { throwDatabaseError } from '../common/database-error.js';
 import type { CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
@@ -89,17 +89,53 @@ export class RoutesService {
   async cancel(actorId: string, routeId: string) {
     const admin = this.supabase.getClient();
 
-    // Obtener datos de la ruta y pasajeros ANTES de cancelar
-    const [{ data: route }, { data: bookings }] = await Promise.all([
-      admin.from('route_catalog').select('origin,destination,departure_at').eq('id', routeId).maybeSingle(),
-      admin.from('bookings').select('passenger_id').eq('route_id', routeId).eq('status', 'confirmed'),
+    // Obtener datos de la ruta y de TODOS los pasajeros involucrados
+    // (reservas confirmadas, solicitudes pendientes, y registros de asistencia)
+    const [{ data: route }, { data: bookings }, { data: attendances }] = await Promise.all([
+      admin.from('route_catalog').select('origin,destination,departure_at,driver_id').eq('id', routeId).maybeSingle(),
+      admin.from('bookings').select('passenger_id,status').eq('route_id', routeId).in('status', ['confirmed', 'pending']),
+      admin.from('trip_attendance').select('user_id').eq('route_id', routeId).eq('role', 'passenger').neq('status', 'cancelled'),
     ]);
 
-    const result = await this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
+    if (!route) {
+      throw new NotFoundException('La ruta no existe.');
+    }
+    if (route.driver_id !== actorId) {
+      throw new ForbiddenException('Solo el conductor propietario puede retirar esta ruta.');
+    }
 
-    // Emitir evento de cancelación (sin bloquear la respuesta al cliente)
-    if (route) {
-      const passengerIds = [...new Set((bookings ?? []).map((b) => b.passenger_id as string))];
+    const passengerIds = [...new Set([
+      ...(bookings ?? []).map((b) => b.passenger_id as string),
+      ...(attendances ?? []).map((a) => a.user_id as string),
+    ])];
+
+    let result: unknown = null;
+    try {
+      result = await this.rpc('remove_route', { p_actor: actorId, p_route: routeId, p_confirm_cancel: true });
+    } catch (rpcErr) {
+      this.logger.warn(`remove_route RPC no disponible (${String(rpcErr)}), aplicando actualización directa`);
+      const { data: updated, error: uError } = await admin.from('routes')
+        .update({ status: passengerIds.length > 0 ? 'cancelled' : 'deleted', updated_at: new Date().toISOString() })
+        .eq('id', routeId)
+        .select()
+        .single();
+      if (uError) throwDatabaseError(uError);
+      result = updated;
+    }
+
+    // Asegurar que todas las reservas/solicitudes queden como cancelled
+    await admin.from('bookings')
+      .update({ status: 'cancelled', responded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('route_id', routeId)
+      .in('status', ['confirmed', 'pending']);
+
+    // Asegurar que las asistencias queden como cancelled para limpiar los recordatorios
+    await admin.from('trip_attendance')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('route_id', routeId);
+
+    // Emitir evento route.cancelled para notificar a TODOS los pasajeros por Email y Push
+    if (passengerIds.length > 0) {
       void this.changeNotification.dispatch({
         type: 'route.cancelled',
         routeId,
@@ -110,17 +146,51 @@ export class RoutesService {
       }).catch((error) => this.logger.error(`Error emitiendo evento route.cancelled: ${String(error)}`));
     }
 
-    return result;
+    return result ?? { message: 'Ruta cancelada exitosamente.', notifiedPassengers: passengerIds.length };
   }
 
   requestBooking(actorId: string, routeId: string, seats: number) {
     return this.requestBookingWithPromotion(actorId, routeId, seats, null);
   }
 
-  requestBookingWithPromotion(actorId: string, routeId: string, seats: number, promotionId: string | null) {
-    return this.rpc('request_booking_with_promotion', {
+  async requestBookingWithPromotion(actorId: string, routeId: string, seats: number, promotionId: string | null) {
+    const admin = this.supabase.getClient();
+    const { data: route } = await admin.from('route_catalog')
+      .select('origin,destination,departure_at,status,driver_id').eq('id', routeId).maybeSingle();
+
+    if (route?.departure_at) {
+      const departureTime = new Date(route.departure_at as string).getTime();
+      if (departureTime - Date.now() <= 5 * 60 * 1000) {
+        throw new ConflictException('No se pueden solicitar cupos si faltan menos de 5 minutos para la salida del viaje.');
+      }
+    }
+
+    const result = await this.rpc('request_booking_with_promotion', {
       p_actor: actorId, p_route: routeId, p_seats: seats, p_promotion: promotionId,
     });
+
+    // SCRUM-140: Notificar inmediatamente al conductor de la nueva solicitud de cupo
+    if (route?.driver_id) {
+      const { data: passenger } = await admin.from('profiles')
+        .select('first_name,last_name').eq('id', actorId).maybeSingle();
+      const passengerName = [passenger?.first_name, passenger?.last_name].filter(Boolean).join(' ') || 'Un pasajero';
+      const bookingId = (result as Record<string, unknown>)?.id as string | undefined;
+
+      void this.changeNotification.dispatch({
+        type: 'booking.requested',
+        bookingId,
+        routeId,
+        origin: route.origin as string,
+        destination: route.destination as string,
+        departureAt: route.departure_at as string,
+        passengerId: actorId,
+        passengerName,
+        driverId: route.driver_id as string,
+        seats,
+      }).catch((error) => this.logger.error(`Error emitiendo evento booking.requested: ${String(error)}`));
+    }
+
+    return result;
   }
 
   async activePromotions() {
@@ -151,12 +221,35 @@ export class RoutesService {
 
     // Obtener datos del booking ANTES de aceptar
     const { data: booking } = await admin.from('bookings')
-      .select('route_id,passenger_id').eq('id', bookingId).maybeSingle();
+      .select('route_id,passenger_id,seats').eq('id', bookingId).maybeSingle();
 
-    const result = await this.rpc('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+    if (booking?.route_id) {
+      const { data: route } = await admin.from('route_catalog')
+        .select('origin,destination,departure_at,driver_id').eq('id', booking.route_id).maybeSingle();
+      if (route?.departure_at) {
+        const departureTime = new Date(route.departure_at as string).getTime();
+        if (departureTime - Date.now() <= 5 * 60 * 1000) {
+          throw new ConflictException('No se pueden aceptar solicitudes si faltan menos de 5 minutos para la salida del viaje.');
+        }
+      }
+    }
+
+    let result: unknown = null;
+    try {
+      result = await this.rpc('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+    } catch (rpcErr: any) {
+      this.logger.warn(`RPC accept_booking_request no disponible (${rpcErr?.message}), aplicando actualización directa en tabla bookings`);
+      const { data: updated, error: uError } = await admin.from('bookings')
+        .update({ status: 'confirmed', responded_at: new Date().toISOString() })
+        .eq('id', bookingId)
+        .select()
+        .single();
+      if (uError) throwDatabaseError(uError);
+      result = updated;
+    }
 
     // Emitir evento de reserva aceptada (sin bloquear la respuesta al cliente)
-    if (booking) {
+    if (booking?.route_id) {
       const { data: route } = await admin.from('route_catalog')
         .select('origin,destination,departure_at,driver_id').eq('id', booking.route_id).maybeSingle();
       if (route) {
@@ -172,6 +265,130 @@ export class RoutesService {
         }).catch((error) => this.logger.error(`Error emitiendo evento booking.accepted: ${String(error)}`));
       }
     }
+
+    return result;
+  }
+
+  /**
+   * Rechaza una solicitud de cupo por parte del conductor.
+   */
+  async rejectBookingRequest(actorId: string, bookingId: string) {
+    const admin = this.supabase.getClient();
+
+    const { data: booking, error: bError } = await admin.from('bookings')
+      .select('route_id,passenger_id,seats,status').eq('id', bookingId).maybeSingle();
+
+    if (bError) throwDatabaseError(bError);
+    if (!booking) throw new NotFoundException('La solicitud no existe.');
+
+    const { data: route, error: rError } = await admin.from('route_catalog')
+      .select('origin,destination,departure_at,driver_id').eq('id', booking.route_id).maybeSingle();
+
+    if (rError) throwDatabaseError(rError);
+    if (!route) throw new NotFoundException('La ruta no existe.');
+
+    if (route.driver_id !== actorId) {
+      throw new ForbiddenException('Solo el conductor de la ruta puede rechazar esta solicitud.');
+    }
+
+    const departureTime = new Date(route.departure_at as string).getTime();
+    if (departureTime - Date.now() <= 5 * 60 * 1000) {
+      throw new ConflictException('No se pueden rechazar solicitudes si faltan menos de 5 minutos para la salida del viaje.');
+    }
+
+    if (booking.status !== 'pending') {
+      throw new ConflictException('La solicitud ya no está pendiente.');
+    }
+
+    let result: unknown = null;
+    try {
+      result = await this.rpc('reject_booking_request', { p_actor: actorId, p_booking: bookingId });
+    } catch (rpcErr: any) {
+      this.logger.warn(`RPC reject_booking_request no disponible (${rpcErr?.message}), aplicando actualización directa en tabla bookings`);
+      const { data: updated, error: uError } = await admin.from('bookings')
+        .update({ status: 'cancelled', responded_at: new Date().toISOString() })
+        .eq('id', bookingId)
+        .select()
+        .single();
+      if (uError) throwDatabaseError(uError);
+      result = updated;
+    }
+
+    void this.changeNotification.dispatch({
+      type: 'booking.rejected',
+      bookingId,
+      routeId: booking.route_id as string,
+      origin: route.origin as string,
+      destination: route.destination as string,
+      departureAt: route.departure_at as string,
+      passengerId: booking.passenger_id as string,
+      driverId: route.driver_id as string,
+      seats: Number(booking.seats) || 1,
+    }).catch((error) => this.logger.error(`Error emitiendo evento booking.rejected: ${String(error)}`));
+
+    return result;
+  }
+
+  /**
+   * Cancela una solicitud o reserva de cupo por parte del pasajero.
+   */
+  async cancelBooking(actorId: string, bookingId: string) {
+    const admin = this.supabase.getClient();
+
+    const { data: booking, error: bError } = await admin.from('bookings')
+      .select('route_id,passenger_id,seats,status').eq('id', bookingId).maybeSingle();
+
+    if (bError) throwDatabaseError(bError);
+    if (!booking) throw new NotFoundException('La reserva o solicitud no existe.');
+
+    if (booking.passenger_id !== actorId) {
+      throw new ForbiddenException('Solo el pasajero que solicitó el cupo puede cancelar esta reserva.');
+    }
+
+    if (booking.status === 'cancelled') {
+      throw new ConflictException('Esta solicitud o reserva ya está cancelada.');
+    }
+
+    const { data: route, error: rError } = await admin.from('route_catalog')
+      .select('origin,destination,departure_at,driver_id').eq('id', booking.route_id).maybeSingle();
+
+    if (rError) throwDatabaseError(rError);
+    if (!route) throw new NotFoundException('La ruta no existe.');
+
+    const departureTime = new Date(route.departure_at as string).getTime();
+    if (departureTime - Date.now() <= 5 * 60 * 1000) {
+      throw new ConflictException('No se puede cancelar una solicitud o reserva si faltan menos de 5 minutos para la salida del viaje.');
+    }
+
+    const wasConfirmed = booking.status === 'confirmed';
+
+    let result: unknown = null;
+    try {
+      result = await this.rpc('cancel_booking_by_passenger', { p_actor: actorId, p_booking: bookingId });
+    } catch (rpcErr: any) {
+      this.logger.warn(`RPC cancel_booking_by_passenger no disponible (${rpcErr?.message}), aplicando actualización directa en tabla bookings`);
+      const { data: updated, error: uError } = await admin.from('bookings')
+        .update({ status: 'cancelled', responded_at: new Date().toISOString() })
+        .eq('id', bookingId)
+        .select()
+        .single();
+      if (uError) throwDatabaseError(uError);
+      result = updated;
+    }
+
+    void this.changeNotification.dispatch({
+      type: 'booking.cancelled',
+      bookingId,
+      routeId: booking.route_id as string,
+      origin: route.origin as string,
+      destination: route.destination as string,
+      departureAt: route.departure_at as string,
+      passengerId: booking.passenger_id as string,
+      driverId: route.driver_id as string,
+      seats: Number(booking.seats) || 1,
+      cancelledBy: 'passenger',
+      wasConfirmed,
+    }).catch((error) => this.logger.error(`Error emitiendo evento booking.cancelled: ${String(error)}`));
 
     return result;
   }

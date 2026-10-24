@@ -1,10 +1,11 @@
-import { initHeader } from '../../components/header/header';
+import { initHeader, renderNotifPanel } from '../../components/header/header';
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
 import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification, Promotion } from '../../../core/services/routes.service';
-import { remindersService } from '../../../core/services/reminders.service';
+import { remindersService, enablePushNotifications } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
+import { showInAppPush } from '../../../core/in-app-push';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
 import { element as $, escapeHtml as escape, errorMessage, statusMessage } from '../../../core/dom';
 
@@ -24,10 +25,9 @@ let activeTimeChangedNotification: Notification | null = null;
 let surveySubmitting = false;
 let searchVersion = 0;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-/** SCRUM-140: Timer para el toast del conductor */
-let driverToastTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationRequest = false;
-let lastNewBookingCount = 0;
+const seenNotificationIds = new Set<string>();
+let notificationsInitialized = false;
 const priceFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 const bookingStatusLabels: Record<string, string> = {
   pending: 'Solicitud pendiente', confirmed: 'Reserva confirmada',
@@ -40,27 +40,6 @@ function toast(message: string): void {
   toastTimer = setTimeout(() => statusMessage('#toast', ''), 5500);
 }
 
-/**
- * SCRUM-140: Toast de alerta para el conductor al recibir nueva reserva.
- * Se muestra con slide-in/out y desaparece tras 8 segundos.
- */
-function driverToast(message: string, actionRouteId?: string): void {
-  const el = document.getElementById('driver-toast');
-  if (!el) return;
-  el.innerHTML = `
-    <span class="driver-toast-icon">🔔</span>
-    <span class="driver-toast-msg">${escape(message)}</span>
-    ${actionRouteId ? `<a href="#solicitudes-cupo" class="driver-toast-action" data-scroll data-target="#solicitudes-cupo">Ver solicitud</a>` : ''}
-    <button class="driver-toast-close" id="driver-toast-close" aria-label="Cerrar aviso">✕</button>
-  `;
-  el.classList.add('driver-toast--visible');
-  clearTimeout(driverToastTimer);
-  driverToastTimer = setTimeout(() => el.classList.remove('driver-toast--visible'), 8000);
-  document.getElementById('driver-toast-close')?.addEventListener('click', () => {
-    el.classList.remove('driver-toast--visible');
-    clearTimeout(driverToastTimer);
-  }, { once: true });
-}
 
 
 function dateLabel(date: string): string {
@@ -136,10 +115,17 @@ function routeHasStarted(route: Route): boolean {
   return new Date(`${route.date}T${route.time}:00-05:00`).getTime() <= Date.now();
 }
 
+/** Comprueba si faltan menos de 5 minutos para la salida (o si ya inició) */
+function routeWithinFiveMinutes(route: { date: string; time: string }): boolean {
+  const departureMs = new Date(`${route.date}T${route.time}:00-05:00`).getTime();
+  return departureMs - Date.now() <= 5 * 60 * 1000;
+}
+
 export function routeCardHtml(route: Route, owner = false): string {
   const status = route.driverFinishedAt ? 'FINALIZADO' : { published: 'ACTIVO', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
+  const withinFiveMin = routeWithinFiveMinutes(route);
   const canReserve = !owner && (!user || user.role === 'pasajero') && route.status === 'published'
-    && route.availableSeats > 0 && route.driverId !== user?.id;
+    && route.availableSeats > 0 && route.driverId !== user?.id && !withinFiveMin;
   const canCancel = route.status === 'published' && !routeHasStarted(route);
   const canFinish = route.status === 'published' && routeHasStarted(route);
   const hasConfirmedPayment = payments.some((payment) => payment.routeId === route.id && payment.status === 'confirmed');
@@ -163,7 +149,7 @@ export function routeCardHtml(route: Route, owner = false): string {
     <div class="route-footer">
       <span class="seats-label">${escape(route.availableSeats)} de ${escape(route.seats)} cupos libres</span>
       ${owner ? `<span class="status-pill status-${escape(route.status)}">${escape(status)}</span>` : ''}
-      ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Solicitar cupo</button>` : ''}
+      ${canReserve ? `<button type="button" class="btn-reserve" data-reserve="${escape(route.id)}">Solicitar cupo</button>` : (!owner && route.status === 'published' && withinFiveMin ? '<span class="hint warning-text">Faltan menos de 5 min para la salida</span>' : '')}
     </div>
     ${owner ? `<p class="hint">${escape(route.confirmedPassengers)} pasajero(s) con reserva</p>${attendanceHtml(route.id)}` : ''}
     ${owner && (canCancel || canFinish) ? `<div class="route-actions">
@@ -226,18 +212,40 @@ function renderReminders(): void {
   $('#reminders-empty').hidden = tripReminders.length > 0;
 }
 
-async function loadReminders(): Promise<void> {
+async function loadReminders(silent = false): Promise<void> {
   if (!user) return;
-  statusMessage('#reminders-error', '');
+  if (!silent) statusMessage('#reminders-error', '');
   try {
-    tripReminders = await remindersService.dashboard();
-    renderReminders();
-    if (user.role === 'conductor' && ownRoutes.length) {
-      $('#mine-list').innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
+    const fresh = await remindersService.dashboard();
+    const key = fresh.map((t) => `${t.routeId}:${t.status}:${t.participants.map((p) => `${p.userId}-${p.status}`).join(',')}`).join('|');
+    const prevKey = tripReminders.map((t) => `${t.routeId}:${t.status}:${t.participants.map((p) => `${p.userId}-${p.status}`).join(',')}`).join('|');
+    if (key !== prevKey || !silent) {
+      tripReminders = fresh;
+      renderReminders();
     }
   } catch (error) {
-    statusMessage('#reminders-error', errorMessage(error));
+    if (!silent) statusMessage('#reminders-error', errorMessage(error));
   }
+}
+
+/**
+ * Observador / Refresco centralizado de todos los componentes en tiempo real
+ */
+async function refreshAllComponents(silent = true): Promise<void> {
+  const tasks: Promise<unknown>[] = [loadRoutes(silent)];
+  if (user) {
+    tasks.push(
+      loadNotifications(silent),
+      loadBookings(silent),
+      loadReminders(silent),
+      loadPayments(silent),
+      loadPastTrips(silent),
+    );
+    if (user.role === 'conductor') {
+      tasks.push(loadMine(silent), loadBookingRequests(silent));
+    }
+  }
+  await Promise.allSettled(tasks);
 }
 
 function renderPublicRoutes(): void {
@@ -247,49 +255,65 @@ function renderPublicRoutes(): void {
   $('#empty-state').hidden = publicRoutes.length > 0;
 }
 
-async function loadRoutes(): Promise<void> {
+async function loadRoutes(silent = false): Promise<void> {
   const version = ++searchVersion;
   const filters = new FormData($<HTMLFormElement>('#search-form'));
-  statusMessage('#routes-error', '');
-  $('#routes-loading').hidden = false;
-  const button = $<HTMLButtonElement>('#search-submit');
-  button.disabled = true;
+  if (!silent) {
+    statusMessage('#routes-error', '');
+    $('#routes-loading').hidden = false;
+    $<HTMLButtonElement>('#search-submit').disabled = true;
+  }
   try {
     const routes = await routesService.search({
       origin: String(filters.get('origin') || ''), destination: String(filters.get('destination') || ''),
       date: String(filters.get('date') || ''),
     });
     if (version !== searchVersion) return;
-    publicRoutes = routes;
-    renderPublicRoutes();
+    const key = routes.map((r) => `${r.id}:${r.status}:${r.availableSeats}:${r.confirmedPassengers}:${r.driverFinishedAt}`).join('|');
+    const prevKey = publicRoutes.map((r) => `${r.id}:${r.status}:${r.availableSeats}:${r.confirmedPassengers}:${r.driverFinishedAt}`).join('|');
+    if (key !== prevKey || !silent) {
+      publicRoutes = routes;
+      renderPublicRoutes();
+    }
   } catch (error) {
     if (version !== searchVersion) return;
-    publicRoutes = [];
-    $('#routes-list').replaceChildren();
-    $('#empty-state').hidden = true;
-    statusMessage('#routes-error', errorMessage(error));
+    if (!silent) {
+      publicRoutes = [];
+      $('#routes-list').replaceChildren();
+      $('#empty-state').hidden = true;
+      statusMessage('#routes-error', errorMessage(error));
+    }
   } finally {
-    if (version === searchVersion) {
+    if (version === searchVersion && !silent) {
       $('#routes-loading').hidden = true;
-      button.disabled = false;
+      $<HTMLButtonElement>('#search-submit').disabled = false;
     }
   }
 }
 
-async function loadMine(): Promise<void> {
+async function loadMine(silent = false): Promise<void> {
   if (user?.role !== 'conductor') return;
   const button = $<HTMLButtonElement>('#refresh-mine');
-  button.disabled = true;
-  statusMessage('#mine-error', '');
+  if (!silent) {
+    button.disabled = true;
+    statusMessage('#mine-error', '');
+  }
   try {
-    ownRoutes = (await routesService.mine()).filter((route) => route.status === 'published');
-    const list = $('#mine-list');
-    list.innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
-    bindAvatarFallbacks(list);
-    $('#mine-empty').hidden = ownRoutes.length > 0;
+    const fresh = (await routesService.mine()).filter((route) => route.status === 'published');
+    const key = fresh.map((r) => `${r.id}:${r.status}:${r.confirmedPassengers}:${r.availableSeats}:${r.driverFinishedAt}:${attendanceHtml(r.id)}`).join('|');
+    const prevKey = ownRoutes.map((r) => `${r.id}:${r.status}:${r.confirmedPassengers}:${r.availableSeats}:${r.driverFinishedAt}:${attendanceHtml(r.id)}`).join('|');
+    if (key !== prevKey || !silent) {
+      ownRoutes = fresh;
+      const list = $('#mine-list');
+      list.innerHTML = ownRoutes.map((route) => routeCardHtml(route, true)).join('');
+      bindAvatarFallbacks(list);
+      $('#mine-empty').hidden = ownRoutes.length > 0;
+    }
   } catch (error) {
-    statusMessage('#mine-error', errorMessage(error));
-  } finally { button.disabled = false; }
+    if (!silent) statusMessage('#mine-error', errorMessage(error));
+  } finally {
+    if (!silent) button.disabled = false;
+  }
 }
 
 /** Estado de las pestañas de Mis Viajes */
@@ -366,11 +390,13 @@ function renderPastTrips(): void {
   });
 }
 
-async function loadPastTrips(): Promise<void> {
+async function loadPastTrips(silent = false): Promise<void> {
   if (!user) return;
   const button = $<HTMLButtonElement>('#refresh-past-trips');
-  button.disabled = true;
-  statusMessage('#past-trips-error', '');
+  if (!silent) {
+    button.disabled = true;
+    statusMessage('#past-trips-error', '');
+  }
   try {
     const collected: PastTrip[] = [];
 
@@ -429,47 +455,77 @@ async function loadPastTrips(): Promise<void> {
       return dateB - dateA;
     });
 
-    allPastTrips = collected;
+    const key = collected.map((t) => `${t.routeId}:${t.status}:${t.finishedAt}:${t.type}`).join('|');
+    const prevKey = allPastTrips.map((t) => `${t.routeId}:${t.status}:${t.finishedAt}:${t.type}`).join('|');
+    if (key !== prevKey || !silent) {
+      allPastTrips = collected;
 
-    // Mostrar/ocultar pestañas según si el usuario es conductor
-    const hasConductorTrips = collected.some((t) => t.type === 'conductor');
-    const hasPassengerTrips = collected.some((t) => t.type === 'pasajero');
-    $('#past-trips-tabs').hidden = !(hasConductorTrips && hasPassengerTrips);
+      // Mostrar/ocultar pestañas según si el usuario es conductor
+      const hasConductorTrips = collected.some((t) => t.type === 'conductor');
+      const hasPassengerTrips = collected.some((t) => t.type === 'pasajero');
+      $('#past-trips-tabs').hidden = !(hasConductorTrips && hasPassengerTrips);
 
-    renderPastTrips();
+      renderPastTrips();
+    }
   } catch (error) {
-    statusMessage('#past-trips-error', errorMessage(error));
+    if (!silent) statusMessage('#past-trips-error', errorMessage(error));
   } finally {
-    button.disabled = false;
+    if (!silent) button.disabled = false;
   }
 }
 
-
-async function loadBookings(): Promise<void> {
+async function loadBookings(silent = false): Promise<void> {
   if (!user) return;
-  statusMessage('#bookings-error', '');
+  if (!silent) statusMessage('#bookings-error', '');
   try {
     const bookings = await routesService.bookings();
-    $('#bookings-list').innerHTML = bookings.map((booking) => `<article class="route-card">
-      <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
-      <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
-      <p>${escape(booking.seats)} asiento(s) · ${escape(bookingStatusLabels[booking.status] ?? booking.status)}</p>
-      <div class="booking-price-summary">
-        <span>Subtotal: ${escape(priceFormatter.format(booking.totalAmount + booking.discountAmount))}</span>
-        ${booking.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(booking.discountAmount))}</span>` : ''}
-        <strong>Total: ${escape(priceFormatter.format(booking.totalAmount))}</strong>
-      </div>
-      ${paymentForBooking(booking.id) ? paymentHtml(paymentForBooking(booking.id)!, false) : ''}
-      ${booking.status === 'confirmed' && booking.route.status === 'published' && routeHasStarted(booking.route)
-        ? booking.passengerFinishedAt
-          ? paymentForBooking(booking.id)?.status === 'confirmed'
-            ? `<button type="button" class="btn btn-secondary" data-rate="${escape(booking.routeId)}">Calificar viaje</button>`
-            : '<p class="hint">Podrás calificar cuando el conductor confirme tu pago.</p>'
-          : `<button type="button" class="btn btn-secondary" data-finish="${escape(booking.routeId)}">Finalizar ruta</button>`
-        : booking.passengerFinishedAt ? '<p class="hint">Ruta finalizada por ti</p>' : ''}
-    </article>`).join('');
-    $('#bookings-empty').hidden = bookings.length > 0;
-  } catch (error) { statusMessage('#bookings-error', errorMessage(error)); }
+    const key = bookings.map((b) => `${b.id}:${b.status}:${b.seats}:${b.passengerFinishedAt}:${paymentForBooking(b.id)?.status}`).join('|');
+    const list = $('#bookings-list');
+    const prevKey = list.dataset.loadedKey || '';
+    if (key !== prevKey || !silent) {
+      list.dataset.loadedKey = key;
+      list.innerHTML = bookings.map((booking) => {
+        const canCancel = (booking.status === 'pending' || booking.status === 'confirmed')
+          && booking.route.status === 'published'
+          && !booking.passengerFinishedAt;
+        const expiredCancel = routeWithinFiveMinutes(booking.route);
+
+        return `<article class="route-card">
+        <h3>${escape(booking.route.origin)} → ${escape(booking.route.destination)}</h3>
+        <p>${escape(dateLabel(booking.route.date))} · ${escape(booking.route.time)} (Colombia)</p>
+        <p>${escape(booking.seats)} asiento(s) · <span class="status-badge status-${escape(booking.status)}">${escape(bookingStatusLabels[booking.status] ?? booking.status)}</span></p>
+        <div class="booking-price-summary">
+          <span>Subtotal: ${escape(priceFormatter.format(booking.totalAmount + booking.discountAmount))}</span>
+          ${booking.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(booking.discountAmount))}</span>` : ''}
+          <strong>Total: ${escape(priceFormatter.format(booking.totalAmount))}</strong>
+        </div>
+        ${paymentForBooking(booking.id) ? paymentHtml(paymentForBooking(booking.id)!, false) : ''}
+        ${canCancel
+          ? expiredCancel
+            ? '<p class="hint warning-text" style="margin-top: 10px;">No se puede cancelar (faltan menos de 5 min para la salida).</p>'
+            : `<button type="button" class="btn btn-danger" data-cancel-passenger-booking="${escape(booking.id)}" style="margin-top: 10px;">${booking.status === 'pending' ? 'Cancelar solicitud' : 'Cancelar reserva'}</button>`
+          : ''}
+        ${(() => {
+          const driverFinished = !!booking.route.driverFinishedAt;
+          const passengerFinished = !!booking.passengerFinishedAt;
+          const isActive = booking.status === 'confirmed' && booking.route.status === 'published' && routeHasStarted(booking.route);
+          if (!isActive) return passengerFinished ? '<p class="hint">Viaje finalizado por el conductor.</p>' : '';
+          // El conductor ya finalizó
+          if (driverFinished) {
+            const payment = paymentForBooking(booking.id);
+            if (payment?.status === 'confirmed') {
+              return `<button type="button" class="btn btn-secondary" data-rate="${escape(booking.routeId)}">Calificar viaje</button>`;
+            }
+            return '<p class="hint">El conductor finalizó el viaje. Tu pago está pendiente de confirmación por parte del conductor.</p>';
+          }
+          // El conductor aún no finaliza
+          return '<p class="hint">El viaje ha comenzado. Esperando que el conductor finalice el viaje.</p>';
+        })()}
+      </article>`;
+      }).join('');
+      $('#bookings-empty').hidden = bookings.length > 0;
+    }
+  } catch (error) { if (!silent) statusMessage('#bookings-error', errorMessage(error)); }
 }
 
 function paymentForBooking(bookingId: string): TripPayment | undefined {
@@ -488,94 +544,184 @@ function paymentHtml(payment: TripPayment, owner: boolean): string {
   </div>`;
 }
 
-async function loadPayments(): Promise<void> {
+async function loadPayments(silent = false): Promise<void> {
   if (!user) return;
-  statusMessage('#payments-error', '');
+  const button = $<HTMLButtonElement>('#refresh-payments');
+  if (!silent) {
+    button.disabled = true;
+    statusMessage('#payments-error', '');
+  }
   try {
     if (user.role === 'conductor') {
-      payments = await routesService.ownedPayments();
-      const pendingPayments = payments.filter((payment) => payment.status === 'pending');
-      $('#payments-list').innerHTML = pendingPayments.map((payment) => paymentHtml(payment, true)).join('');
-      $('#payments-empty').hidden = pendingPayments.length > 0;
+      const freshPayments = await routesService.ownedPayments();
+      const key = freshPayments.map((p) => `${p.id}:${p.status}:${p.amount}:${p.confirmedAt}`).join('|');
+      const list = $('#payments-list');
+      const prevKey = list.dataset.loadedKey || '';
+      if (key !== prevKey || !silent) {
+        list.dataset.loadedKey = key;
+        payments = freshPayments;
+        const pendingPayments = payments.filter((payment) => payment.status === 'pending');
+        list.innerHTML = pendingPayments.map((payment) => paymentHtml(payment, true)).join('');
+        $('#payments-empty').hidden = pendingPayments.length > 0;
+      }
     } else {
-      payments = await routesService.payments();
-      await loadBookings();
+      const freshPayments = await routesService.payments();
+      const key = freshPayments.map((p) => `${p.id}:${p.status}:${p.amount}:${p.confirmedAt}`).join('|');
+      const list = $('#payments-list');
+      const prevKey = list.dataset.loadedKey || '';
+      if (key !== prevKey || !silent) {
+        list.dataset.loadedKey = key;
+        payments = freshPayments;
+        await loadBookings(silent);
+      }
     }
-  } catch (error) { statusMessage('#payments-error', errorMessage(error)); }
+  } catch (error) {
+    if (!silent) statusMessage('#payments-error', errorMessage(error));
+  } finally {
+    if (!silent) button.disabled = false;
+  }
 }
 
-async function loadBookingRequests(): Promise<void> {
+async function loadBookingRequests(silent = false): Promise<void> {
   if (user?.role !== 'conductor') return;
   const button = $<HTMLButtonElement>('#refresh-booking-requests');
-  button.disabled = true;
-  statusMessage('#booking-requests-error', '');
+  if (!silent) {
+    button.disabled = true;
+    statusMessage('#booking-requests-error', '');
+  }
   try {
-    bookingRequests = await routesService.bookingRequests();
-    const list = $('#booking-requests-list');
-    list.innerHTML = bookingRequests.map((request) => `<article class="route-card">
-      <div class="driver"><span class="avatar" aria-hidden="true">${escape(request.passengerName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase())}${request.passengerPhotoUrl ? `<img class="avatar-photo" src="${escape(request.passengerPhotoUrl)}" alt="" />` : ''}</span>
-        <div><h3>${escape(request.passengerName)} solicita ${escape(request.seats)} cupo(s)</h3></div>
-      </div>
-      <p>${escape(request.route.origin)} → ${escape(request.route.destination)}</p>
-      <p>${escape(dateLabel(request.route.date))} · ${escape(request.route.time)} (Colombia)</p>
-      <div class="booking-price-summary">
-        <span>Subtotal: ${escape(priceFormatter.format(request.totalAmount + request.discountAmount))}</span>
-        ${request.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(request.discountAmount))}</span>` : ''}
-        <strong>Total a recibir: ${escape(priceFormatter.format(request.totalAmount))}</strong>
-      </div>
-      <button type="button" class="btn btn-primary" data-accept-booking="${escape(request.id)}">Aceptar y confirmar reserva</button>
-    </article>`).join('');
-    bindAvatarFallbacks(list);
-    $('#booking-requests-empty').hidden = bookingRequests.length > 0;
+    const requests = await routesService.bookingRequests();
+    const key = requests.map((r) => `${r.id}:${r.seats}:${r.totalAmount}`).join('|');
+    const prevKey = bookingRequests.map((r) => `${r.id}:${r.seats}:${r.totalAmount}`).join('|');
+    if (key !== prevKey || !silent) {
+      bookingRequests = requests;
+      const list = $('#booking-requests-list');
+      list.innerHTML = bookingRequests.map((request) => {
+        const expired = routeWithinFiveMinutes(request.route);
+        return `<article class="route-card">
+        <div class="driver"><span class="avatar" aria-hidden="true">${escape(request.passengerName.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase())}${request.passengerPhotoUrl ? `<img class="avatar-photo" src="${escape(request.passengerPhotoUrl)}" alt="" />` : ''}</span>
+          <div><h3>${escape(request.passengerName)} solicita ${escape(request.seats)} cupo(s)</h3></div>
+        </div>
+        <p>${escape(request.route.origin)} → ${escape(request.route.destination)}</p>
+        <p>${escape(dateLabel(request.route.date))} · ${escape(request.route.time)} (Colombia)</p>
+        <div class="booking-price-summary">
+          <span>Subtotal: ${escape(priceFormatter.format(request.totalAmount + request.discountAmount))}</span>
+          ${request.discountAmount > 0 ? `<span>Descuento: −${escape(priceFormatter.format(request.discountAmount))}</span>` : ''}
+          <strong>Total a recibir: ${escape(priceFormatter.format(request.totalAmount))}</strong>
+        </div>
+        ${expired
+          ? '<p class="hint warning-text">⚠️ Faltan menos de 5 minutos para la salida (solicitud no disponible para aceptar o rechazar).</p>'
+          : `<div class="request-actions">
+              <button type="button" class="btn btn-primary" data-accept-booking="${escape(request.id)}">Aceptar solicitud</button>
+              <button type="button" class="btn btn-danger" data-reject-booking="${escape(request.id)}">Rechazar solicitud</button>
+            </div>`
+        }
+      </article>`;
+      }).join('');
+      bindAvatarFallbacks(list);
+      $('#booking-requests-empty').hidden = bookingRequests.length > 0;
+    }
   } catch (error) {
-    statusMessage('#booking-requests-error', errorMessage(error));
-  } finally { button.disabled = false; }
+    if (!silent) statusMessage('#booking-requests-error', errorMessage(error));
+  } finally {
+    if (!silent) button.disabled = false;
+  }
 }
 
-async function loadNotifications(): Promise<void> {
+function notifPushIcon(type: string): string {
+  if (type.includes('cancel')) return '🚫';
+  if (type.includes('reject')) return '❌';
+  if (type.includes('accept') || type.includes('confirm')) return '✅';
+  if (type.includes('time_changed')) return '⏰';
+  return '🔔';
+}
+
+function notifPushAction(notif: Notification): { actionText?: string; actionTarget?: string } {
+  if (notif.type === 'booking_requested' || notif.type === 'new_booking') {
+    return { actionText: 'Ver solicitud', actionTarget: '#solicitudes-cupo' };
+  }
+  if (notif.type.includes('cancel')) {
+    return { actionText: 'Ver mis viajes', actionTarget: '#mis-viajes' };
+  }
+  if (notif.type.includes('accept') || notif.type.includes('confirm')) {
+    return { actionText: 'Ver mis viajes', actionTarget: '#mis-viajes' };
+  }
+  if (notif.type.includes('time_changed')) {
+    return { actionText: 'Ver cambio', actionTarget: '#mis-reservas' };
+  }
+  if (notif.routeId) {
+    return { actionText: 'Ver detalle', actionTarget: '#mis-viajes' };
+  }
+  return {};
+}
+
+async function loadNotifications(silent = false): Promise<void> {
   if (!user || notificationRequest) return;
   notificationRequest = true;
-  const button = $<HTMLButtonElement>('#refresh-notifications');
-  button.disabled = true;
-  statusMessage('#notifications-error', '');
   try {
     const notifications = await routesService.notifications();
 
-    // SCRUM-140: Detectar nuevas notificaciones `new_booking` para el conductor
-    if (user?.role === 'conductor') {
-      const newBookings = notifications.filter((n) => n.type === 'new_booking' && !n.readAt);
-      if (newBookings.length > lastNewBookingCount && lastNewBookingCount > 0) {
-        const newest = newBookings[0];
-        driverToast(newest.title + ': ' + newest.message, newest.routeId);
+    // SCRUM-140: Notificaciones tipo push dentro de la aplicación para conductor y pasajero
+    // NOTA: La BD puede hacer UPDATE en la misma fila (mismo id) cuando el pasajero re-solicita cupo
+    // tras un rechazo, actualizando created_at. Por eso usamos id+createdAt como clave única.
+    const unreadNotifs = notifications.filter((n) => !n.readAt);
+
+    if (!notificationsInitialized) {
+      notificationsInitialized = true;
+      const now = Date.now();
+      // Si fue creada/actualizada hace menos de 5 minutos, mostrarla al cargar la aplicación
+      const recentUnread = unreadNotifs
+        .filter((n) => now - new Date(n.createdAt).getTime() < 5 * 60 * 1000)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      for (const notif of unreadNotifs) {
+        seenNotificationIds.add(`${notif.id}:${notif.createdAt}`);
       }
-      lastNewBookingCount = newBookings.length;
+
+      // Encolar las recientes en orden cronológico (máximo 3 más recientes)
+      for (const notif of recentUnread.slice(-3)) {
+        const { actionText, actionTarget } = notifPushAction(notif);
+        showInAppPush({
+          title: notif.title,
+          message: notif.message,
+          icon: notifPushIcon(notif.type),
+          actionText,
+          actionTarget,
+          durationMs: 8000,
+        });
+      }
+    } else {
+      // En refrescos posteriores: detectar notificaciones nuevas O actualizadas (mismo id, nuevo created_at)
+      const toShow: Notification[] = [];
+      for (const notif of unreadNotifs) {
+        const seenKey = `${notif.id}:${notif.createdAt}`;
+        if (!seenNotificationIds.has(seenKey)) {
+          seenNotificationIds.add(seenKey);
+          toShow.push(notif);
+        }
+      }
+      toShow.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      for (const notif of toShow) {
+        const { actionText, actionTarget } = notifPushAction(notif);
+        showInAppPush({
+          title: notif.title,
+          message: notif.message,
+          icon: notifPushIcon(notif.type),
+          actionText,
+          actionTarget,
+          durationMs: 8000,
+        });
+      }
     }
 
-    $('#notifications-list').innerHTML = notifications.map((notification) => {
-      const isTimeChanged = notification.type === 'time_changed';
-      const isCancelled = notification.type === 'route_cancelled';
-      const isNewBooking = notification.type === 'new_booking';
-      const typeIcon = isTimeChanged ? '⏰' : isCancelled ? '🚫' : isNewBooking ? '🔔' : '📢';
-      const typeClass = isTimeChanged ? 'notification-time-changed' : isCancelled ? 'notification-cancelled' : isNewBooking ? 'notification-booking' : '';
-      return `<article class="notification ${notification.readAt ? '' : 'notification-unread'} ${typeClass}" data-notification-id="${escape(notification.id)}" data-notification-type="${escape(notification.type)}" data-route-id="${escape(notification.routeId ?? '')}">
-        <div class="notification-header">
-          <span class="notification-icon" aria-hidden="true">${typeIcon}</span>
-          <div>
-            <h3>${escape(notification.title)}</h3>
-            <p>${escape(notification.message)}</p>
-            <time datetime="${escape(notification.createdAt)}">${escape(new Date(notification.createdAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' }))} (Colombia)</time>
-          </div>
-        </div>
-        <div class="notification-actions">
-          ${isTimeChanged && !notification.readAt ? `<button type="button" class="btn btn-primary btn-sm" data-open-time-changed="${escape(notification.id)}">Responder al cambio</button>` : ''}
-          ${isCancelled && notification.routeId ? `<button type="button" class="btn btn-secondary btn-sm" data-load-alternatives="${escape(notification.routeId)}" aria-expanded="false">Ver rutas alternativas</button><div class="alternatives-panel" id="alt-${escape(notification.id)}" hidden></div>` : ''}
-          ${notification.readAt ? '<span class="hint">Leída</span>' : `<button type="button" class="btn btn-ghost btn-sm" data-read="${escape(notification.id)}">Marcar leída</button>`}
-        </div>
-      </article>`;
-    }).join('');
-    $('#notifications-empty').hidden = notifications.length > 0;
-  } catch (error) { statusMessage('#notifications-error', errorMessage(error)); }
-  finally { button.disabled = false; notificationRequest = false; }
+    // Renderizar en el panel de la campana del header
+    renderNotifPanel(notifications);
+
+  } catch (error) {
+    if (!silent) console.warn('[Notifications]', error);
+  } finally {
+    notificationRequest = false;
+  }
 }
 
 /**
@@ -623,7 +769,7 @@ async function cancelBookingFromTimeChange(): Promise<void> {
     $<HTMLDialogElement>('#time-changed-dialog').close();
     activeTimeChangedNotification = null;
     toast('Reserva cancelada. Tu cupo ha sido liberado.');
-    await Promise.allSettled([loadBookings(), loadNotifications()]);
+    await refreshAllComponents(true);
   } catch (error) {
     statusMessage('#time-changed-error', errorMessage(error));
     button.disabled = false;
@@ -698,7 +844,6 @@ async function loadSession(): Promise<void> {
   try {
     user = await authService.getMe();
     await initHeader(user);
-    $('#notificaciones').hidden = false;
     $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
     $('#mis-rutas').hidden = user.role !== 'conductor';
@@ -725,6 +870,27 @@ async function loadSession(): Promise<void> {
   renderPublicRoutes();
   // Mostrar sección mis-viajes solo para usuarios autenticados
   if (user) $('#mis-viajes').hidden = false;
+  // Activar notificaciones push para todos los usuarios autenticados
+  if (user) {
+    void enablePushNotifications((pushData) => {
+      // Mensaje push recibido en primer plano: recargar recordatorios y notificaciones
+      void Promise.allSettled([loadReminders(), loadNotifications()]);
+      if (pushData?.title || pushData?.body) {
+        showInAppPush({
+          title: pushData.title || 'Asiento Libre',
+          message: pushData.body || 'Tienes una nueva actualización en tu viaje',
+          icon: '🔔',
+          durationMs: 8000,
+        });
+      }
+    }).then((result) => {
+      if (result === 'enabled') {
+        console.info('[Push] Notificaciones push activadas.');
+      } else if (result === 'unconfigured') {
+        console.info('[Push] Firebase no configurado. Solo recibirás notificaciones por correo.');
+      }
+    });
+  }
 }
 
 export function renderRouteErrors(errors: ReturnType<typeof validateRoute>): void {
@@ -761,7 +927,7 @@ async function publish(event: SubmitEvent): Promise<void> {
     await routesService.create(route);
     form.reset();
     toast('Tu ruta fue publicada. Ya está disponible para los pasajeros.');
-    await Promise.allSettled([loadRoutes(), loadMine(), loadReminders()]);
+    await refreshAllComponents(true);
   } catch (error) { statusMessage('#publish-error', errorMessage(error)); }
   finally { button.disabled = false; button.textContent = 'Publicar ruta'; }
 }
@@ -770,6 +936,10 @@ function openReservation(id: string): void {
   if (!user) { window.location.href = '/login.html'; return; }
   const route = publicRoutes.find((item) => item.id === id);
   if (!route) return;
+  if (routeWithinFiveMinutes(route)) {
+    toast('No se pueden solicitar cupos si faltan menos de 5 minutos para la salida.');
+    return;
+  }
   activeReservation = route;
   $('#reserve-route').textContent = `${route.origin} → ${route.destination}`;
   $('#reserve-hint').textContent = `${route.availableSeats} cupos disponibles. Solicitud a nombre de ${user.firstName} ${user.lastName}.`;
@@ -793,6 +963,10 @@ async function reserve(event: SubmitEvent): Promise<void> {
   event.preventDefault();
   const button = $<HTMLButtonElement>('#reserve-submit');
   if (!activeReservation || button.disabled) return;
+  if (routeWithinFiveMinutes(activeReservation)) {
+    statusMessage('#reserve-error', 'No se pueden solicitar cupos si faltan menos de 5 minutos para la salida del viaje.');
+    return;
+  }
   const seats = Number($<HTMLInputElement>('#reserve-seats').value);
   if (!Number.isInteger(seats) || seats < 1 || seats > activeReservation.availableSeats) {
     statusMessage('#reserve-error', `Elige entre 1 y ${activeReservation.availableSeats} asientos enteros.`);
@@ -806,7 +980,7 @@ async function reserve(event: SubmitEvent): Promise<void> {
     $<HTMLDialogElement>('#reserve-dialog').close();
     toast('Solicitud enviada. El conductor recibirá una notificación para aceptarla.');
     activeReservation = null;
-    await Promise.allSettled([loadRoutes(), loadBookings(), loadNotifications()]);
+    await refreshAllComponents(true);
   } catch (error) { statusMessage('#reserve-error', errorMessage(error)); }
   finally { button.disabled = false; $<HTMLButtonElement>('#reserve-close').disabled = false; }
 }
@@ -842,7 +1016,7 @@ async function confirmRemoval(): Promise<void> {
     $<HTMLDialogElement>('#remove-dialog').close();
     toast(`Ruta cancelada. Se notificó a ${result.notifiedPassengers} pasajero(s).`);
     activeRemoval = null;
-    await Promise.allSettled([loadRoutes(), loadMine()]);
+    await refreshAllComponents(true);
   } catch (error) {
     if (error instanceof ApiError && error.code === 'CANCELLATION_CONFIRMATION_REQUIRED') {
       route.confirmedPassengers = error.confirmedPassengers;
@@ -858,9 +1032,8 @@ async function finishRoute(button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
   try {
     await routesService.finish(routeId);
-    await loadPayments();
-    await Promise.allSettled([loadMine(), loadBookings()]);
     toast('Viaje finalizado. La opción para calificar estará disponible cuando el pago sea confirmado.');
+    await refreshAllComponents(true);
   } catch (error) {
     statusMessage(button.closest('#mine-list') ? '#mine-error' : '#bookings-error', errorMessage(error));
     button.disabled = false;
@@ -922,6 +1095,7 @@ async function submitSurvey(event: SubmitEvent): Promise<void> {
     $<HTMLDialogElement>('#survey-dialog').close();
     activeSurvey = null;
     toast('Gracias. Tus calificaciones fueron guardadas de forma anónima.');
+    await refreshAllComponents(true);
   } catch (error) {
     statusMessage('#survey-error', errorMessage(error));
   } finally {
@@ -954,7 +1128,7 @@ async function init(): Promise<void> {
     $<HTMLDialogElement>('#time-changed-dialog').close();
     activeTimeChangedNotification = null;
     toast('Mantuviste tu reserva. Te notificaremos de cualquier otro cambio.');
-    void loadNotifications();
+    await refreshAllComponents(true);
   });
   $('#time-changed-cancel-booking').addEventListener('click', () => { void cancelBookingFromTimeChange(); });
   $('#time-changed-close').addEventListener('click', () => { $<HTMLDialogElement>('#time-changed-dialog').close(); });
@@ -965,7 +1139,6 @@ async function init(): Promise<void> {
   $('#refresh-mine').addEventListener('click', () => { void loadMine(); });
   $('#refresh-payments').addEventListener('click', () => { void loadPayments(); });
   $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
-  $('#refresh-notifications').addEventListener('click', () => { void loadNotifications(); void loadBookings(); });
   $('#refresh-past-trips').addEventListener('click', () => { void loadPastTrips(); });
   // Pestañas de Mis Viajes
   document.querySelectorAll<HTMLButtonElement>('.past-tab').forEach((tab) => {
@@ -993,8 +1166,7 @@ async function init(): Promise<void> {
     if (button?.dataset.rate) void rateRoute(button);
   });
   $('#bookings-list').addEventListener('click', (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-finish], [data-rate]');
-    if (button?.dataset.finish) void finishRoute(button);
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-rate]');
     if (button?.dataset.rate) void rateRoute(button);
   });
   $('#payments-list').addEventListener('click', async (event) => {
@@ -1005,8 +1177,7 @@ async function init(): Promise<void> {
     try {
       await routesService.confirmPayment(button.dataset.confirmPayment);
       toast('Pago confirmado correctamente.');
-        await loadPayments();
-        await Promise.allSettled([loadMine(), loadBookings(), loadNotifications()]);
+      await refreshAllComponents(true);
     } catch (error) {
       statusMessage('#payments-error', errorMessage(error));
       button.disabled = false;
@@ -1047,17 +1218,42 @@ async function init(): Promise<void> {
     }
   });
   $('#booking-requests-list').addEventListener('click', async (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-accept-booking]');
-    if (!button?.dataset.acceptBooking || button.disabled) return;
+    const target = event.target as HTMLElement;
+    const acceptBtn = target.closest<HTMLButtonElement>('[data-accept-booking]');
+    const rejectBtn = target.closest<HTMLButtonElement>('[data-reject-booking]');
+    const button = acceptBtn ?? rejectBtn;
+    if (!button || button.disabled) return;
     button.disabled = true;
     statusMessage('#booking-requests-error', '');
     try {
-      await routesService.acceptBookingRequest(button.dataset.acceptBooking);
-      toast('Solicitud aceptada. La reserva quedó confirmada y ambas partes fueron notificadas.');
-      await Promise.allSettled([loadBookingRequests(), loadMine(), loadRoutes(), loadNotifications(), loadReminders()]);
+      if (acceptBtn?.dataset.acceptBooking) {
+        await routesService.acceptBookingRequest(acceptBtn.dataset.acceptBooking);
+        toast('Solicitud aceptada. La reserva quedó confirmada y ambas partes fueron notificadas.');
+      } else if (rejectBtn?.dataset.rejectBooking) {
+        await routesService.rejectBookingRequest(rejectBtn.dataset.rejectBooking);
+        toast('Solicitud rechazada. Se notificó al pasajero.');
+      }
+      await refreshAllComponents(true);
     } catch (error) {
       statusMessage('#booking-requests-error', errorMessage(error));
       button.disabled = false;
+    }
+  });
+
+  $('#bookings-list').addEventListener('click', async (event) => {
+    const cancelBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-cancel-passenger-booking]');
+    if (!cancelBtn?.dataset.cancelPassengerBooking || cancelBtn.disabled) return;
+    const bookingId = cancelBtn.dataset.cancelPassengerBooking;
+    if (!confirm('¿Estás seguro de que deseas cancelar esta solicitud o reserva?')) return;
+    cancelBtn.disabled = true;
+    statusMessage('#bookings-error', '');
+    try {
+      await routesService.cancelBooking(bookingId);
+      toast('Cancelación realizada con éxito.');
+      await refreshAllComponents(true);
+    } catch (error) {
+      statusMessage('#bookings-error', errorMessage(error));
+      cancelBtn.disabled = false;
     }
   });
   $('#reminder-banner-list').addEventListener('click', async (event) => {
@@ -1076,7 +1272,7 @@ async function init(): Promise<void> {
         await remindersService.release(releaseButton.dataset.releaseTrip, releaseButton.dataset.releasePassenger);
         toast('El cupo fue liberado y el pasajero recibió la notificación.');
       }
-      await Promise.allSettled([loadReminders(), loadNotifications(), loadMine(), loadRoutes(), loadBookings()]);
+      await refreshAllComponents(true);
     } catch (error) {
       statusMessage('#reminders-error', errorMessage(error));
       button.disabled = false;
@@ -1089,16 +1285,22 @@ async function init(): Promise<void> {
     });
   });
   await Promise.allSettled([loadRoutes(), loadSession(), loadPromotions()]);
-  const refreshAccount = () => {
-    if (document.visibilityState === 'visible') {
-      void loadNotifications();
-      void loadBookings();
-      void loadBookingRequests();
-      void loadReminders();
+  let isWatcherActive = false;
+  const watcherPoll = async () => {
+    if (document.visibilityState !== 'visible' || isWatcherActive) return;
+    isWatcherActive = true;
+    try {
+      await refreshAllComponents(true);
+    } finally {
+      isWatcherActive = false;
     }
   };
-  const timer = setInterval(refreshAccount, 30000);
-  window.addEventListener('focus', refreshAccount);
+  // Observación automática continua cada 5 segundos
+  const timer = setInterval(() => { void watcherPoll(); }, 5000);
+  window.addEventListener('focus', () => { void watcherPoll(); });
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void watcherPoll();
+  });
   window.addEventListener('pagehide', () => clearInterval(timer), { once: true });
 }
 

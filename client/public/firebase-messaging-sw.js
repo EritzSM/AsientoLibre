@@ -26,11 +26,26 @@ self.addEventListener('push', (event) => {
   const link = data.link || notification.click_action || '/index.html';
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: '/images/logo.png',
-      badge: '/images/logo.png',
-      data: { link },
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Si la app está abierta en alguna pestaña o ventana, enviamos el mensaje
+      // para que muestre la notificación tipo push interna y NO la de Windows
+      if (clients && clients.length > 0) {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'PUSH_NOTIFICATION',
+            payload: { title, body, data: { ...data, link } },
+          });
+        });
+        return;
+      }
+
+      // Si la app está completamente cerrada, se muestra la notificación del sistema
+      return self.registration.showNotification(title, {
+        body,
+        icon: '/images/logo.png',
+        badge: '/images/logo.png',
+        data: { link },
+      });
     })
   );
 });

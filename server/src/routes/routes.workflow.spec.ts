@@ -36,7 +36,7 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     chainable.ilike = noop;
     chainable.order = noop;
     chainable.limit = () => Promise.resolve({ data: [], error: null });
-    chainable.maybeSingle = async () => ({ data: { is_active: true, origin: 'Bogotá', destination: 'Chía', departure_at: '2099-12-31T19:30:00.000Z', driver_id: actorId, route_id: routeId, passenger_id: actorId }, error: null });
+    chainable.maybeSingle = async () => ({ data: { is_active: true, origin: 'Bogotá', destination: 'Chía', departure_at: '2099-12-31T19:30:00.000Z', driver_id: actorId, route_id: routeId, passenger_id: actorId, status: 'pending' }, error: null });
     return chainable;
   });
 
@@ -232,6 +232,107 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     await request(app.getHttpServer()).post(`/routes/booking-requests/${bookingId}/accept`)
       .set('Authorization', 'Bearer valid-session').expect(200);
     expect(rpc).toHaveBeenCalledWith('accept_booking_request', { p_actor: actorId, p_booking: bookingId });
+  });
+
+  it('rechaza una solicitud usando la identidad verificada del conductor', async () => {
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/booking-requests/${bookingId}/reject`)
+      .set('Authorization', 'Bearer valid-session').expect(200);
+    expect(rpc).toHaveBeenCalledWith('reject_booking_request', { p_actor: actorId, p_booking: bookingId });
+  });
+
+  it('cancela una reserva o solicitud por parte del pasajero', async () => {
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/bookings/${bookingId}/cancel`)
+      .set('Authorization', 'Bearer valid-session').expect(200);
+    expect(rpc).toHaveBeenCalledWith('cancel_booking_by_passenger', { p_actor: actorId, p_booking: bookingId });
+  });
+
+  it('impide solicitar cupos si faltan menos de 5 minutos para la salida', async () => {
+    from.mockImplementation((table: string) => {
+      const chainable: Record<string, unknown> = {};
+      const noop = () => chainable;
+      chainable.select = noop;
+      chainable.eq = noop;
+      chainable.in = noop;
+      chainable.limit = () => Promise.resolve({ data: [], error: null });
+      chainable.maybeSingle = async () => ({
+        data: table === 'route_catalog'
+          ? { departure_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), status: 'published' }
+          : { is_active: true, origin: 'Bogotá', destination: 'Chía', departure_at: '2099-12-31T19:30:00.000Z', driver_id: actorId, route_id: routeId, passenger_id: actorId, role: 'pasajero' },
+        error: null,
+      });
+      return chainable as any;
+    });
+
+    await request(app.getHttpServer()).post(`/routes/${routeId}/bookings`)
+      .set('Authorization', 'Bearer valid-session').send({ seats: 1 }).expect(409);
+  });
+
+  it('impide aceptar solicitud si faltan menos de 5 minutos para la salida', async () => {
+    from.mockImplementation((table: string) => {
+      const chainable: Record<string, unknown> = {};
+      const noop = () => chainable;
+      chainable.select = noop;
+      chainable.eq = noop;
+      chainable.in = noop;
+      chainable.limit = () => Promise.resolve({ data: [], error: null });
+      chainable.maybeSingle = async () => ({
+        data: table === 'route_catalog'
+          ? { departure_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), status: 'published' }
+          : { is_active: true, origin: 'Bogotá', destination: 'Chía', route_id: routeId, driver_id: actorId, passenger_id: actorId, role: 'conductor' },
+        error: null,
+      });
+      return chainable as any;
+    });
+
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/booking-requests/${bookingId}/accept`)
+      .set('Authorization', 'Bearer valid-session').expect(409);
+  });
+
+  it('impide rechazar solicitud si faltan menos de 5 minutos para la salida', async () => {
+    from.mockImplementation((table: string) => {
+      const chainable: Record<string, unknown> = {};
+      const noop = () => chainable;
+      chainable.select = noop;
+      chainable.eq = noop;
+      chainable.in = noop;
+      chainable.limit = () => Promise.resolve({ data: [], error: null });
+      chainable.maybeSingle = async () => ({
+        data: table === 'route_catalog'
+          ? { departure_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), status: 'published', driver_id: actorId }
+          : { is_active: true, origin: 'Bogotá', destination: 'Chía', route_id: routeId, driver_id: actorId, passenger_id: actorId, role: 'conductor', status: 'pending' },
+        error: null,
+      });
+      return chainable as any;
+    });
+
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/booking-requests/${bookingId}/reject`)
+      .set('Authorization', 'Bearer valid-session').expect(409);
+  });
+
+  it('impide cancelar solicitud/reserva si faltan menos de 5 minutos para la salida', async () => {
+    from.mockImplementation((table: string) => {
+      const chainable: Record<string, unknown> = {};
+      const noop = () => chainable;
+      chainable.select = noop;
+      chainable.eq = noop;
+      chainable.in = noop;
+      chainable.limit = () => Promise.resolve({ data: [], error: null });
+      chainable.maybeSingle = async () => ({
+        data: table === 'route_catalog'
+          ? { departure_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), status: 'published' }
+          : { is_active: true, origin: 'Bogotá', destination: 'Chía', route_id: routeId, driver_id: actorId, passenger_id: actorId, role: 'pasajero', status: 'pending' },
+        error: null,
+      });
+      return chainable as any;
+    });
+
+    const bookingId = '40000000-0000-4000-8000-000000000001';
+    await request(app.getHttpServer()).post(`/routes/bookings/${bookingId}/cancel`)
+      .set('Authorization', 'Bearer valid-session').expect(409);
   });
 
   it('guarda la capacidad explícita del vehículo y normaliza la placa', async () => {

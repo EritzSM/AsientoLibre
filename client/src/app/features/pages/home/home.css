@@ -778,7 +778,30 @@ button:disabled { cursor: wait; opacity: 0.6; }
 /* Variantes de notificación por tipo */
 .notification-time-changed { background: linear-gradient(90deg, #fffbf0 0%, transparent 100%); border-left: 3px solid #F5A742; padding-left: 16px; border-radius: 8px; }
 .notification-cancelled { background: linear-gradient(90deg, #fff5f5 0%, transparent 100%); border-left: 3px solid #e05252; padding-left: 16px; border-radius: 8px; }
-.notification-booking { background: linear-gradient(90deg, #f0fff9 0%, transparent 100%); border-left: 3px solid var(--teal); padding-left: 16px; border-radius: 8px; }
+.notification-rejected { background: linear-gradient(90deg, #fff2f2 0%, transparent 100%); border-left: 3px solid #c92a2a; padding-left: 16px; border-radius: 8px; }
+.notification-booking, .notification-accepted { background: linear-gradient(90deg, #f0fff9 0%, transparent 100%); border-left: 3px solid var(--teal); padding-left: 16px; border-radius: 8px; }
+
+.request-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+.warning-text {
+  color: #b84300;
+  font-weight: 600;
+}
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.status-badge.status-pending { background: #fff8e6; color: #8a6500; }
+.status-badge.status-confirmed { background: #e8f8f5; color: #0d7568; }
+.status-badge.status-cancelled { background: #fdf0f0; color: #b82525; }
 
 /* ── SCRUM-139: Panel de alternativas ── */
 .alternatives-panel {
@@ -889,7 +912,9 @@ button:disabled { cursor: wait; opacity: 0.6; }
   pointer-events: auto;
 }
 .driver-toast-icon { font-size: 1.4rem; flex-shrink: 0; }
-.driver-toast-msg { flex: 1; }
+.driver-toast-body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.driver-toast-title { font-weight: 700; color: #fff; font-size: 0.95rem; }
+.driver-toast-msg { color: rgba(255, 255, 255, 0.95); font-size: 0.88rem; }
 .driver-toast-action {
   background: var(--teal);
   color: #fff;

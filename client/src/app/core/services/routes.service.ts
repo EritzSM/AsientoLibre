@@ -182,6 +182,8 @@ export const routesService = {
   confirmPayment: (id: string) => request<TripPayment>(`/routes/payments/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
   bookingRequests: () => request<BookingRequest[]>('/routes/booking-requests/mine'),
   acceptBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
+  rejectBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
+  cancelBooking: (id: string) => request(`/routes/bookings/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   create: (route: CreateRoute) => request<Route>('/routes', { method: 'POST', body: JSON.stringify(route) }),
   remove: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   cancel: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
@@ -213,6 +215,7 @@ export const routesService = {
     }),
   notifications: () => request<Notification[]>('/notifications'),
   markRead: (id: string) => request(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }),
+  deleteNotification: (id: string) => request(`/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** SCRUM-136: Obtiene rutas alternativas sugeridas para una ruta cancelada */
   alternatives: (routeId: string) => request<AlternativeRoute[]>(`/routes/${encodeURIComponent(routeId)}/alternatives`, {}, false),
 };

@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, ParseUUIDPipe, Patch, Req, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Inject, Param, ParseUUIDPipe, Patch, Req, UseGuards } from '@nestjs/common';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 import { NotificationsService } from './notifications.service.js';
@@ -12,4 +12,7 @@ export class NotificationsController {
 
   @Patch(':id/read')
   read(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) { return this.notifications.markRead(req.actorId, id); }
+
+  @Delete(':id')
+  delete(@Req() req: AuthenticatedRequest, @Param('id', new ParseUUIDPipe()) id: string) { return this.notifications.delete(req.actorId, id); }
 }

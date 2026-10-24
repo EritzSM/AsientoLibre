@@ -20,4 +20,11 @@ export class NotificationsService {
     if (error) throwDatabaseError(error);
     return data;
   }
+
+  async delete(actorId: string, notificationId: string) {
+    const { error } = await this.supabase.getClient().from('notifications')
+      .delete().eq('id', notificationId).eq('recipient_id', actorId);
+    if (error) throwDatabaseError(error);
+    return { success: true };
+  }
 }

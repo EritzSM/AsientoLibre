@@ -8,6 +8,7 @@ import { authService } from "../../../core/services/auth.service";
 import { routesService } from "../../../core/services/routes.service";
 import type { ConductorDocument, RatingSummary } from "../../../core/services/routes.service";
 import { enablePushNotifications } from "../../../core/services/reminders.service";
+import { showInAppPush } from "../../../core/in-app-push";
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let resendInterval: ReturnType<typeof setInterval> | undefined;
@@ -19,6 +20,7 @@ function $<T extends HTMLElement>(selector: string): T | null {
 }
 
 function showToast(message: string): void {
+  showInAppPush({ message, icon: 'ℹ️' });
   const toast = $<HTMLDivElement>("#toast");
   if (!toast) return;
   toast.textContent = message;
@@ -749,9 +751,17 @@ async function initProfile(): Promise<void> {
   if (user.role === 'conductor') {
     void initDocuments();
     // Activar push notifications en segundo plano (pide permiso al navegador si no lo ha dado)
-    void enablePushNotifications(() => {
+    void enablePushNotifications((pushData) => {
       // Mensaje recibido en primer plano: recargar la lista de documentos
       void routesService.getDocuments().then(renderDocList).catch(() => undefined);
+      if (pushData?.title || pushData?.body) {
+        showInAppPush({
+          title: pushData.title || 'Asiento Libre',
+          message: pushData.body || 'Estado de tus documentos actualizado',
+          icon: '📄',
+          durationMs: 8000,
+        });
+      }
     }).then((result) => {
       if (result === 'enabled') {
         console.info('[Push] Notificaciones push activadas correctamente.');
@@ -846,12 +856,14 @@ function renderDocList(docs: ConductorDocument[]): void {
       </div>
 
       <!-- Status pill -->
-      <div class="doc-status-pill ${doc.status === 'revision_manual' ? 'pendiente' : doc.status}">
+      <div class="doc-status-pill ${doc.status === 'revision_manual' ? 'pendiente' : doc.status === 'pendiente' ? 'pendiente analyzing' : doc.status}">
         ${doc.status === 'aprobado'
           ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/></svg><span>Aprobado</span>`
           : doc.status === 'rechazado'
           ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span>Rechazado</span>`
-          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 14"/></svg><span>${doc.status === 'revision_manual' ? 'En revisión manual' : 'En revisión'}</span>`
+          : doc.status === 'revision_manual'
+          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 14"/></svg><span>En revisión manual</span>`
+          : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 15 14"/></svg><span>Analizando con IA…</span>`
         }
       </div>
 
@@ -870,7 +882,7 @@ function renderDocList(docs: ConductorDocument[]): void {
             <div class="doc-box-text">
               ${doc.status === 'revision_manual'
                 ? 'Estamos revisando tu documento manualmente. Te avisaremos apenas tengamos el resultado.'
-                : 'Estamos revisando tu documento. Te avisaremos apenas tengamos el resultado.'}
+                : '🤖 Validando tu documento con IA en tiempo real. Se actualizará automáticamente al terminar.'}
             </div>
            </div>`
       }
@@ -944,15 +956,76 @@ function renderDocList(docs: ConductorDocument[]): void {
 }
 
 let selectedFile: File | null = null;
+let docObserverTimer: ReturnType<typeof setInterval> | null = null;
+let lastKnownDocs: Map<string, { status: string; rejectionReason: string | null }> = new Map();
+let isPollingDocs = false;
+
+async function checkDocumentUpdates(notify = true): Promise<void> {
+  if (isPollingDocs) return;
+  isPollingDocs = true;
+  try {
+    const docs = await routesService.getDocuments();
+    let hasChanges = false;
+
+    if (notify && lastKnownDocs.size > 0) {
+      for (const doc of docs) {
+        const prev = lastKnownDocs.get(doc.id);
+        if (prev && prev.status !== doc.status) {
+          hasChanges = true;
+          if (doc.status === 'aprobado') {
+            showToast(`🎉 ¡Tu documento "${formatDocType(doc.document_type)}" ha sido APROBADO por IA! Ya puedes publicar rutas.`);
+            void authService.getMe().then((me) => populateProfileUI(me)).catch(() => undefined);
+          } else if (doc.status === 'rechazado') {
+            showToast(`❌ Tu documento "${formatDocType(doc.document_type)}" fue rechazado: ${doc.rejection_reason || 'Revisa el motivo en la tarjeta.'}`);
+          } else if (doc.status === 'revision_manual') {
+            showToast(`ℹ️ Tu documento "${formatDocType(doc.document_type)}" pasó a revisión manual por el equipo.`);
+          }
+        }
+      }
+      if (docs.length !== lastKnownDocs.size) {
+        hasChanges = true;
+      }
+    }
+
+    lastKnownDocs = new Map(docs.map((d) => [d.id, { status: d.status, rejectionReason: d.rejection_reason || null }]));
+
+    if (hasChanges || !notify) {
+      renderDocList(docs);
+    }
+  } catch {
+    // Ignore transient poll errors
+  } finally {
+    isPollingDocs = false;
+  }
+}
+
+function startDocumentObserver(): void {
+  if (docObserverTimer) return;
+  const poll = () => {
+    if (document.visibilityState === 'visible') {
+      void checkDocumentUpdates(true);
+    }
+  };
+  // Observa de fondo sin alterar el DOM si la página está quieta
+  docObserverTimer = setInterval(poll, 4000);
+  window.addEventListener('focus', poll);
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') poll();
+  });
+}
 
 async function initDocuments(): Promise<void> {
   try {
     const docs = await routesService.getDocuments();
+    lastKnownDocs = new Map(docs.map((d) => [d.id, { status: d.status, rejectionReason: d.rejection_reason || null }]));
     renderDocList(docs);
   } catch {
     const loading = $<HTMLDivElement>('#docs-loading');
     if (loading) loading.textContent = 'No se pudieron cargar los documentos.';
   }
+
+  // Iniciar observador en tiempo real para análisis IA y revisiones
+  startDocumentObserver();
 
   // Dropzone interactions
   const dropzone = $<HTMLDivElement>('#doc-dropzone');
@@ -1007,16 +1080,15 @@ async function initDocuments(): Promise<void> {
           fileName: selectedFile.name,
           fileData,
         });
-        showToast('✅ Documento subido exitosamente. Será revisado pronto.');
+        showToast('✅ Documento subido. La inteligencia artificial está analizándolo en tiempo real...');
         selectedFile = null;
         if (filePreview) filePreview.hidden = true;
         if (fileInput) fileInput.value = '';
         if (typeSelect) typeSelect.value = '';
         if (fileField) fileField.hidden = true;
         uploadBtn.disabled = true;
-        // Reload list
-        const docs = await routesService.getDocuments();
-        renderDocList(docs);
+        // Recargar inmediatamente la lista mostrando el nuevo estado pendiente/analizando
+        await checkDocumentUpdates(false);
       } catch (err: unknown) {
         showToast(err instanceof Error ? err.message : 'Error al subir el documento.');
       } finally {

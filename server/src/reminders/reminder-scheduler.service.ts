@@ -118,9 +118,14 @@ export class ReminderSchedulerService {
 
     if (delivery.kind === '1h') {
       const contact = await this.counterpartContact(delivery);
+      const now = new Date();
+      const minutesUntil = Math.max(1, Math.round((new Date(delivery.departure_at).getTime() - now.getTime()) / 60000));
+      const timeLabel = minutesUntil >= 60 ? 'una hora'
+        : minutesUntil === 1 ? '1 minuto'
+        : `${minutesUntil} minutos`;
       return {
         type: 'trip_reminder_1h',
-        title: 'Tu viaje comienza en una hora',
+        title: `Tu viaje comienza en ${timeLabel}`,
         message: `Viaje de ${routeLabel}. Punto de encuentro: ${delivery.meeting_point}.${contact ? ` Contacto: ${contact}.` : ''}`,
         action: 'confirm_attendance',
       };
