@@ -27,6 +27,7 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     const chainable: Record<string, unknown> = {};
     const noop = () => chainable;
     chainable.select = noop;
+    chainable.update = noop;
     chainable.eq = noop;
     chainable.in = noop;
     chainable.neq = noop;
@@ -36,6 +37,7 @@ describe('Rutas: contrato HTTP, autenticación y validación', () => {
     chainable.ilike = noop;
     chainable.order = noop;
     chainable.limit = () => Promise.resolve({ data: [], error: null });
+    chainable.single = async () => ({ data: {}, error: null });
     chainable.maybeSingle = async () => ({ data: { is_active: true, origin: 'Bogotá', destination: 'Chía', departure_at: '2099-12-31T19:30:00.000Z', driver_id: actorId, route_id: routeId, passenger_id: actorId, status: 'pending' }, error: null });
     return chainable;
   });

@@ -95,9 +95,13 @@ export async function enablePushNotifications(
     const swTarget = registration.installing ?? registration.waiting ?? registration.active;
     if (swTarget) {
       const sendConfig = () => swTarget.postMessage({ type: 'FIREBASE_CONFIG', config });
-      swTarget.state === 'activated' ? sendConfig() : swTarget.addEventListener('statechange', () => {
-        if (swTarget.state === 'activated') sendConfig();
-      });
+      if (swTarget.state === 'activated') {
+        sendConfig();
+      } else {
+        swTarget.addEventListener('statechange', () => {
+          if (swTarget.state === 'activated') sendConfig();
+        });
+      }
     }
     const app = getApps().length ? getApp() : initializeApp(config);
     const messaging = getMessaging(app);
