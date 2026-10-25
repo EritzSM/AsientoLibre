@@ -99,6 +99,10 @@
               </svg>
               Mis Viajes
             </a>
+            <a href="#rutas-favoritas" class="dropdown-item" data-scroll data-target="#rutas-favoritas" id="nav-rutas-favoritas">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 2.5 2.9 5.88 6.49.94-4.7 4.58 1.11 6.47L12 17.32l-5.8 3.05 1.11-6.47-4.7-4.58 6.49-.94L12 2.5Z"/></svg>
+              Rutas favoritas
+            </a>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="btn-logout" type="button">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -313,6 +317,16 @@
           <p id="bookings-error" class="form-error" role="alert" hidden></p>
           <div id="bookings-list" class="routes-list"></div>
           <p id="bookings-empty" class="empty-state" hidden>Todavía no tienes reservas.</p>
+        </section>
+
+        <section id="rutas-favoritas" class="routes-panel favorites-panel" hidden aria-labelledby="favorites-title">
+          <div class="panel-heading">
+            <div><h2 id="favorites-title">Rutas favoritas</h2><p class="muted">Tus trayectos frecuentes y los próximos viajes disponibles.</p></div>
+            <button id="refresh-favorites" type="button" class="btn btn-secondary">Actualizar</button>
+          </div>
+          <p id="favorites-error" class="form-error" role="alert" hidden></p>
+          <div id="favorites-list" class="favorites-list" aria-live="polite"></div>
+          <p id="favorites-empty" class="empty-state" hidden>Aún no guardaste ninguna ruta favorita.</p>
         </section>
         <!-- ===== Mis Viajes (historial completo) ===== -->
         <section id="mis-viajes" class="routes-panel past-trips-panel" hidden aria-labelledby="past-trips-title">

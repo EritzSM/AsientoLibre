@@ -71,11 +71,48 @@ export class RoutesService {
     if (!Number.isFinite(departureAt.getTime()) || departureAt.getTime() <= Date.now()) {
       throw new BadRequestException('La fecha y hora del viaje deben ser futuras (hora de Colombia).');
     }
-    return this.rpc('create_route_v2', {
+    const result = await this.rpc('create_route_v2', {
       p_actor: actorId, p_origin: dto.origin, p_destination: dto.destination,
       p_departure_at: departureAt.toISOString(), p_seats: dto.seats, p_price: dto.price ?? 0,
       p_note: dto.note || null, p_meeting_point: dto.meetingPoint,
     });
+    const routeId = (result as Record<string, unknown>)?.id as string | undefined;
+    if (routeId) await this.notifyFavoritePassengers(routeId, dto.origin, dto.destination, departureAt.toISOString());
+    return result;
+  }
+
+  async favorites(actorId: string) {
+    await this.ensurePassenger(actorId);
+    const client = this.supabase.getClient();
+    const { data: favorites, error } = await client.from('route_favorites')
+      .select('id,source_route_id,origin,destination,origin_key,destination_key,created_at')
+      .eq('passenger_id', actorId).order('created_at', { ascending: false }).limit(100);
+    if (error) throwDatabaseError(error);
+    if (!favorites?.length) return [];
+
+    const { data: routes, error: routesError } = await client.from('route_catalog').select('*')
+      .eq('status', 'published').gt('departure_at', new Date().toISOString()).gt('available_seats', 0)
+      .order('departure_at').limit(200);
+    if (routesError) throwDatabaseError(routesError);
+    const presented = await this.presentRoutes((routes ?? []) as RouteRow[]);
+    return favorites.map((favorite) => ({
+      id: favorite.id as string,
+      sourceRouteId: favorite.source_route_id as string | null,
+      origin: favorite.origin as string,
+      destination: favorite.destination as string,
+      createdAt: favorite.created_at as string,
+      availableRoutes: presented.filter((route) =>
+        this.normalizePlace(route.origin) === favorite.origin_key
+        && this.normalizePlace(route.destination) === favorite.destination_key),
+    }));
+  }
+
+  saveFavorite(actorId: string, routeId: string) {
+    return this.rpc('save_route_favorite', { p_actor: actorId, p_route: routeId });
+  }
+
+  removeFavorite(actorId: string, favoriteId: string) {
+    return this.rpc('remove_route_favorite', { p_actor: actorId, p_favorite: favoriteId });
   }
 
   remove(actorId: string, routeId: string) {
@@ -495,6 +532,42 @@ export class RoutesService {
     const { data, error } = await this.supabase.getClient().rpc(name, parameters);
     if (error) throwDatabaseError(error);
     return data;
+  }
+
+  private normalizePlace(value: string) {
+    return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
+  }
+
+  private async ensurePassenger(actorId: string) {
+    const { data, error } = await this.supabase.getClient().from('profiles')
+      .select('role,is_active').eq('id', actorId).maybeSingle();
+    if (error) throwDatabaseError(error);
+    if (!data || data.role !== 'pasajero' || !data.is_active) {
+      throw new ForbiddenException('Solo un pasajero activo puede consultar rutas favoritas.');
+    }
+  }
+
+  private async notifyFavoritePassengers(routeId: string, origin: string, destination: string, departureAt: string) {
+    const client = this.supabase.getClient();
+    const { data, error } = await client.from('route_favorites').select('passenger_id')
+      .eq('origin_key', this.normalizePlace(origin)).eq('destination_key', this.normalizePlace(destination));
+    if (error) {
+      this.logger.warn(`No se pudieron consultar favoritos para la ruta ${routeId}: ${error.message}`);
+      return;
+    }
+    const passengerIds = [...new Set((data ?? []).map((favorite) => favorite.passenger_id as string))];
+    if (!passengerIds.length) return;
+    const departure = new Date(departureAt).toLocaleString('es-CO', {
+      timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short',
+    });
+    await Promise.allSettled(passengerIds.map((passengerId) => this.changeNotification.sendToUser(passengerId, {
+      routeId,
+      type: 'favorite_route_available',
+      title: 'Nueva ruta favorita disponible',
+      message: `Se publicó un nuevo viaje de ${origin} a ${destination} para el ${departure}.`,
+      link: `${this.changeNotification.frontendUrl}/index.html#rutas-favoritas`,
+      metadata: { origin, destination, departureAt, action: 'reserve_favorite' },
+    })));
   }
 
   private async presentRoutes(rows: RouteRow[]) {

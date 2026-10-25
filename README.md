@@ -77,6 +77,7 @@ En el SQL Editor de Supabase, ejecuta los scripts en este orden:
 18. `server/supabase/migrations/202610230001_promotions.sql`
 19. `server/supabase/migrations/202610230002_remove_promotion_conditions.sql`
 20. `server/supabase/migrations/202610240001_booking_requests_5min_rules.sql`
+21. `server/supabase/migrations/202610250001_route_favorites.sql`
 
 Los scripts restringen las escrituras al backend, crean las operaciones transaccionales para rutas, agregan los campos de verificación de correo, permiten finalizar una ruta de forma independiente, bloquean su cancelación después de la salida, guardan calificaciones anónimas agregadas por perfil, crean el snapshot/confirmación de pagos por reserva y habilitan el almacenamiento público de fotos de perfil (JPG/PNG, hasta 5 MB). Las migraciones son idempotentes y se pueden ejecutar sobre el proyecto existente.
 

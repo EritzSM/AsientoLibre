@@ -66,13 +66,19 @@ before(async () => {
   await database.file(path('../../supabase/migrations/202610090001_profile_rating_summary.sql'));
   await database.file(path('../../supabase/migrations/202610090002_pending_route_rating_targets.sql'));
   await database.file(path('../../supabase/migrations/202610090003_route_rating_payment_gate.sql'));
+  await database.file(path('../../supabase/migrations/202610220001_document_notifications.sql'));
+  await database.file(path('../../supabase/migrations/202610230001_promotions.sql'));
+  await database.file(path('../../supabase/migrations/202610230002_remove_promotion_conditions.sql'));
+  await database.file(path('../../supabase/migrations/202610240001_booking_requests_5min_rules.sql'));
+  await database.file(path('../../supabase/migrations/202610250001_route_favorites.sql'));
+  await database.file(path('../../supabase/migrations/202610250001_route_favorites.sql'));
   // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
   await database.sql(`
     INSERT INTO auth.users (id) VALUES ${Object.values(fixture).map((id) => `(${sqlValue(id)})`).join(',')};
-    INSERT INTO public.profiles (id, first_name, last_name, national_id, role) VALUES
-      ${Object.entries(fixture).map(([name, id]) => `(${sqlValue(id)},${sqlValue(name)},'Prueba','fixture',${sqlValue(name.toLowerCase().includes('passenger') ? 'pasajero' : 'conductor')})`).join(',')};
+    INSERT INTO public.profiles (id, first_name, last_name, national_id, role, is_active) VALUES
+      ${Object.entries(fixture).map(([name, id]) => `(${sqlValue(id)},${sqlValue(name)},'Prueba','fixture',${sqlValue(name.toLowerCase().includes('passenger') ? 'pasajero' : 'conductor')},true)`).join(',')};
     INSERT INTO public.vehicles (user_id,brand,model,color,plate,capacity) VALUES
       (${sqlValue(fixture.driver)},'Mazda','3','Azul','AAA123',4),
       (${sqlValue(fixture.otherDriver)},'Renault','Logan','Gris','BBB123',4),
@@ -469,5 +475,38 @@ test('HU-04 privileged booking operations are blocked for client roles', async (
       ${sqlValue(fixture.passenger)},${sqlValue(missingId)},1);`, /permission denied for function/);
     await database.fails(`SET ROLE ${role}; SELECT public.accept_booking_request(
       ${sqlValue(fixture.driver)},${sqlValue(missingId)});`, /permission denied for function/);
+  }
+});
+
+test('HU-12 saves, deduplicates and removes a passenger favorite journey', async () => {
+  const route = await createRoute({ origin: '  Medellin Centro ', destination: ' Universidad de Medellin ' });
+  const first = await database.json(service(`SELECT public.save_route_favorite(
+    ${sqlValue(fixture.passenger)},${sqlValue(route.id)});`));
+  const repeated = await database.json(service(`SELECT public.save_route_favorite(
+    ${sqlValue(fixture.passenger)},${sqlValue(route.id)});`));
+  assert.equal(first.id, repeated.id);
+  assert.equal(first.origin, 'Medellin Centro');
+  assert.equal(await database.sql(`SELECT count(*) FROM public.route_favorites
+    WHERE passenger_id=${sqlValue(fixture.passenger)};`), '1');
+
+  const removed = await database.json(service(`SELECT public.remove_route_favorite(
+    ${sqlValue(fixture.passenger)},${sqlValue(first.id)});`));
+  assert.equal(removed.removed, true);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.route_favorites
+    WHERE passenger_id=${sqlValue(fixture.passenger)};`), '0');
+});
+
+test('HU-12 restricts favorites to their passenger and blocks direct client access', async () => {
+  const route = await createRoute({ origin: 'Envigado', destination: 'El Poblado' });
+  await database.fails(service(`SELECT public.save_route_favorite(
+    ${sqlValue(fixture.driver)},${sqlValue(route.id)});`), /FORBIDDEN/);
+  const favorite = await database.json(service(`SELECT public.save_route_favorite(
+    ${sqlValue(fixture.passenger)},${sqlValue(route.id)});`));
+  await database.fails(service(`SELECT public.remove_route_favorite(
+    ${sqlValue(fixture.otherPassenger)},${sqlValue(favorite.id)});`), /NOT_FOUND/);
+  for (const role of ['anon', 'authenticated']) {
+    await database.fails(`SET ROLE ${role}; SELECT * FROM public.route_favorites;`, /permission denied/);
+    await database.fails(`SET ROLE ${role}; SELECT public.save_route_favorite(
+      ${sqlValue(fixture.passenger)},${sqlValue(route.id)});`, /permission denied for function/);
   }
 });

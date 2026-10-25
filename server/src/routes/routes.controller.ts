@@ -46,6 +46,19 @@ export class RoutesController {
   @Get('ratings/mine') @UseGuards(SupabaseAuthGuard)
   ratingSummary(@Req() req: AuthenticatedRequest) { return this.routes.ratingSummary(req.actorId); }
 
+  @Get('favorites') @UseGuards(SupabaseAuthGuard)
+  favorites(@Req() req: AuthenticatedRequest) { return this.routes.favorites(req.actorId); }
+
+  @Post('favorites/:routeId') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
+  saveFavorite(@Req() req: AuthenticatedRequest, @Param('routeId', new ParseUUIDPipe()) routeId: string) {
+    return this.routes.saveFavorite(req.actorId, routeId);
+  }
+
+  @Delete('favorites/:favoriteId') @UseGuards(SupabaseAuthGuard)
+  removeFavorite(@Req() req: AuthenticatedRequest, @Param('favoriteId', new ParseUUIDPipe()) favoriteId: string) {
+    return this.routes.removeFavorite(req.actorId, favoriteId);
+  }
+
   @Post('booking-requests/:bookingId/accept') @HttpCode(200) @UseGuards(SupabaseAuthGuard)
   acceptBookingRequest(
     @Req() req: AuthenticatedRequest,

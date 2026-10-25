@@ -89,6 +89,15 @@ export interface Promotion {
   endsAt: string;
 }
 
+export interface FavoriteRoute {
+  id: string;
+  sourceRouteId: string | null;
+  origin: string;
+  destination: string;
+  createdAt: string;
+  availableRoutes: Route[];
+}
+
 export interface TripPayment {
   id: string; bookingId: string; routeId: string; passengerId: string; passengerName?: string;
   amount: number; status: 'pending' | 'confirmed'; confirmedAt: string | null;
@@ -181,6 +190,9 @@ export const routesService = {
   ownedPayments: () => request<TripPayment[]>('/routes/payments/owned'),
   confirmPayment: (id: string) => request<TripPayment>(`/routes/payments/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
   bookingRequests: () => request<BookingRequest[]>('/routes/booking-requests/mine'),
+  favorites: () => request<FavoriteRoute[]>('/routes/favorites'),
+  saveFavorite: (routeId: string) => request(`/routes/favorites/${encodeURIComponent(routeId)}`, { method: 'POST' }),
+  removeFavorite: (favoriteId: string) => request(`/routes/favorites/${encodeURIComponent(favoriteId)}`, { method: 'DELETE' }),
   acceptBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
   rejectBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
   cancelBooking: (id: string) => request(`/routes/bookings/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),

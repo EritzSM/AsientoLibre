@@ -2,7 +2,7 @@ import { initHeader, renderNotifPanel } from '../../components/header/header';
 import type { AuthUser } from '../../../core/services/auth.service';
 import { authService } from '../../../core/services/auth.service';
 import { ApiError, routesService } from '../../../core/services/routes.service';
-import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification, Promotion } from '../../../core/services/routes.service';
+import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingRequest, TripPayment, AlternativeRoute, Notification, Promotion, FavoriteRoute } from '../../../core/services/routes.service';
 import { remindersService, enablePushNotifications } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { showInAppPush } from '../../../core/in-app-push';
@@ -16,6 +16,7 @@ let ownRoutes: Route[] = [];
 let bookingRequests: BookingRequest[] = [];
 let payments: TripPayment[] = [];
 let promotions: Promotion[] = [];
+let favorites: FavoriteRoute[] = [];
 let tripReminders: TripReminder[] = [];
 let activeReservation: Route | null = null;
 let activeRemoval: Route | null = null;
@@ -121,6 +122,27 @@ function routeWithinFiveMinutes(route: { date: string; time: string }): boolean 
   return departureMs - Date.now() <= 5 * 60 * 1000;
 }
 
+function journeyKey(origin: string, destination: string): string {
+  const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('es');
+  return `${normalize(origin)}::${normalize(destination)}`;
+}
+
+function favoriteFor(origin: string, destination: string): FavoriteRoute | undefined {
+  const key = journeyKey(origin, destination);
+  return favorites.find((favorite) => journeyKey(favorite.origin, favorite.destination) === key);
+}
+
+function favoriteButton(routeId: string, origin: string, destination: string): string {
+  if (user?.role !== 'pasajero') return '';
+  const favorite = favoriteFor(origin, destination);
+  return `<button type="button" class="favorite-toggle ${favorite ? 'favorite-toggle--active' : ''}"
+    data-favorite-route="${escape(routeId)}" data-favorite-id="${escape(favorite?.id ?? '')}"
+    aria-pressed="${favorite ? 'true' : 'false'}" aria-label="${favorite ? 'Eliminar de favoritos' : 'Guardar en favoritos'}"
+    title="${favorite ? 'Eliminar de favoritos' : 'Guardar en favoritos'}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.5 2.9 5.88 6.49.94-4.7 4.58 1.11 6.47L12 17.32l-5.8 3.05 1.11-6.47-4.7-4.58 6.49-.94L12 2.5Z"/></svg>
+  </button>`;
+}
+
 export function routeCardHtml(route: Route, owner = false): string {
   const status = route.driverFinishedAt ? 'FINALIZADO' : { published: 'ACTIVO', deleted: 'Eliminada', cancelled: 'Cancelada' }[route.status];
   const withinFiveMin = routeWithinFiveMinutes(route);
@@ -136,7 +158,7 @@ export function routeCardHtml(route: Route, owner = false): string {
       <div class="driver"><span class="avatar" aria-hidden="true">${initials}${route.driverPhotoUrl ? `<img class="avatar-photo" src="${escape(route.driverPhotoUrl)}" alt="" />` : ''}</span>
         <div><div class="driver-name">${name}</div><div class="driver-role">Conductor</div></div>
       </div>
-      <span class="price-pill">${escape(priceFormatter.format(route.price ?? 0))} / asiento</span>
+      <div class="route-card-tools"><span class="price-pill">${escape(priceFormatter.format(route.price ?? 0))} / asiento</span>${favoriteButton(route.id, route.origin, route.destination)}</div>
     </div>
     <div class="route-points">
       <div class="route-point"><div><div class="route-point-label">Desde</div><div class="route-point-value">${escape(route.origin)}</div></div></div>
@@ -168,6 +190,35 @@ function bindAvatarFallbacks(container: HTMLElement): void {
   container.querySelectorAll<HTMLImageElement>(".avatar-photo").forEach((image) => {
     image.addEventListener("error", () => image.remove(), { once: true });
   });
+}
+
+function renderFavorites(): void {
+  const list = $('#favorites-list');
+  list.innerHTML = favorites.map((favorite) => `<article class="favorite-journey" data-favorite="${escape(favorite.id)}">
+    <div class="favorite-journey-heading">
+      <div><span class="favorite-eyebrow">Trayecto guardado</span><h3>${escape(favorite.origin)} <span aria-hidden="true">→</span> ${escape(favorite.destination)}</h3>
+        <p>${favorite.availableRoutes.length} viaje(s) disponible(s)</p></div>
+      <button type="button" class="favorite-remove" data-remove-favorite="${escape(favorite.id)}">Eliminar de favoritos</button>
+    </div>
+    ${favorite.availableRoutes.length
+      ? `<div class="favorite-available-routes">${favorite.availableRoutes.map((route) => routeCardHtml(route)).join('')}</div>`
+      : '<div class="favorite-no-routes"><strong>Sin viajes disponibles por ahora</strong><span>Te notificaremos cuando un conductor publique este trayecto.</span></div>'}
+  </article>`).join('');
+  bindAvatarFallbacks(list);
+  $('#favorites-empty').hidden = favorites.length > 0;
+}
+
+async function loadFavorites(silent = false): Promise<void> {
+  if (user?.role !== 'pasajero') return;
+  if (!silent) statusMessage('#favorites-error', '');
+  try {
+    favorites = await routesService.favorites();
+    renderFavorites();
+    renderPublicRoutes();
+    if (allPastTrips.length) renderPastTrips();
+  } catch (error) {
+    if (!silent) statusMessage('#favorites-error', errorMessage(error));
+  }
 }
 
 const attendanceLabels: Record<AttendanceStatus, string> = {
@@ -240,6 +291,7 @@ async function refreshAllComponents(silent = true): Promise<void> {
       loadReminders(silent),
       loadPayments(silent),
       loadPastTrips(silent),
+      loadFavorites(silent),
     );
     if (user.role === 'conductor') {
       tasks.push(loadMine(silent), loadBookingRequests(silent));
@@ -383,6 +435,7 @@ function renderPastTrips(): void {
         ${trip.seats ? `<span>${escape(trip.seats)} asiento(s)</span>` : ''}
       </div>
       ${trip.finishedAt ? `<p class="hint past-trip-finished">✓ Finalizado el ${escape(new Date(trip.finishedAt).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short', year: 'numeric' }))}</p>` : ''}
+      ${trip.type === 'pasajero' ? favoriteButton(trip.routeId, trip.origin, trip.destination) : ''}
     </article>`;
   }).join('');
   list.querySelectorAll<HTMLImageElement>('.avatar-photo').forEach((img) => {
@@ -500,6 +553,7 @@ async function loadBookings(silent = false): Promise<void> {
           <strong>Total: ${escape(priceFormatter.format(booking.totalAmount))}</strong>
         </div>
         ${paymentForBooking(booking.id) ? paymentHtml(paymentForBooking(booking.id)!, false) : ''}
+        ${favoriteButton(booking.routeId, booking.route.origin, booking.route.destination)}
         ${canCancel
           ? expiredCancel
             ? '<p class="hint warning-text" style="margin-top: 10px;">No se puede cancelar (faltan menos de 5 min para la salida).</p>'
@@ -846,6 +900,9 @@ async function loadSession(): Promise<void> {
     await initHeader(user);
     $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
+    $('#rutas-favoritas').hidden = user.role !== 'pasajero';
+    const favoritesNav = document.querySelector<HTMLElement>('#nav-rutas-favoritas');
+    if (favoritesNav) favoritesNav.hidden = user.role !== 'pasajero';
     $('#mis-rutas').hidden = user.role !== 'conductor';
     $('#validacion-pagos').hidden = user.role !== 'conductor';
     $('#solicitudes-cupo').hidden = user.role !== 'conductor';
@@ -865,7 +922,7 @@ async function loadSession(): Promise<void> {
   } catch (error) {
     setPublishAccess(errorMessage(error), { href: '/login.html', text: 'Revisar sesión' });
   }
-  await Promise.allSettled([loadMine(), loadBookings(), loadPayments(), loadBookingRequests(), loadNotifications(), loadReminders(), loadPastTrips()]);
+  await Promise.allSettled([loadMine(), loadBookings(), loadPayments(), loadBookingRequests(), loadNotifications(), loadReminders(), loadPastTrips(), loadFavorites()]);
   if (user?.role === 'conductor') await loadMine();
   renderPublicRoutes();
   // Mostrar sección mis-viajes solo para usuarios autenticados
@@ -1140,6 +1197,7 @@ async function init(): Promise<void> {
   $('#refresh-payments').addEventListener('click', () => { void loadPayments(); });
   $('#refresh-booking-requests').addEventListener('click', () => { void loadBookingRequests(); });
   $('#refresh-past-trips').addEventListener('click', () => { void loadPastTrips(); });
+  $('#refresh-favorites').addEventListener('click', () => { void loadFavorites(); });
   // Pestañas de Mis Viajes
   document.querySelectorAll<HTMLButtonElement>('.past-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -1158,6 +1216,38 @@ async function init(): Promise<void> {
   $('#routes-list').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-reserve]');
     if (button?.dataset.reserve) openReservation(button.dataset.reserve);
+  });
+  document.addEventListener('click', async (event) => {
+    const target = event.target as HTMLElement;
+    const toggle = target.closest<HTMLButtonElement>('[data-favorite-route]');
+    const remove = target.closest<HTMLButtonElement>('[data-remove-favorite]');
+    const button = toggle ?? remove;
+    if (!button || button.disabled) return;
+
+    event.preventDefault();
+    button.disabled = true;
+    try {
+      if (toggle?.dataset.favoriteRoute) {
+        if (toggle.dataset.favoriteId) {
+          await routesService.removeFavorite(toggle.dataset.favoriteId);
+          toast('Ruta eliminada de favoritos.');
+        } else {
+          await routesService.saveFavorite(toggle.dataset.favoriteRoute);
+          toast('Ruta guardada en favoritos.');
+        }
+      } else if (remove?.dataset.removeFavorite) {
+        await routesService.removeFavorite(remove.dataset.removeFavorite);
+        toast('Ruta eliminada de favoritos.');
+      }
+      await loadFavorites(true);
+      const bookingsList = $('#bookings-list');
+      bookingsList.dataset.loadedKey = '';
+      await loadBookings(true);
+    } catch (error) {
+      statusMessage('#favorites-error', errorMessage(error));
+      toast(errorMessage(error));
+      button.disabled = false;
+    }
   });
   $('#mine-list').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove], [data-finish], [data-rate]');

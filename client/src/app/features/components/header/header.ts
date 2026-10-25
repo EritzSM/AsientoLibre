@@ -241,6 +241,9 @@ export async function initHeader(
 
   if (!user) return null;
 
+  const favoritesLink = document.querySelector<HTMLElement>('#nav-rutas-favoritas-header');
+  if (favoritesLink) favoritesLink.hidden = user.role !== 'pasajero';
+
   // Cargar notificaciones para la campana de inmediato si hay usuario autenticado
   routesService.notifications()
     .then((notifs) => renderNotifPanel(notifs))
