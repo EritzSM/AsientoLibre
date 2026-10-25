@@ -1,7 +1,7 @@
 # HU-22 — Organización visual de funcionalidades
 
-**Como** usuario de Asiento Libre  
-**Quiero** visualizar las funciones principales agrupadas y ordenadas según mi rol  
+**Como** usuario de Asiento Libre
+**Quiero** visualizar las funciones principales agrupadas y ordenadas según mi rol
 **Para** encontrar rápidamente las acciones que necesito sin recorrer contenido irrelevante.
 
 ## Criterios de aceptación
