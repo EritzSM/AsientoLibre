@@ -6,6 +6,7 @@ import type { Route, RegisteredVehicle, CreateRoute, RatingTarget, BookingReques
 import { remindersService, enablePushNotifications } from '../../../core/services/reminders.service';
 import type { AttendanceStatus, TripReminder } from '../../../core/services/reminders.service';
 import { showInAppPush } from '../../../core/in-app-push';
+import { quickActionsFor } from '../../../core/visual-navigation';
 import { colombiaDate, validateRoute } from '../../../core/route-validation';
 import { element as $, escapeHtml as escape, errorMessage, statusMessage } from '../../../core/dom';
 
@@ -193,6 +194,23 @@ function bindAvatarFallbacks(container: HTMLElement): void {
   container.querySelectorAll<HTMLImageElement>(".avatar-photo").forEach((image) => {
     image.addEventListener("error", () => image.remove(), { once: true });
   });
+}
+
+function renderRoleDashboard(): void {
+  if (!user) return;
+  const role = user.role;
+  if (role === 'admin') return;
+  const roleLabel = role === 'conductor' ? 'Conductor' : 'Pasajero';
+  $('#role-dashboard-badge').textContent = roleLabel;
+  $('#role-dashboard-description').textContent = user.role === 'conductor'
+    ? 'Publica, programa y gestiona tus viajes desde un solo lugar.'
+    : 'Encuentra viajes, administra reservas y vuelve a tus rutas frecuentes.';
+  $('#role-quick-actions').innerHTML = quickActionsFor(role).map((action) =>
+    `<a class="quick-action-card" href="${escape(action.target)}" data-scroll data-target="${escape(action.target)}">
+      <span class="quick-action-icon" aria-hidden="true">${escape(action.icon)}</span><span><strong>${escape(action.title)}</strong><small>${escape(action.description)}</small></span><span class="quick-action-arrow" aria-hidden="true">→</span>
+    </a>`,
+  ).join('');
+  $('#role-dashboard').hidden = false;
 }
 
 function renderFavorites(): void {
@@ -952,6 +970,7 @@ async function loadSession(): Promise<void> {
   try {
     user = await authService.getMe();
     await initHeader(user);
+    renderRoleDashboard();
     $('#recordatorios').hidden = false;
     $('#mis-reservas').hidden = false;
     $('#rutas-favoritas').hidden = user.role !== 'pasajero';
