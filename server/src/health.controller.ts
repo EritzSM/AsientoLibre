@@ -13,7 +13,7 @@ export class HealthController {
   @Get('ready')
   async ready() {
     const client = this.supabase.getClient();
-    const [{ error: routesError }, { error: profileError }, { error: remindersError }, { error: bookingsError }, { error: ratingsError }, { error: paymentsError }, { error: documentsError }, { error: favoritesError }] = await Promise.all([
+    const [{ error: routesError }, { error: profileError }, { error: remindersError }, { error: bookingsError }, { error: ratingsError }, { error: paymentsError }, { error: documentsError }, { error: favoritesError }, { error: seriesError }] = await Promise.all([
       client.from('routes').select('id,driver_finished_at,meeting_point').limit(1),
       client.from('profiles').select('phone,photo_url,photo_path').limit(1),
       client.from('trip_attendance').select('route_id').limit(1),
@@ -22,8 +22,9 @@ export class HealthController {
       client.from('trip_payments').select('id,status,amount').limit(1),
       client.from('conductor_documents').select('id,status').limit(1),
       client.from('route_favorites').select('id,origin_key,destination_key').limit(1),
+      client.from('route_series').select('id,weekdays,departure_time').limit(1),
     ]);
-    if (routesError || profileError || remindersError || bookingsError || ratingsError || paymentsError || documentsError || favoritesError) {
+    if (routesError || profileError || remindersError || bookingsError || ratingsError || paymentsError || documentsError || favoritesError || seriesError) {
       throw new ServiceUnavailableException('Base de datos no disponible o migraciones pendientes.');
     }
     return { status: 'ok', database: 'connected' };

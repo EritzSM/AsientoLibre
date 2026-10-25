@@ -252,6 +252,19 @@
                 <textarea id="note" name="note" rows="3" maxlength="500" placeholder="Indicaciones de equipaje u otra información útil" aria-describedby="note-error"></textarea>
                 <p id="note-error" class="field-error" hidden></p>
               </div>
+              <div class="recurrence-box">
+                <label class="recurrence-toggle"><input id="recurring" name="recurring" type="checkbox" /> <span>Repetir esta ruta durante 4 semanas</span></label>
+                <div id="recurrence-options" hidden>
+                  <p class="hint">Selecciona los días en que debe publicarse. La fecha elegida marca el inicio del período.</p>
+                  <div class="weekday-picker" role="group" aria-label="Días de recurrencia">
+                    <label><input type="checkbox" name="weekday" value="1" /> Lun</label><label><input type="checkbox" name="weekday" value="2" /> Mar</label>
+                    <label><input type="checkbox" name="weekday" value="3" /> Mié</label><label><input type="checkbox" name="weekday" value="4" /> Jue</label>
+                    <label><input type="checkbox" name="weekday" value="5" /> Vie</label><label><input type="checkbox" name="weekday" value="6" /> Sáb</label>
+                    <label><input type="checkbox" name="weekday" value="0" /> Dom</label>
+                  </div>
+                  <p id="weekdays-error" class="field-error" hidden></p>
+                </div>
+              </div>
               <p id="publish-error" class="form-error" role="alert" hidden></p>
               <button id="publish-submit" class="btn btn-primary btn-block" type="submit">Publicar ruta</button>
             </fieldset>
@@ -297,6 +310,12 @@
           <p id="mine-error" class="form-error" role="alert" hidden></p>
           <div id="mine-list" class="routes-list"></div>
           <p id="mine-empty" class="empty-state" hidden>Todavía no has publicado rutas.</p>
+        </section>
+        <section id="calendario-rutas" class="routes-panel calendar-panel" hidden aria-labelledby="calendar-title">
+          <div class="section-heading"><div><p class="section-kicker">Planificación</p><h2 id="calendar-title">Calendario de conductor</h2></div>
+            <div class="calendar-controls"><button id="calendar-prev" class="btn btn-secondary" type="button" aria-label="Mes anterior">‹</button><strong id="calendar-month"></strong><button id="calendar-next" class="btn btn-secondary" type="button" aria-label="Mes siguiente">›</button></div>
+          </div>
+          <p id="calendar-error" class="form-error" role="alert" hidden></p><div id="route-calendar" class="route-calendar" aria-live="polite"></div>
         </section>
         <section id="validacion-pagos" class="routes-panel" hidden aria-labelledby="payments-title">
           <div class="panel-heading"><h2 id="payments-title">Validación de pagos</h2><button id="refresh-payments" type="button" class="btn btn-secondary">Actualizar</button></div>
@@ -386,6 +405,15 @@
         <button id="reserve-close" class="btn btn-secondary" type="button">Volver</button>
         <button id="reserve-submit" class="btn btn-primary" type="submit">Enviar solicitud</button>
       </div>
+    </form>
+  </dialog>
+  <dialog id="series-dialog" class="action-dialog" aria-labelledby="series-title">
+    <form id="series-form" method="dialog">
+      <h2 id="series-title">Gestionar ruta programada</h2>
+      <p id="series-route" class="muted"></p>
+      <div id="series-edit-fields" class="field"><label for="series-time">Nueva hora para toda la serie</label><input id="series-time" type="time" required /><p class="hint">Se actualizarán únicamente los viajes futuros sin solicitudes ni reservas.</p></div>
+      <p id="series-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="series-close" class="btn btn-secondary" type="button">Cerrar</button><button id="series-cancel-instance" class="btn btn-danger" type="button">Cancelar solo esta instancia</button><button id="series-save" class="btn btn-primary" type="submit">Actualizar toda la serie</button></div>
     </form>
   </dialog>
   <dialog id="remove-dialog" class="action-dialog" aria-labelledby="remove-title" aria-describedby="remove-description">

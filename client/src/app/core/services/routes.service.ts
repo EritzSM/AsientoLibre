@@ -32,6 +32,10 @@ export interface CreateRoute {
   note?: string;
 }
 
+export interface CreateRecurringRoute extends CreateRoute { weekdays: number[]; }
+export interface RecurringResult { id: string; generatedCount: number; startsOn: string; endsOn: string; updatedCount?: number; skippedReservedCount?: number; }
+export interface CalendarRoute { id: string; seriesId: string | null; origin: string; destination: string; meetingPoint: string; date: string; time: string; seats: number; price: number; status: Route['status']; }
+
 export interface RegisteredVehicle {
   id: string;
   brand: string;
@@ -197,6 +201,9 @@ export const routesService = {
   rejectBookingRequest: (id: string) => request(`/routes/booking-requests/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
   cancelBooking: (id: string) => request(`/routes/bookings/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   create: (route: CreateRoute) => request<Route>('/routes', { method: 'POST', body: JSON.stringify(route) }),
+  createRecurring: (route: CreateRecurringRoute) => request<RecurringResult>('/routes/recurring', { method: 'POST', body: JSON.stringify(route) }),
+  updateRecurring: (seriesId: string, time: string) => request<RecurringResult>(`/routes/recurring/${encodeURIComponent(seriesId)}`, { method: 'PATCH', body: JSON.stringify({ time }) }),
+  calendar: (from: string, to: string) => request<CalendarRoute[]>(`/routes/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   remove: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   cancel: (id: string) => request<RemovalResult>(`/routes/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
   finish: (id: string) => request<FinishResult>(`/routes/${encodeURIComponent(id)}/finish`, { method: 'POST' }),

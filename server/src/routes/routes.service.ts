@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service.js';
 import { throwDatabaseError } from '../common/database-error.js';
-import type { CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
+import type { CreateRecurringRouteDto, CreateRouteDto, FindRoutesDto } from './dto/route.dto.js';
 import { ChangeNotificationService } from '../notifications/change-notification.service.js';
 
 export interface RouteRow {
@@ -79,6 +79,50 @@ export class RoutesService {
     const routeId = (result as Record<string, unknown>)?.id as string | undefined;
     if (routeId) await this.notifyFavoritePassengers(routeId, dto.origin, dto.destination, departureAt.toISOString());
     return result;
+  }
+
+  async createRecurring(actorId: string, dto: CreateRecurringRouteDto) {
+    const result = await this.rpc('create_recurring_route_series', {
+      p_actor: actorId, p_origin: dto.origin, p_destination: dto.destination,
+      p_meeting_point: dto.meetingPoint, p_start_date: dto.date, p_time: dto.time,
+      p_weekdays: dto.weekdays, p_seats: dto.seats, p_price: dto.price ?? 0, p_note: dto.note || null,
+    });
+    const seriesId = (result as Record<string, unknown>)?.id as string | undefined;
+    if (seriesId) {
+      const { data } = await this.supabase.getClient().from('routes').select('id,departure_at')
+        .eq('series_id', seriesId).order('departure_at').limit(1);
+      const first = data?.[0];
+      if (first) await this.notifyFavoritePassengers(first.id as string, dto.origin, dto.destination, first.departure_at as string);
+    }
+    return result;
+  }
+
+  async updateRecurring(actorId: string, seriesId: string, time: string) {
+    const result = await this.rpc('update_recurring_route_series', { p_actor: actorId, p_series: seriesId, p_time: time });
+    const { data: series, error } = await this.supabase.getClient().from('route_series')
+      .select('origin,destination').eq('id', seriesId).maybeSingle();
+    if (error) throwDatabaseError(error);
+    if (series) await this.notifySeriesFollowers(series.origin as string, series.destination as string, time);
+    return result;
+  }
+
+  async calendar(actorId: string, from: string, to: string) {
+    const start = new Date(`${from}T00:00:00-05:00`);
+    const end = new Date(`${to}T23:59:59-05:00`);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end < start || end.getTime() - start.getTime() > 32 * 86400000) {
+      throw new BadRequestException('Consulta un rango válido de máximo 32 días.');
+    }
+    const { data, error } = await this.supabase.getClient().from('routes')
+      .select('id,series_id,origin,destination,meeting_point,departure_at,seats,price,status')
+      .eq('driver_id', actorId).gte('departure_at', start.toISOString()).lte('departure_at', end.toISOString())
+      .order('departure_at').limit(200);
+    if (error) throwDatabaseError(error);
+    return (data ?? []).map((route) => {
+      const local = new Date(new Date(route.departure_at as string).getTime() - 5 * 3600000).toISOString();
+      return { id: route.id, seriesId: route.series_id, origin: route.origin, destination: route.destination,
+        meetingPoint: route.meeting_point, date: local.slice(0, 10), time: local.slice(11, 16),
+        seats: route.seats, price: Number(route.price), status: route.status };
+    });
   }
 
   async favorites(actorId: string) {
@@ -567,6 +611,20 @@ export class RoutesService {
       message: `Se publicó un nuevo viaje de ${origin} a ${destination} para el ${departure}.`,
       link: `${this.changeNotification.frontendUrl}/index.html#rutas-favoritas`,
       metadata: { origin, destination, departureAt, action: 'reserve_favorite' },
+    })));
+  }
+
+  private async notifySeriesFollowers(origin: string, destination: string, time: string) {
+    const client = this.supabase.getClient();
+    const { data, error } = await client.from('route_favorites').select('passenger_id')
+      .eq('origin_key', this.normalizePlace(origin)).eq('destination_key', this.normalizePlace(destination));
+    if (error) { this.logger.warn(`No se pudieron consultar seguidores de la serie: ${error.message}`); return; }
+    const ids = [...new Set((data ?? []).map((row) => row.passenger_id as string))];
+    await Promise.allSettled(ids.map((id) => this.changeNotification.sendToUser(id, {
+      type: 'time_changed', title: 'Horario actualizado en una ruta favorita',
+      message: `Las próximas rutas sin reservas de ${origin} a ${destination} saldrán a las ${time}.`,
+      link: `${this.changeNotification.frontendUrl}/index.html#rutas-favoritas`,
+      metadata: { origin, destination, time, action: 'review_favorite' },
     })));
   }
 

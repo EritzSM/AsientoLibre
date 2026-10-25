@@ -72,6 +72,8 @@ before(async () => {
   await database.file(path('../../supabase/migrations/202610240001_booking_requests_5min_rules.sql'));
   await database.file(path('../../supabase/migrations/202610250001_route_favorites.sql'));
   await database.file(path('../../supabase/migrations/202610250001_route_favorites.sql'));
+  await database.file(path('../../supabase/migrations/202610260001_recurring_routes.sql'));
+  await database.file(path('../../supabase/migrations/202610260001_recurring_routes.sql'));
   // Supabase SQL Editor can safely retry the Sprint 2 migration after an interrupted run.
   await database.file(path('../../supabase/migrations/202609200002_trip_reminders.sql'));
 
@@ -508,5 +510,32 @@ test('HU-12 restricts favorites to their passenger and blocks direct client acce
     await database.fails(`SET ROLE ${role}; SELECT * FROM public.route_favorites;`, /permission denied/);
     await database.fails(`SET ROLE ${role}; SELECT public.save_route_favorite(
       ${sqlValue(fixture.passenger)},${sqlValue(route.id)});`, /permission denied for function/);
+  }
+});
+
+test('HU-07 generates four weeks, edits only unreserved instances and preserves a cancelled occurrence', async () => {
+  const start = await database.sql(`SELECT (current_date + ((8-extract(isodow from current_date)::int)%7))::text;`);
+  const series = await database.json(service(`SELECT public.create_recurring_route_series(
+    ${sqlValue(fixture.driver)},'Medellin','Universidad','Porteria norte',${sqlValue(start)}::date,'07:00'::time,
+    ARRAY[1,3,5]::smallint[],2,8000,'Puntual');`));
+  assert.equal(series.generatedCount, 12);
+  assert.equal(await database.sql(`SELECT count(*) FROM public.routes WHERE series_id=${sqlValue(series.id)};`), '12');
+
+  const reservedRoute = await database.sql(`SELECT id FROM public.routes WHERE series_id=${sqlValue(series.id)} ORDER BY departure_at LIMIT 1;`);
+  await requestBooking(reservedRoute, fixture.passenger, 1);
+  const edited = await database.json(service(`SELECT public.update_recurring_route_series(
+    ${sqlValue(fixture.driver)},${sqlValue(series.id)},'08:30'::time);`));
+  assert.equal(edited.updatedCount, 11);
+  assert.equal(edited.skippedReservedCount, 1);
+  assert.equal(await database.sql(`SELECT to_char(departure_at AT TIME ZONE 'America/Bogota','HH24:MI') FROM public.routes WHERE id=${sqlValue(reservedRoute)};`), '07:00');
+
+  const cancelled = await database.sql(`SELECT id FROM public.routes WHERE series_id=${sqlValue(series.id)} AND id<>${sqlValue(reservedRoute)} ORDER BY departure_at LIMIT 1;`);
+  await database.json(service(`SELECT public.remove_route(${sqlValue(fixture.driver)},${sqlValue(cancelled)},true);`));
+  assert.equal(await database.sql(`SELECT status FROM public.routes WHERE id=${sqlValue(cancelled)};`), 'deleted');
+  assert.equal(await database.sql(`SELECT count(*) FROM public.routes WHERE series_id=${sqlValue(series.id)} AND status='published';`), '11');
+  for (const role of ['anon', 'authenticated']) {
+    await database.fails(`SET ROLE ${role}; SELECT * FROM public.route_series;`, /permission denied/);
+    await database.fails(`SET ROLE ${role}; SELECT public.update_recurring_route_series(
+      ${sqlValue(fixture.driver)},${sqlValue(series.id)},'09:00'::time);`, /permission denied for function/);
   }
 });

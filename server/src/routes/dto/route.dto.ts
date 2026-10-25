@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { Equals, IsDateString, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, Equals, IsArray, IsDateString, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 
@@ -43,6 +43,21 @@ export class FindRoutesDto {
 export class CancelRouteDto {
   @Equals(true, { message: 'Debes confirmar explícitamente la cancelación.' })
   confirmed: true;
+}
+
+export class CreateRecurringRouteDto extends CreateRouteDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(7) @IsInt({ each: true }) @Min(0, { each: true }) @Max(6, { each: true })
+  weekdays: number[];
+}
+
+export class UpdateRecurringRouteDto {
+  @IsString() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  time: string;
+}
+
+export class CalendarQueryDto {
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) from: string;
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) to: string;
 }
 
 export class CreateBookingDto {
