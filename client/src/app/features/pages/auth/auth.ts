@@ -244,6 +244,174 @@ function bindVerificationScreen(user: AuthUser): void {
   }
 }
 
+/**
+ * Muestra la pantalla cuando la cuenta del usuario está bloqueada,
+ * permitiéndole enviar una apelación / mensaje al administrador.
+ */
+function showAccountBlockedScreen(email: string, reason?: string, hasPendingAppeal = false): void {
+  const authCard = $<HTMLDivElement>(".auth-card");
+  if (!authCard) return;
+
+  const defaultReason = reason || "Tu promedio de calificaciones como conductor es inferior a 3.0 estrellas.";
+
+  // Contenido del bloque de apelación según estado
+  const appealBoxContent = hasPendingAppeal
+    ? `
+      <div style="text-align: center; padding: 12px 6px;">
+        <div style="width: 52px; height: 52px; border-radius: 50%; background: #EFF6FF; border: 2px solid #BFDBFE; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <h4 style="margin: 0 0 6px 0; color: #1D4ED8; font-size: 1.05rem; font-weight: 700;">Solicitud en revisión</h4>
+        <p style="margin: 0; color: #4A5568; font-size: 0.88rem; line-height: 1.5;">
+          Ya enviaste una solicitud de desbloqueo al administrador. Estará en contacto contigo pronto.
+          <br/><br/>
+          <span style="font-size: 0.82rem; color: #6B7280;">Solo podrás enviar una nueva solicitud si tu apelación es rechazada.</span>
+        </p>
+      </div>`
+    : `
+      <h3 class="appeal-box-title">Enviar solicitud al administrador</h3>
+      <p class="appeal-box-desc">
+        Describe tu caso explicando por qué consideras que el bloqueo fue un error. El administrador revisará tu solicitud para rehabilitar tu cuenta.
+      </p>
+
+      <form id="form-appeal" class="appeal-form">
+        <input type="hidden" id="appeal-email" value="${escapeHtml(email)}" />
+        <div class="field" style="margin-bottom: 8px;">
+          <label for="appeal-message" style="font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; display: block;">
+            Mensaje / Justificación
+          </label>
+          <textarea
+            id="appeal-message"
+            class="appeal-textarea"
+            rows="3"
+            placeholder="Explica detalladamente por qué consideras que tu cuenta debe ser desbloqueada..."
+            required
+          ></textarea>
+        </div>
+
+        <p id="appeal-status-msg" class="appeal-msg" hidden></p>
+
+        <button class="btn-appeal-submit" id="btn-submit-appeal" type="submit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          Enviar solicitud al administrador
+        </button>
+      </form>`;
+
+  authCard.innerHTML = `
+    <div class="verification-pending blocked-screen" id="account-blocked-screen">
+      <div class="blocked-icon-wrapper" aria-hidden="true">
+        <div class="blocked-icon-circle">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#E74C3C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <div class="blocked-pulse" aria-hidden="true"></div>
+      </div>
+
+      <h1 class="verification-title" style="color: #922B21; margin-bottom: 4px;">Tu cuenta ha sido bloqueada</h1>
+      <p class="blocked-question">¿Crees que fue un error?</p>
+
+      <div class="blocked-reason-box">
+        <div class="blocked-reason-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Motivo del bloqueo:
+        </div>
+        <p class="blocked-reason-text">${escapeHtml(defaultReason)}</p>
+      </div>
+
+      <div class="appeal-box">
+        ${appealBoxContent}
+      </div>
+
+      <button class="btn-verify-logout" id="btn-back-to-login" type="button" style="margin: 10px auto 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Volver al inicio de sesión
+      </button>
+    </div>
+  `;
+
+  // Volver al login
+  const btnBack = $<HTMLButtonElement>("#btn-back-to-login");
+  if (btnBack) {
+    btnBack.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
+
+  // Solo vincular el formulario si NO hay apelación pendiente
+  if (!hasPendingAppeal) {
+    const appealForm = $<HTMLFormElement>("#form-appeal");
+    if (appealForm) {
+      appealForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const msgInput = $<HTMLTextAreaElement>("#appeal-message");
+        const submitBtn = $<HTMLButtonElement>("#btn-submit-appeal");
+        const statusMsg = $<HTMLParagraphElement>("#appeal-status-msg");
+        if (!msgInput || !submitBtn || !statusMsg) return;
+
+        const message = msgInput.value.trim();
+        if (message.length < 10) {
+          statusMsg.hidden = false;
+          statusMsg.className = "appeal-msg error";
+          statusMsg.textContent = "Por favor ingresa un mensaje de al menos 10 caracteres.";
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `
+          <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"/>
+          </svg>
+          Enviando solicitud...
+        `;
+
+        try {
+          const res = await authService.appealBlock(email, message);
+          const appealBox = $<HTMLDivElement>(".appeal-box");
+          if (appealBox) {
+            appealBox.innerHTML = `
+              <div style="text-align: center; padding: 12px 6px;">
+                <div style="width: 52px; height: 52px; border-radius: 50%; background: #EDFBF5; border: 2px solid #A7F3D0; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                </div>
+                <h4 style="margin: 0 0 6px 0; color: #1A6E3C; font-size: 1.05rem; font-weight: 700;">¡Solicitud enviada con éxito!</h4>
+                <p style="margin: 0; color: #4A5568; font-size: 0.88rem; line-height: 1.45;">
+                  ${escapeHtml(res.message || "Tu solicitud ha sido enviada con éxito al administrador. Recibirás respuesta pronto.")}
+                </p>
+              </div>
+            `;
+          }
+        } catch (err) {
+          statusMsg.hidden = false;
+          statusMsg.className = "appeal-msg error";
+          statusMsg.textContent = err instanceof Error ? err.message : "Error al enviar la solicitud.";
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = "Reintentar envío";
+        }
+      });
+    }
+  }
+}
+
+
 async function handleResendVerification(email: string, btn: HTMLButtonElement): Promise<void> {
   const btnText = $<HTMLSpanElement>("#resend-btn-text");
   const originalText = btnText?.textContent || "Reenviar correo de verificación";
@@ -836,6 +1004,19 @@ async function handleLoginSubmit(event: Event): Promise<void> {
       window.location.href = "/index.html";
     }, 1000);
   } catch (err: unknown) {
+    const errorObj = err as any;
+    const isBlocked =
+      errorObj?.isBlocked ||
+      errorObj?.error === 'ACCOUNT_BLOCKED' ||
+      (err instanceof Error && err.message.toLowerCase().includes('bloqueada'));
+
+    if (isBlocked) {
+      const reason = errorObj?.reason || (err instanceof Error ? err.message : undefined);
+      const hasPendingAppeal = !!errorObj?.hasPendingAppeal;
+      showAccountBlockedScreen(email, reason, hasPendingAppeal);
+      return;
+    }
+
     const errorMsg = err instanceof Error ? err.message : "Error al iniciar sesión.";
     showError(errorMsg);
   } finally {

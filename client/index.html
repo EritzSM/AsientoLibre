@@ -19,19 +19,13 @@
   <header class="site-header">
     <div class="container header-inner">
       <a class="logo" href="#top" aria-label="Asiento Libre — inicio">
-        <!-- 
-          ====================================================
-          ESPACIO PARA EL LOGO:
-          Guarda tu logo en: client/public/images/logo.svg (o logo.png)
-          ====================================================
-        -->
-        <img 
-          src="/images/logo.png" 
-          alt="Logo Asiento Libre" 
-          class="logo-img" 
+        <img
+          src="/images/logo.png"
+          alt="Logo Asiento Libre"
+          class="logo-img"
           id="site-logo"
           onload="const fb = this.parentElement.querySelector('.logo-fallback'); if(fb) fb.style.display='none';"
-          onerror="this.style.display='none';" 
+          onerror="this.style.display='none';"
         />
         <svg class="logo-mark logo-fallback" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M17 2C10.4 2 5 7.2 5 13.6 5 22 17 32 17 32s12-10 12-18.4C29 7.2 23.6 2 17 2Z" fill="#0B1E3B" />
@@ -39,12 +33,18 @@
         </svg>
         <span>Asiento Libre</span>
       </a>
-      
+
       <nav class="main-nav" aria-label="Navegación principal">
-        <a href="#publicar" data-scroll>Publicar ruta</a>
-        <a href="#buscar" data-scroll>Buscar asiento</a>
+        <a id="nav-publicar" href="#publicar" data-scroll>Publicar ruta</a>
+        <a id="nav-buscar" href="#buscar" data-scroll>Buscar asiento</a>
         <a href="#promociones" data-scroll>Promociones</a>
-        
+
+        <!-- Links solo para usuarios autenticados (controlados por JS) -->
+        <a id="nav-viajes-activos" href="/viajes-activos.html" class="nav-link-auth" hidden>Viajes activos</a>
+        <a id="nav-calendario" href="/calendario.html" class="nav-link-auth nav-link-conductor" hidden>Calendario</a>
+        <a id="nav-historial" href="/historial.html" class="nav-link-auth" hidden>Historial</a>
+        <a id="nav-favoritos" href="/favoritos.html" class="nav-link-auth nav-link-pasajero" hidden>Favoritos</a>
+
         <!-- Botón Iniciar sesión (para usuarios no autenticados) -->
         <a href="/login.html" class="btn btn-primary btn-login" id="btn-login">Iniciar sesión</a>
 
@@ -92,16 +92,28 @@
               </svg>
               Mi Perfil
             </a>
-            <a href="#mis-viajes" class="dropdown-item" data-scroll id="nav-mis-viajes">
+            <a href="/viajes-activos.html" class="dropdown-item" id="nav-viajes-activos-dd">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Viajes activos
+            </a>
+            <a href="/historial.html" class="dropdown-item" id="nav-historial-dd">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"></path>
                 <circle cx="12" cy="9" r="2.5"></circle>
               </svg>
-              Mis Viajes
+              Historial de viajes
             </a>
-            <a href="#rutas-favoritas" class="dropdown-item" data-scroll data-target="#rutas-favoritas" id="nav-rutas-favoritas">
+            <a href="/calendario.html" class="dropdown-item nav-link-conductor" id="nav-calendario-dd" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Calendario
+            </a>
+            <a href="/favoritos.html" class="dropdown-item nav-link-pasajero" id="nav-favoritos-dd" hidden>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 2.5 2.9 5.88 6.49.94-4.7 4.58 1.11 6.47L12 17.32l-5.8 3.05 1.11-6.47-4.7-4.58 6.49-.94L12 2.5Z"/></svg>
-              Rutas favoritas
+              Favoritos
             </a>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item dropdown-item-danger" id="btn-logout" type="button">
@@ -165,21 +177,14 @@
           </ul>
         </div>
 
-        <!-- 
-          ====================================================
-          ESPACIO PARA LA IMAGEN DEL CARRO EN LA CARRETERA:
-          Guarda tu imagen en: client/public/images/hero-car.png (o .svg / .webp)
-          ====================================================
-        -->
         <div class="hero-art" aria-hidden="true">
-          <img 
-            src="/images/hero-car.png" 
-            alt="Viaja en carro con Asiento Libre" 
+          <img
+            src="/images/hero-car.png"
+            alt="Viaja en carro con Asiento Libre"
             class="hero-image"
             id="hero-img"
             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
           />
-          <!-- Placeholder visible mientras guardas la imagen -->
           <div class="hero-image-placeholder" style="display: none;">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
@@ -194,6 +199,7 @@
       </div>
     </section>
 
+    <!-- ===== Dashboard de rol (accesos rápidos) ===== -->
     <section id="role-dashboard" class="role-dashboard" hidden aria-labelledby="role-dashboard-title">
       <div class="container">
         <div class="role-dashboard-heading"><div><p class="section-kicker">Tu espacio</p><h2 id="role-dashboard-title">¿Qué quieres hacer?</h2><p id="role-dashboard-description" class="muted"></p></div><span id="role-dashboard-badge" class="role-badge"></span></div>
@@ -203,6 +209,7 @@
 
     <section class="app-section">
       <div class="container app-grid">
+        <!-- ===== Publicar ruta (conductor) ===== -->
         <section class="card publish-card" id="publicar" aria-labelledby="publish-title">
           <h2 id="publish-title">Publica tu ruta</h2>
           <p class="muted">Comparte los cupos de tu vehículo. Fecha y hora de salida en Colombia (UTC−5).</p>
@@ -278,6 +285,7 @@
           </form>
         </section>
 
+        <!-- ===== Buscar asiento ===== -->
         <section class="routes-panel" id="buscar" aria-labelledby="search-title">
           <h2 id="search-title">Rutas disponibles</h2>
           <p class="muted">Encuentra un viaje que coincida con tu camino. Horarios de Colombia.</p>
@@ -293,6 +301,8 @@
           <p id="empty-state" class="empty-state" hidden>No hay rutas disponibles para estos filtros.</p>
         </section>
       </div>
+
+      <!-- ===== Promociones ===== -->
       <div class="container">
         <section class="routes-panel promotions-panel" id="promociones" aria-labelledby="promotions-title">
           <h2 id="promotions-title">Promociones activas</h2>
@@ -302,49 +312,25 @@
           <p id="promotions-empty" class="empty-state" hidden>No hay promociones activas por el momento.</p>
         </section>
       </div>
+
+      <!-- ===== Próximos viajes (recordatorios) ===== -->
       <div class="container account-panels">
         <section id="recordatorios" class="card reminder-panel" hidden aria-labelledby="reminders-title">
           <div class="panel-heading">
             <div><h2 id="reminders-title">Próximos viajes</h2><p class="muted">Confirma tu asistencia y consulta el punto de encuentro.</p></div>
+            <a href="/viajes-activos.html" class="btn btn-secondary" style="text-decoration:none; font-size: 0.85rem;">Ver todos mis viajes →</a>
           </div>
           <p id="reminders-error" class="form-error" role="alert" hidden></p>
           <div id="reminder-banner-list" class="reminder-list" aria-live="polite"></div>
           <p id="reminders-empty" class="hint" hidden>No tienes viajes próximos.</p>
         </section>
-        <section id="mis-rutas" class="routes-panel" hidden aria-labelledby="my-routes-title">
-          <div class="panel-heading"><h2 id="my-routes-title">Viajes activos</h2><button id="refresh-mine" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Gestiona tus publicaciones y finaliza los viajes que ya comenzaron.</p>
-          <p id="mine-error" class="form-error" role="alert" hidden></p>
-          <div id="mine-list" class="routes-list"></div>
-          <p id="mine-empty" class="empty-state" hidden>Todavía no has publicado rutas.</p>
-        </section>
-        <section id="calendario-rutas" class="routes-panel calendar-panel" hidden aria-labelledby="calendar-title">
-          <div class="section-heading"><div><p class="section-kicker">Planificación</p><h2 id="calendar-title">Calendario de conductor</h2></div>
-            <div class="calendar-controls"><button id="calendar-prev" class="btn btn-secondary" type="button" aria-label="Mes anterior">‹</button><strong id="calendar-month"></strong><button id="calendar-next" class="btn btn-secondary" type="button" aria-label="Mes siguiente">›</button></div>
-          </div>
-          <p id="calendar-error" class="form-error" role="alert" hidden></p><div id="route-calendar" class="route-calendar" aria-live="polite"></div>
-        </section>
-        <section id="validacion-pagos" class="routes-panel" hidden aria-labelledby="payments-title">
-          <div class="panel-heading"><h2 id="payments-title">Validación de pagos</h2><button id="refresh-payments" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Confirma cada aporte después de finalizar el viaje. El valor conserva el total y los descuentos definidos al reservar.</p>
-          <p id="payments-error" class="form-error" role="alert" hidden></p>
-          <div id="payments-list" class="routes-list" aria-live="polite"></div>
-          <p id="payments-empty" class="empty-state" hidden>No hay pagos pendientes de validación.</p>
-        </section>
-        <section id="solicitudes-cupo" class="routes-panel" hidden aria-labelledby="booking-requests-title">
-          <div class="panel-heading"><h2 id="booking-requests-title">Solicitudes de cupo</h2><button id="refresh-booking-requests" type="button" class="btn btn-secondary">Actualizar</button></div>
-          <p class="muted">Los cupos se asignan cuando aceptas una solicitud.</p>
-          <p id="booking-requests-error" class="form-error" role="alert" hidden></p>
-          <div id="booking-requests-list" class="routes-list" aria-live="polite"></div>
-          <p id="booking-requests-empty" class="empty-state" hidden>No tienes solicitudes pendientes.</p>
-        </section>
-        <section id="mis-reservas" class="routes-panel" hidden aria-labelledby="bookings-title">
-          <h2 id="bookings-title">Mis reservas</h2>
-          <p id="bookings-error" class="form-error" role="alert" hidden></p>
-          <div id="bookings-list" class="routes-list"></div>
-          <p id="bookings-empty" class="empty-state" hidden>Todavía no tienes reservas.</p>
-        </section>
 
+        <!-- notifications hidden anchor for in-app push action links -->
+        <div id="notifications-list" hidden aria-live="polite"></div>
+        <p id="notifications-error" hidden></p>
+        <p id="notifications-empty" hidden></p>
+
+        <!-- Rutas favoritas (pasajero) -->
         <section id="rutas-favoritas" class="routes-panel favorites-panel" hidden aria-labelledby="favorites-title">
           <div class="panel-heading">
             <div><h2 id="favorites-title">Rutas favoritas</h2><p class="muted">Tus trayectos frecuentes y los próximos viajes disponibles.</p></div>
@@ -354,29 +340,6 @@
           <div id="favorites-list" class="favorites-list" aria-live="polite"></div>
           <p id="favorites-empty" class="empty-state" hidden>Aún no guardaste ninguna ruta favorita.</p>
         </section>
-        <!-- ===== Mis Viajes (historial completo) ===== -->
-        <section id="mis-viajes" class="routes-panel past-trips-panel" hidden aria-labelledby="past-trips-title">
-          <div class="panel-heading">
-            <div>
-              <h2 id="past-trips-title">Mis Viajes</h2>
-              <p class="muted">Historial de todos tus viajes como conductor y como pasajero.</p>
-            </div>
-            <button id="refresh-past-trips" type="button" class="btn btn-secondary">Actualizar</button>
-          </div>
-          <p id="past-trips-error" class="form-error" role="alert" hidden></p>
-          <div id="past-trips-tabs" class="past-trips-tabs" hidden>
-            <button type="button" class="past-tab past-tab--active" data-tab="all" id="tab-all">Todos</button>
-            <button type="button" class="past-tab" data-tab="conductor" id="tab-conductor">Como conductor</button>
-            <button type="button" class="past-tab" data-tab="pasajero" id="tab-pasajero">Como pasajero</button>
-          </div>
-          <div id="past-trips-list" class="routes-list past-trips-list" aria-live="polite"></div>
-          <p id="past-trips-empty" class="empty-state" hidden>Aún no tienes viajes en tu historial.</p>
-        </section>
-        <!-- notifications hidden anchor for in-app push action links -->
-        <div id="notifications-list" hidden aria-live="polite"></div>
-        <p id="notifications-error" hidden></p>
-        <p id="notifications-empty" hidden></p>
-
       </div>
     </section>
   </main>
@@ -414,24 +377,7 @@
       </div>
     </form>
   </dialog>
-  <dialog id="series-dialog" class="action-dialog" aria-labelledby="series-title">
-    <form id="series-form" method="dialog">
-      <h2 id="series-title">Gestionar ruta programada</h2>
-      <p id="series-route" class="muted"></p>
-      <div id="series-edit-fields" class="field"><label for="series-time">Nueva hora para toda la serie</label><input id="series-time" type="time" required /><p class="hint">Se actualizarán únicamente los viajes futuros sin solicitudes ni reservas.</p></div>
-      <p id="series-error" class="form-error" role="alert" hidden></p>
-      <div class="dialog-actions"><button id="series-close" class="btn btn-secondary" type="button">Cerrar</button><button id="series-cancel-instance" class="btn btn-danger" type="button">Cancelar solo esta instancia</button><button id="series-save" class="btn btn-primary" type="submit">Actualizar toda la serie</button></div>
-    </form>
-  </dialog>
-  <dialog id="remove-dialog" class="action-dialog" aria-labelledby="remove-title" aria-describedby="remove-description">
-    <h3 id="remove-title">Eliminar ruta</h3>
-    <p id="remove-description"></p>
-    <p id="remove-error" class="form-error" role="alert" hidden></p>
-    <div class="dialog-actions">
-      <button id="remove-close" class="btn btn-secondary" type="button" autofocus>Conservar ruta</button>
-      <button id="remove-confirm" class="btn btn-danger" type="button">Eliminar ruta</button>
-    </div>
-  </dialog>
+
   <dialog id="survey-dialog" class="action-dialog survey-dialog" aria-labelledby="survey-title" aria-describedby="survey-description">
     <h3 id="survey-title">Califica tu experiencia</h3>
     <p id="survey-description" class="muted">Tu respuesta es anónima y ayuda a mejorar la comunidad.</p>
@@ -444,31 +390,8 @@
       </div>
     </form>
   </dialog>
+
   <div class="toast" id="toast" role="status" hidden></div>
-
-  <!-- SCRUM-138: Modal interactivo para responder a cambios de horario -->
-  <dialog id="time-changed-dialog" class="action-dialog time-changed-dialog" aria-labelledby="time-changed-title" aria-describedby="time-changed-message">
-    <div class="time-changed-header">
-      <span class="time-changed-icon" aria-hidden="true">⏰</span>
-      <h3 id="time-changed-title">Cambio de horario en tu viaje</h3>
-    </div>
-    <p id="time-changed-message" class="time-changed-body"></p>
-    <p class="time-changed-hint">¿Qué deseas hacer con tu reserva?</p>
-    <p id="time-changed-error" class="form-error" role="alert" hidden></p>
-    <div class="dialog-actions dialog-actions--stacked">
-      <button id="time-changed-keep" class="btn btn-primary" type="button">
-        ✅ Mantener mi reserva
-      </button>
-      <button id="time-changed-cancel-booking" class="btn btn-danger" type="button">
-        🚫 Cancelar mi reserva
-      </button>
-      <button id="time-changed-close" class="btn btn-ghost btn-sm" type="button">
-        Decidir después
-      </button>
-    </div>
-  </dialog>
-
-  <!-- SCRUM-140: Toast de alerta en tiempo real para el conductor -->
   <div id="driver-toast" class="driver-toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
   <script type="module" src="/src/app/features/pages/home/home.ts"></script>

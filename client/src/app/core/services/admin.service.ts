@@ -1,4 +1,4 @@
-﻿const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const API_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const TOKEN_KEY = 'asiento_libre_token';
 
 export type DocumentType = 'licencia' | 'soat' | 'cedula' | 'foto_vehiculo';
@@ -41,11 +41,47 @@ export interface ConductorDocument {
 
 export interface AdminStats {
 	total_conductors: number;
+	total_users?: number;
+	total_blocked?: number;
+	pending_appeals?: number;
 	pending_documents: number;
 	approved_documents: number;
 	rejected_documents: number;
 	manual_review_documents: number;
 	total_documents: number;
+}
+
+export interface RegisteredUser {
+	id: string;
+	first_name: string;
+	last_name: string;
+	email: string;
+	role: 'pasajero' | 'conductor' | 'admin';
+	phone: string;
+	is_active: boolean;
+	is_blocked: boolean;
+	block_reason: string | null;
+	blocked_at: string | null;
+	created_at: string;
+	rating_average: number | null;
+	rating_count: number;
+}
+
+export interface AccountAppeal {
+	id: string;
+	user_id: string;
+	email: string;
+	message: string;
+	status: 'pending' | 'approved' | 'rejected';
+	admin_note: string | null;
+	created_at: string;
+	reviewed_at: string | null;
+	reviewed_by: string | null;
+	profiles?: {
+		first_name: string;
+		last_name: string;
+		role: string;
+	};
 }
 
 export interface Promotion {
@@ -162,6 +198,38 @@ class AdminService {
 			`/admin/documents/${id}/ai-review`,
 			{ method: 'POST' },
 		);
+	}
+
+	async getUsers(search?: string, role?: string): Promise<RegisteredUser[]> {
+		const params = new URLSearchParams();
+		if (search && search.trim()) params.set('search', search.trim());
+		if (role && role !== 'all') params.set('role', role);
+		const qs = params.toString() ? `?${params.toString()}` : '';
+		return this.request<RegisteredUser[]>(`/admin/users${qs}`);
+	}
+
+	async blockUser(id: string, reason?: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>(`/admin/users/${encodeURIComponent(id)}/block`, {
+			method: 'POST',
+			body: JSON.stringify({ reason }),
+		});
+	}
+
+	async unblockUser(id: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>(`/admin/users/${encodeURIComponent(id)}/unblock`, {
+			method: 'POST',
+		});
+	}
+
+	async getAppeals(): Promise<AccountAppeal[]> {
+		return this.request<AccountAppeal[]>('/admin/appeals');
+	}
+
+	async resolveAppeal(id: string, action: 'approve' | 'reject', note?: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>(`/admin/appeals/${encodeURIComponent(id)}/resolve`, {
+			method: 'POST',
+			body: JSON.stringify({ action, note }),
+		});
 	}
 }
 

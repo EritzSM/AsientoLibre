@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rutas Favoritas — Asiento Libre</title>
+  <meta name="description" content="Gestiona tus rutas favoritas y consulta salidas disponibles para tus trayectos frecuentes." />
+  <link rel="icon" type="image/png" href="/images/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/app/features/pages/home/home.css" />
+</head>
+
+<body>
+
+  <!-- ===== Encabezado ===== -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="logo" href="/index.html" aria-label="Asiento Libre — inicio">
+        <img
+          src="/images/logo.png"
+          alt="Logo Asiento Libre"
+          class="logo-img"
+          id="site-logo"
+          onload="const fb = this.parentElement.querySelector('.logo-fallback'); if(fb) fb.style.display='none';"
+          onerror="this.style.display='none';"
+        />
+        <svg class="logo-mark logo-fallback" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17 2C10.4 2 5 7.2 5 13.6 5 22 17 32 17 32s12-10 12-18.4C29 7.2 23.6 2 17 2Z" fill="#0B1E3B" />
+          <path d="M9 15c3 6 8 9 8 9s8.5-4.5 8.5-11" stroke="#17BFAC" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        </svg>
+        <span>Asiento Libre</span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navegación principal">
+        <a id="nav-publicar" href="/index.html#publicar" hidden>Publicar ruta</a>
+        <a id="nav-buscar" href="/index.html#buscar">Buscar asiento</a>
+        <a href="/index.html#promociones">Promociones</a>
+
+        <!-- Links para usuarios autenticados -->
+        <a id="nav-viajes-activos" href="/viajes-activos.html" class="nav-link-auth">Viajes activos</a>
+        <a id="nav-calendario" href="/calendario.html" class="nav-link-auth nav-link-conductor" hidden>Calendario</a>
+        <a id="nav-historial" href="/historial.html" class="nav-link-auth">Historial</a>
+        <a id="nav-favoritos" href="/favoritos.html" class="nav-link-auth nav-link-pasajero nav-link-active" style="color: var(--teal-dark, #109E8E); font-weight: 700;">Favoritos</a>
+
+        <!-- Botón Iniciar sesión (para invitados) -->
+        <a href="/login.html" class="btn btn-primary btn-login" id="btn-login" style="display: none;">Iniciar sesión</a>
+
+        <!-- Campana de Notificaciones -->
+        <div class="notif-bell-wrapper" id="notif-bell-wrapper" style="display:none;" aria-label="Notificaciones">
+          <button class="notif-bell-btn" id="notif-bell-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Abrir notificaciones">
+            <svg class="notif-bell-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="notif-badge" id="notif-badge" hidden>0</span>
+          </button>
+          <div class="notif-panel" id="notif-panel" hidden role="dialog" aria-label="Panel de notificaciones">
+            <div class="notif-panel-header">
+              <span class="notif-panel-title">Notificaciones</span>
+              <button class="notif-mark-all-btn" id="notif-mark-all-btn" type="button">Marcar todas leídas</button>
+            </div>
+            <div class="notif-panel-body" id="notif-panel-body">
+              <p class="notif-empty" id="notif-panel-empty">No tienes notificaciones nuevas.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Apartado de Perfil de Usuario -->
+        <div class="user-profile-menu" id="user-profile-menu" style="display: none;">
+          <button class="user-profile-btn" id="user-profile-btn" type="button" aria-expanded="false" aria-haspopup="true">
+            <span class="user-avatar" id="header-user-avatar">US</span>
+            <span class="user-name" id="header-user-name">Usuario</span>
+            <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <!-- Menú desplegable del Perfil -->
+          <div class="profile-dropdown" id="profile-dropdown" hidden>
+            <div class="dropdown-header">
+              <p class="dropdown-user-fullname" id="dropdown-user-name">Usuario Nombre</p>
+              <span class="dropdown-user-role" id="dropdown-user-role">Pasajero</span>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="/profile.html" class="dropdown-item" id="btn-view-profile">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              Mi Perfil
+            </a>
+            <a href="/viajes-activos.html" class="dropdown-item" id="nav-viajes-activos-dd">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Viajes activos
+            </a>
+            <a href="/historial.html" class="dropdown-item" id="nav-historial-dd">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"></path>
+                <circle cx="12" cy="9" r="2.5"></circle>
+              </svg>
+              Historial de viajes
+            </a>
+            <a href="/favoritos.html" class="dropdown-item nav-link-pasajero" id="nav-favoritos-dd">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m12 2.5 2.9 5.88 6.49.94-4.7 4.58 1.11 6.47L12 17.32l-5.8 3.05 1.11-6.47-4.7-4.58 6.49-.94L12 2.5Z"/></svg>
+              Favoritos
+            </a>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dropdown-item-danger" id="btn-logout" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" style="padding-top: 28px; padding-bottom: 60px;">
+    <div class="container">
+      <div class="page-header" style="margin-bottom: 28px;">
+        <p class="section-kicker" style="color: var(--teal-dark, #109E8E); font-weight: 700; text-transform: uppercase; font-size: 0.82rem; letter-spacing: 0.05em; margin: 0 0 6px;">Tus trayectos</p>
+        <h1 style="font-size: 2rem; font-weight: 800; color: var(--navy, #0B1E3B); margin: 0 0 8px;">Rutas favoritas</h1>
+        <p class="muted" style="color: var(--text-muted, #667085); font-size: 1rem; margin: 0;">Guarda tus recorridos habituales para consultar salidas programadas y reservar en un solo clic.</p>
+      </div>
+
+      <!-- ===== SECCIÓN: AGREGAR RUTA A FAVORITOS ===== -->
+      <section class="card" style="margin-bottom: 32px;" aria-labelledby="add-favorite-title">
+        <h2 id="add-favorite-title" style="font-size: 1.25rem; font-weight: 700; color: var(--navy, #0B1E3B); margin: 0 0 6px;">Explorar y agregar rutas a favoritos</h2>
+        <p class="muted" style="margin: 0 0 16px;">Encuentra una ruta disponible por origen o destino y guárdala para tenerla siempre a la mano.</p>
+        <form id="search-favorite-form" class="search-filters" style="margin-bottom: 16px;">
+          <div class="field">
+            <label for="search-fav-origin">Origen</label>
+            <input id="search-fav-origin" name="origin" placeholder="Ej. Medellín, Envigado..." maxlength="160" />
+          </div>
+          <div class="field">
+            <label for="search-fav-destination">Destino</label>
+            <input id="search-fav-destination" name="destination" placeholder="Ej. Rionegro, Poblado..." maxlength="160" />
+          </div>
+          <button class="btn btn-primary" id="search-fav-submit" type="submit">Buscar rutas</button>
+        </form>
+
+        <p id="search-fav-loading" class="hint" hidden>Buscando rutas…</p>
+        <p id="search-fav-error" class="form-error" role="alert" hidden></p>
+        <div id="search-fav-results" class="routes-list" style="display: grid; gap: 16px;"></div>
+        <p id="search-fav-empty" class="empty-state" hidden>No encontramos rutas para este trayecto. Puedes probar con otras ciudades o sectores.</p>
+      </section>
+
+      <!-- ===== SECCIÓN: LISTA DE RUTAS FAVORITAS GUARDADAS ===== -->
+      <section id="rutas-favoritas" class="routes-panel favorites-panel" aria-labelledby="favorites-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="favorites-title">Mis trayectos guardados</h2>
+            <p class="muted">Salidas activas y próximas para tus trayectos favoritos.</p>
+          </div>
+          <button id="refresh-favorites" type="button" class="btn btn-secondary">Actualizar</button>
+        </div>
+        <p id="favorites-error" class="form-error" role="alert" hidden></p>
+        <div id="favorites-list" class="favorites-list" aria-live="polite"></div>
+        <p id="favorites-empty" class="empty-state" hidden>Aún no has agregado ninguna ruta a tus favoritos. Utiliza el buscador de arriba o haz clic en la estrella ★ de cualquier viaje para guardarlo.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Asiento Libre. Comparte el viaje, comparte los gastos.</p>
+    </div>
+  </footer>
+
+  <!-- Modal para solicitar cupo directamente desde favoritos -->
+  <dialog id="reserve-dialog" class="action-dialog" aria-labelledby="reserve-title" aria-describedby="reserve-route">
+    <h3 id="reserve-title">Solicitar cupo</h3>
+    <p id="reserve-route" class="route-chip"></p>
+    <form id="reserve-form" novalidate>
+      <div class="field">
+        <label for="reserve-seats">¿Cuántos asientos necesitas?</label>
+        <input id="reserve-seats" type="number" value="1" min="1" step="1" required aria-describedby="reserve-hint" />
+        <p id="reserve-hint" class="hint"></p>
+      </div>
+      <div class="field" id="reserve-promotion-field" hidden>
+        <label for="reserve-promotion">Promoción disponible</label>
+        <select id="reserve-promotion">
+          <option value="">Sin promoción</option>
+        </select>
+      </div>
+      <div class="reservation-total" aria-live="polite">
+        <div><span>Subtotal</span><strong id="reserve-subtotal"></strong></div>
+        <div id="reserve-discount-row" hidden><span>Descuento</span><strong id="reserve-discount"></strong></div>
+        <div class="reservation-grand-total"><span>Total</span><strong id="reserve-total"></strong></div>
+      </div>
+      <p id="reserve-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="reserve-close" class="btn btn-secondary" type="button">Volver</button>
+        <button id="reserve-submit" class="btn btn-primary" type="submit">Enviar solicitud</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script type="module" src="/src/app/features/pages/favoritos/favoritos.ts"></script>
+</body>
+
+</html>

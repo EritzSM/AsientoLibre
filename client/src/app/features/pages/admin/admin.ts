@@ -5,7 +5,7 @@
 
 import { authService } from "../../../core/services/auth.service";
 import { adminService } from "../../../core/services/admin.service";
-import type { ConductorDocument, AdminStats, DocumentStatus, AiAnalysisResult, Promotion, PromotionPayload } from "../../../core/services/admin.service";
+import type { ConductorDocument, AdminStats, DocumentStatus, AiAnalysisResult, Promotion, PromotionPayload, RegisteredUser, AccountAppeal } from "../../../core/services/admin.service";
 import { escapeHtml } from "../../../core/dom";
 
 let allDocuments: ConductorDocument[] = [];
@@ -15,6 +15,12 @@ let promotions: Promotion[] = [];
 let editingPromotionId: string | null = null;
 let targetDocIdToReject: string | null = null;
 let toastTimeout: ReturnType<typeof setTimeout> | undefined;
+
+let allUsers: RegisteredUser[] = [];
+let currentUserFilter: 'all' | 'conductor' | 'pasajero' | 'blocked' = 'all';
+let currentUserSearch = '';
+let targetUserIdToBlock: string | null = null;
+let allAppeals: AccountAppeal[] = [];
 
 function $<T extends HTMLElement>(selector: string): T | null {
   return document.querySelector<T>(selector);
@@ -232,12 +238,280 @@ function renderStats(stats: AdminStats): void {
   const elRejected = $<HTMLSpanElement>("#stat-rejected");
   const elManual = $<HTMLSpanElement>("#stat-manual-review");
   const elConductors = $<HTMLSpanElement>("#stat-conductors");
+  const elTotalUsers = $<HTMLSpanElement>("#stat-total-users");
+  const elBlocked = $<HTMLSpanElement>("#stat-blocked-users");
+  const elAppeals = $<HTMLSpanElement>("#stat-pending-appeals");
 
   if (elPending) elPending.textContent = String(stats.pending_documents);
   if (elApproved) elApproved.textContent = String(stats.approved_documents);
   if (elRejected) elRejected.textContent = String(stats.rejected_documents);
   if (elManual) elManual.textContent = String(stats.manual_review_documents ?? 0);
   if (elConductors) elConductors.textContent = String(stats.total_conductors);
+  if (elTotalUsers) elTotalUsers.textContent = String(stats.total_users ?? allUsers.length);
+  if (elBlocked) elBlocked.textContent = String(stats.total_blocked ?? 0);
+  if (elAppeals) elAppeals.textContent = String(stats.pending_appeals ?? 0);
+}
+
+// =========================================================
+// Gestión de Usuarios Registrados
+// =========================================================
+
+async function loadUsers(): Promise<void> {
+  try {
+    allUsers = await adminService.getUsers();
+    renderUsers();
+    updateUserBadges();
+  } catch (err) {
+    console.error("Error al cargar usuarios:", err);
+  }
+}
+
+function updateUserBadges(): void {
+  const bAll = $<HTMLSpanElement>("#badge-users-all");
+  const bCond = $<HTMLSpanElement>("#badge-users-conductor");
+  const bPas = $<HTMLSpanElement>("#badge-users-pasajero");
+  const bBlock = $<HTMLSpanElement>("#badge-users-blocked");
+
+  if (bAll) bAll.textContent = String(allUsers.length);
+  if (bCond) bCond.textContent = String(allUsers.filter(u => u.role === 'conductor').length);
+  if (bPas) bPas.textContent = String(allUsers.filter(u => u.role === 'pasajero').length);
+  if (bBlock) bBlock.textContent = String(allUsers.filter(u => u.is_blocked).length);
+}
+
+function getFilteredUsers(): RegisteredUser[] {
+  return allUsers.filter(user => {
+    if (currentUserFilter === 'conductor' && user.role !== 'conductor') return false;
+    if (currentUserFilter === 'pasajero' && user.role !== 'pasajero') return false;
+    if (currentUserFilter === 'blocked' && !user.is_blocked) return false;
+
+    if (currentUserSearch.trim()) {
+      const q = currentUserSearch.toLowerCase().trim();
+      const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      const phone = (user.phone || '').toLowerCase();
+      return fullName.includes(q) || email.includes(q) || phone.includes(q);
+    }
+    return true;
+  });
+}
+
+function renderUsers(): void {
+  const tbody = $<HTMLTableSectionElement>("#users-table-body");
+  const emptyState = $<HTMLDivElement>("#users-empty-state");
+  if (!tbody || !emptyState) return;
+
+  const users = getFilteredUsers();
+  if (users.length === 0) {
+    tbody.innerHTML = '';
+    emptyState.hidden = false;
+    return;
+  }
+  emptyState.hidden = true;
+
+  tbody.innerHTML = users.map(user => {
+    const fullName = `${user.first_name} ${user.last_name}`.trim() || 'Sin nombre';
+    const initial = (user.first_name?.[0] || user.email?.[0] || 'U').toUpperCase();
+
+    const roleBadge = `<span class="role-badge role-${escapeHtml(user.role)}">${escapeHtml(user.role)}</span>`;
+
+    let ratingHtml = `<span class="user-rating-chip rating-none">Sin calificaciones</span>`;
+    if (user.role === 'conductor') {
+      if (user.rating_count > 0 && user.rating_average !== null) {
+        const isLow = user.rating_average < 3.0;
+        ratingHtml = `
+          <span class="user-rating-chip ${isLow ? 'rating-low' : 'rating-good'}" title="${isLow ? 'Promedio bajo (< 3.0)' : 'Buen promedio'}">
+            ★ ${user.rating_average.toFixed(1)} <small style="opacity:0.75; font-size:0.75rem;">(${user.rating_count} calif.)</small>
+          </span>
+        `;
+      } else {
+        ratingHtml = `<span class="user-rating-chip rating-none">★ 0.0 (Nuevo)</span>`;
+      }
+    }
+
+    let statusBadge = '';
+    if (user.is_blocked) {
+      statusBadge = `<span class="user-status-badge status-blocked" title="${escapeHtml(user.block_reason || 'Bloqueado')}">⛔ Bloqueado</span>`;
+    } else if (user.is_active) {
+      statusBadge = `<span class="user-status-badge status-active">✓ Activo</span>`;
+    } else {
+      statusBadge = `<span class="user-status-badge status-unverified">✉ No verificado</span>`;
+    }
+
+    const actionBtn = user.is_blocked
+      ? `<button class="btn-action unblock-btn" type="button" data-user-action="unblock" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(fullName)}">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
+             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+             <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+           </svg>
+           Desbloquear
+         </button>`
+      : `<button class="btn-action block-btn" type="button" data-user-action="block" data-user-id="${escapeHtml(user.id)}" data-user-name="${escapeHtml(fullName)}">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
+             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+           </svg>
+           Bloquear
+         </button>`;
+
+    return `
+      <tr class="document-row ${user.is_blocked ? 'row-blocked' : ''}">
+        <td>
+          <div class="conductor-cell">
+            <div class="conductor-avatar">${escapeHtml(initial)}</div>
+            <div class="conductor-details">
+              <span class="conductor-name">${escapeHtml(fullName)}</span>
+              <span class="conductor-meta">${escapeHtml(user.email)} ${user.phone ? `· ${escapeHtml(user.phone)}` : ''}</span>
+              ${user.is_blocked && user.block_reason ? `<small style="color:#F87171; display:block; margin-top:2px; font-size:0.75rem;">Motivo: ${escapeHtml(user.block_reason)}</small>` : ''}
+            </div>
+          </div>
+        </td>
+        <td>${roleBadge}</td>
+        <td>${ratingHtml}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align: right;">
+          ${actionBtn}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openBlockUserModal(userId: string, userName: string): void {
+  targetUserIdToBlock = userId;
+  const modal = $<HTMLDivElement>("#modal-block-user");
+  const desc = $<HTMLParagraphElement>("#block-user-desc");
+  const textarea = $<HTMLTextAreaElement>("#block-reason-input");
+  if (desc) desc.textContent = `¿Estás seguro de que deseas bloquear la cuenta de ${userName}? No podrá iniciar sesión mientras su cuenta permanezca bloqueada.`;
+  if (textarea) textarea.value = "";
+  if (modal) modal.hidden = false;
+}
+
+function closeBlockUserModal(): void {
+  targetUserIdToBlock = null;
+  const modal = $<HTMLDivElement>("#modal-block-user");
+  if (modal) modal.hidden = true;
+}
+
+async function confirmBlockUser(): Promise<void> {
+  if (!targetUserIdToBlock) return;
+  const textarea = $<HTMLTextAreaElement>("#block-reason-input");
+  const reason = textarea?.value?.trim() || "Bloqueado por el administrador";
+  const btn = $<HTMLButtonElement>("#btn-confirm-block");
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await adminService.blockUser(targetUserIdToBlock, reason);
+    showToast(res.message || "Usuario bloqueado correctamente.", "warning");
+    closeBlockUserModal();
+    await Promise.all([loadUsers(), loadDashboardData(true)]);
+  } catch (err: unknown) {
+    showToast(err instanceof Error ? err.message : "Error al bloquear usuario.", "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleUnblockUser(userId: string, userName: string): Promise<void> {
+  if (!confirm(`¿Deseas desbloquear la cuenta de "${userName}"? El usuario volverá a tener acceso a la plataforma.`)) return;
+  try {
+    const res = await adminService.unblockUser(userId);
+    showToast(res.message || "Cuenta desbloqueada correctamente.", "success");
+    await Promise.all([loadUsers(), loadDashboardData(true)]);
+  } catch (err: unknown) {
+    showToast(err instanceof Error ? err.message : "Error al desbloquear usuario.", "error");
+  }
+}
+
+// =========================================================
+// Solicitudes de Desbloqueo (Apelaciones)
+// =========================================================
+
+async function loadAppeals(): Promise<void> {
+  try {
+    allAppeals = await adminService.getAppeals();
+    renderAppeals();
+  } catch (err) {
+    console.error("Error al cargar apelaciones:", err);
+  }
+}
+
+function renderAppeals(): void {
+  const tbody = $<HTMLTableSectionElement>("#appeals-table-body");
+  const emptyState = $<HTMLDivElement>("#appeals-empty-state");
+  if (!tbody || !emptyState) return;
+
+  if (allAppeals.length === 0) {
+    tbody.innerHTML = '';
+    emptyState.hidden = false;
+    return;
+  }
+  emptyState.hidden = true;
+
+  tbody.innerHTML = allAppeals.map(appeal => {
+    const dateStr = new Date(appeal.created_at).toLocaleString('es-CO', {
+      timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short',
+    });
+
+    const userProfile = appeal.profiles;
+    const name = userProfile ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() : 'Usuario';
+    const role = userProfile?.role || 'conductor';
+
+    let statusHtml = '';
+    if (appeal.status === 'pending') {
+      statusHtml = `<span class="badge-status status-pendiente">Pendiente</span>`;
+    } else if (appeal.status === 'approved') {
+      statusHtml = `<span class="badge-status status-aprobado">Aprobada</span>`;
+    } else {
+      statusHtml = `<span class="badge-status status-rechazado">Rechazada</span>`;
+    }
+
+    const actionsHtml = appeal.status === 'pending'
+      ? `<div style="display:inline-flex; gap:6px;">
+           <button class="btn-action approve-appeal" type="button" data-appeal-action="approve" data-appeal-id="${escapeHtml(appeal.id)}">
+             Aprobar y Desbloquear
+           </button>
+           <button class="btn-action reject-appeal" type="button" data-appeal-action="reject" data-appeal-id="${escapeHtml(appeal.id)}">
+             Rechazar
+           </button>
+         </div>`
+      : `<span style="font-size:0.8rem; color:var(--admin-text-faint);">Revisada</span>`;
+
+    return `
+      <tr class="document-row">
+        <td>
+          <div class="appeal-user-col">
+            <span class="appeal-user-name">${escapeHtml(name)} <small class="role-badge role-${escapeHtml(role)}" style="font-size:0.7rem; padding:1px 6px;">${escapeHtml(role)}</small></span>
+            <span class="appeal-user-email">${escapeHtml(appeal.email)}</span>
+          </div>
+        </td>
+        <td>
+          <span style="font-size:0.85rem; color:var(--admin-text-muted);">${escapeHtml(dateStr)}</span>
+        </td>
+        <td>
+          <div class="appeal-message-cell">
+            ${escapeHtml(appeal.message)}
+          </div>
+        </td>
+        <td>${statusHtml}</td>
+        <td style="text-align: right;">
+          ${actionsHtml}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function handleResolveAppeal(appealId: string, action: 'approve' | 'reject'): Promise<void> {
+  const actionText = action === 'approve' ? 'aprobar esta solicitud y desbloquear la cuenta' : 'rechazar esta solicitud';
+  if (!confirm(`¿Confirmas que deseas ${actionText}?`)) return;
+
+  try {
+    const res = await adminService.resolveAppeal(appealId, action);
+    showToast(res.message, action === 'approve' ? 'success' : 'info');
+    await Promise.all([loadAppeals(), loadUsers(), loadDashboardData(true)]);
+  } catch (err: unknown) {
+    showToast(err instanceof Error ? err.message : 'Error al procesar solicitud.', 'error');
+  }
 }
 
 function updateTabBadges(): void {
@@ -680,7 +954,12 @@ function bindEvents(): void {
   // Boton refrescar
   const refreshBtn = $<HTMLButtonElement>("#btn-refresh");
   if (refreshBtn) {
-    refreshBtn.addEventListener("click", () => { void loadDashboardData(); void loadPromotions(); });
+    refreshBtn.addEventListener("click", () => {
+      void loadDashboardData();
+      void loadPromotions();
+      void loadUsers();
+      void loadAppeals();
+    });
   }
 
   $<HTMLFormElement>('#promotion-form')?.addEventListener('submit', (event) => { void submitPromotion(event); });
@@ -715,6 +994,61 @@ function bindEvents(): void {
     });
   }
 
+  // Delegación de eventos en tabla de usuarios (Bloquear / Desbloquear)
+  const usersTbody = $<HTMLTableSectionElement>("#users-table-body");
+  if (usersTbody) {
+    usersTbody.addEventListener("click", (e) => {
+      const target = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-user-action]");
+      if (!target) return;
+      const action = target.dataset.userAction;
+      const userId = target.dataset.userId;
+      const userName = target.dataset.userName || "este usuario";
+      if (!userId) return;
+
+      if (action === 'block') {
+        openBlockUserModal(userId, userName);
+      } else if (action === 'unblock') {
+        void handleUnblockUser(userId, userName);
+      }
+    });
+  }
+
+  // Filtros de usuarios
+  const userFilterTabs = $<HTMLDivElement>("#user-filter-tabs");
+  if (userFilterTabs) {
+    userFilterTabs.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-user-filter]");
+      if (!btn) return;
+      userFilterTabs.querySelectorAll(".filter-tab").forEach(tab => tab.classList.remove("active"));
+      btn.classList.add("active");
+      currentUserFilter = (btn.dataset.userFilter || 'all') as any;
+      renderUsers();
+    });
+  }
+
+  // Búsqueda de usuarios
+  const userSearchInput = $<HTMLInputElement>("#users-search");
+  if (userSearchInput) {
+    userSearchInput.addEventListener("input", () => {
+      currentUserSearch = userSearchInput.value;
+      renderUsers();
+    });
+  }
+
+  // Delegación de eventos en tabla de apelaciones
+  const appealsTbody = $<HTMLTableSectionElement>("#appeals-table-body");
+  if (appealsTbody) {
+    appealsTbody.addEventListener("click", (e) => {
+      const target = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-appeal-action]");
+      if (!target) return;
+      const action = target.dataset.appealAction as 'approve' | 'reject';
+      const appealId = target.dataset.appealId;
+      if (action && appealId) {
+        void handleResolveAppeal(appealId, action);
+      }
+    });
+  }
+
   // Modal de Rechazo
   const btnCancelReject = $<HTMLButtonElement>("#btn-cancel-reject");
   const btnCloseReject = $<HTMLButtonElement>("#btn-close-reject-modal");
@@ -723,6 +1057,15 @@ function bindEvents(): void {
   if (btnCancelReject) btnCancelReject.addEventListener("click", closeRejectModal);
   if (btnCloseReject) btnCloseReject.addEventListener("click", closeRejectModal);
   if (btnConfirmReject) btnConfirmReject.addEventListener("click", confirmReject);
+
+  // Modal de Bloqueo de Usuario
+  const btnCancelBlock = $<HTMLButtonElement>("#btn-cancel-block");
+  const btnCloseBlock = $<HTMLButtonElement>("#btn-close-block-modal");
+  const btnConfirmBlock = $<HTMLButtonElement>("#btn-confirm-block");
+
+  if (btnCancelBlock) btnCancelBlock.addEventListener("click", closeBlockUserModal);
+  if (btnCloseBlock) btnCloseBlock.addEventListener("click", closeBlockUserModal);
+  if (btnConfirmBlock) btnConfirmBlock.addEventListener("click", () => { void confirmBlockUser(); });
 
   // Modal de AI Result
   const btnCloseAi = $<HTMLButtonElement>("#btn-close-ai-modal");
@@ -739,6 +1082,7 @@ function bindEvents(): void {
         closeRejectModal();
         closePreviewModal();
         closeAiResultModal();
+        closeBlockUserModal();
       }
     });
   });
@@ -757,19 +1101,28 @@ function bindEvents(): void {
 async function initAdmin(): Promise<void> {
   await checkAdminAuth();
   bindEvents();
-  await Promise.all([loadDashboardData(), loadPromotions()]);
+  await Promise.all([
+    loadDashboardData(),
+    loadPromotions(),
+    loadUsers(),
+    loadAppeals(),
+  ]);
 
   let isWatching = false;
   const pollAdmin = async () => {
     if (document.visibilityState !== 'visible' || isWatching) return;
     isWatching = true;
     try {
-      await loadDashboardData(true);
+      await Promise.all([
+        loadDashboardData(true),
+        loadUsers(),
+        loadAppeals(),
+      ]);
     } finally {
       isWatching = false;
     }
   };
-  setInterval(() => { void pollAdmin(); }, 4000);
+  setInterval(() => { void pollAdmin(); }, 5000);
   window.addEventListener('focus', () => { void pollAdmin(); });
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void pollAdmin();

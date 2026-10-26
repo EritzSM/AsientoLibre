@@ -73,17 +73,28 @@ class AuthService {
 			throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté ejecutándose.');
 		}
 
-		const body = await response.json().catch(() => null) as T | ApiErrorBody | null;
+		const body = await response.json().catch(() => null) as T | (ApiErrorBody & Record<string, unknown>) | null;
 
 		if (!response.ok) {
-			const errorBody = body as ApiErrorBody | null;
+			const errorBody = body as (ApiErrorBody & Record<string, unknown>) | null;
 			const message = Array.isArray(errorBody?.message)
 				? errorBody.message.join(', ')
-				: errorBody?.message || errorBody?.error || 'La solicitud no pudo completarse.';
-			throw new Error(message);
+				: (typeof errorBody?.message === 'string' ? errorBody.message : errorBody?.error || 'La solicitud no pudo completarse.');
+			const error = new Error(message) as Error & Record<string, unknown>;
+			if (errorBody && typeof errorBody === 'object') {
+				Object.assign(error, errorBody);
+			}
+			throw error;
 		}
 
 		return body as T;
+	}
+
+	async appealBlock(email: string, message: string): Promise<{ success: boolean; message: string }> {
+		return this.request<{ success: boolean; message: string }>('/auth/appeal-block', {
+			method: 'POST',
+			body: JSON.stringify({ email, message }),
+		});
 	}
 
 	async login(payload: LoginPayload): Promise<AuthResponse> {

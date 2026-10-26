@@ -26,6 +26,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { ProfilePhotoDto } from './dto/profile-photo.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
+import { AppealBlockDto } from './dto/appeal-block.dto.js';
 import { SupabaseAuthGuard } from '../common/supabase-auth.guard.js';
 import type { AuthenticatedRequest } from '../common/supabase-auth.guard.js';
 
@@ -203,6 +204,12 @@ export class AuthController {
   @UseGuards(SupabaseAuthGuard)
   async deleteAccount(@Req() req: AuthenticatedRequest, @Body() dto: DeleteAccountDto) {
     return this.authService.deleteAccount(req.actorId, dto.password);
+  }
+
+  @Post('appeal-block')
+  @HttpCode(HttpStatus.OK)
+  async appealBlock(@Body() dto: AppealBlockDto) {
+    return this.authService.submitAppeal(dto.email, dto.message);
   }
 
   @Post('logout')

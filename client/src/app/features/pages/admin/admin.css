@@ -1145,3 +1145,216 @@ body.admin-body {
 .admin-toast.toast-error { border-color: #F87171; }
 .admin-toast.toast-warning { border-color: #fbbf24; }
 .admin-toast.toast-info { border-color: var(--teal-accent); }
+
+/* =========================================================
+   Navegación y Secciones de Usuarios y Apelaciones
+   ========================================================= */
+
+.admin-nav-link {
+  color: var(--admin-text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.admin-nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-section-block {
+  margin-top: 48px;
+}
+
+.section-heading-row {
+  margin-bottom: 20px;
+}
+
+.section-heading-row h2 {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+
+.section-heading-row p {
+  color: var(--admin-text-muted);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+/* Tarjetas de estadísticas de bloqueo y apelaciones */
+.stat-card.stat-blocked .stat-icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: #F87171;
+}
+
+.stat-card.stat-appeals .stat-icon {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+}
+
+/* Badges de Rol */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.role-badge.role-conductor {
+  background: rgba(23, 191, 172, 0.15);
+  color: #17BFAC;
+  border: 1px solid rgba(23, 191, 172, 0.3);
+}
+
+.role-badge.role-pasajero {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+}
+
+.role-badge.role-admin {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+/* Badges de Estado de Cuenta */
+.user-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.user-status-badge.status-active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.user-status-badge.status-blocked {
+  background: rgba(239, 68, 68, 0.18);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.user-status-badge.status-unverified {
+  background: rgba(245, 167, 66, 0.15);
+  color: #F5A742;
+  border: 1px solid rgba(245, 167, 66, 0.3);
+}
+
+/* Chip de calificación */
+.user-rating-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.user-rating-chip.rating-low {
+  color: #F87171;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.user-rating-chip.rating-good {
+  color: #34D399;
+}
+
+.user-rating-chip.rating-none {
+  color: var(--admin-text-faint);
+  font-size: 0.8rem;
+}
+
+/* Botones de bloqueo y desbloqueo */
+.btn-action.block-btn {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-action.block-btn:hover {
+  background: #EF4444;
+  color: #fff;
+  border-color: #EF4444;
+}
+
+.btn-action.unblock-btn {
+  background: rgba(23, 191, 172, 0.15);
+  color: #17BFAC;
+  border: 1px solid rgba(23, 191, 172, 0.35);
+}
+
+.btn-action.unblock-btn:hover {
+  background: #17BFAC;
+  color: #070e1b;
+  border-color: #17BFAC;
+}
+
+.btn-action.approve-appeal {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.btn-action.approve-appeal:hover {
+  background: #10B981;
+  color: #fff;
+}
+
+.btn-action.reject-appeal {
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-action.reject-appeal:hover {
+  background: #EF4444;
+  color: #fff;
+}
+
+.appeal-user-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appeal-user-name {
+  font-weight: 700;
+  color: #fff;
+}
+
+.appeal-user-email {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+}
+
+.appeal-message-cell {
+  max-width: 380px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--admin-text-main);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--teal-accent);
+}
+

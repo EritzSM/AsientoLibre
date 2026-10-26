@@ -35,11 +35,30 @@ export interface ConductorDocument {
 
 export interface AdminStats {
   total_conductors: number;
+  total_users: number;
+  total_blocked: number;
+  pending_appeals: number;
   pending_documents: number;
   approved_documents: number;
   rejected_documents: number;
   manual_review_documents: number;
   total_documents: number;
+}
+
+export interface RegisteredUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: 'pasajero' | 'conductor' | 'admin';
+  phone: string;
+  is_active: boolean;
+  is_blocked: boolean;
+  block_reason: string | null;
+  blocked_at: string | null;
+  created_at: string;
+  rating_average: number | null;
+  rating_count: number;
 }
 
 export interface PromotionRow {
@@ -376,13 +395,25 @@ export class AdminService {
   async getStats(): Promise<AdminStats> {
     const admin = this.supabaseService.getClient();
 
-    const { data: profiles, error: profilesError } = await admin
+    const { data: conductorProfiles } = await admin
       .from('profiles').select('id', { count: 'exact' }).eq('role', 'conductor');
+
+    const { data: allProfiles } = await admin
+      .from('profiles').select('*');
+
+    let appealsCount = 0;
+    try {
+      const { data: appeals } = await admin
+        .from('account_appeals').select('id').eq('status', 'pending');
+      appealsCount = appeals?.length ?? 0;
+    } catch {
+      appealsCount = 0;
+    }
 
     const { data: docs, error: docsError } = await admin
       .from('conductor_documents').select('status, rejection_reason');
 
-    if (profilesError || docsError) {
+    if (docsError) {
       throw new ServiceUnavailableException('No se pudieron obtener las estadisticas.');
     }
 
@@ -391,8 +422,14 @@ export class AdminService {
       return { status: isManual ? 'revision_manual' : d.status };
     });
 
+    const totalUsers = allProfiles?.length ?? 0;
+    const totalBlocked = (allProfiles ?? []).filter((p: any) => !!p.is_blocked).length;
+
     return {
-      total_conductors: profiles?.length ?? 0,
+      total_conductors: conductorProfiles?.length ?? 0,
+      total_users: totalUsers,
+      total_blocked: totalBlocked,
+      pending_appeals: appealsCount,
       total_documents: docList.length,
       pending_documents: docList.filter((d) => d.status === 'pendiente').length,
       approved_documents: docList.filter((d) => d.status === 'aprobado').length,
@@ -473,6 +510,241 @@ export class AdminService {
       ends_at: dto.endsAt,
       is_active: dto.isActive ?? true,
       ...(adminId ? { created_by: adminId } : {}),
+    };
+  }
+
+  /**
+   * Obtiene todos los usuarios registrados con su calificación promedio y estado de bloqueo
+   */
+  async getUsers(search?: string, role?: string): Promise<RegisteredUser[]> {
+    const client = this.supabaseService.getClient();
+
+    // 1. Obtener emails de auth.users
+    const userEmailMap = new Map<string, string>();
+    try {
+      const { data: authData } = await client.auth.admin.listUsers();
+      if (authData?.users) {
+        for (const u of authData.users) {
+          if (u.email) userEmailMap.set(u.id, u.email);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`No se pudieron listar emails de auth.admin: ${e}`);
+    }
+
+    // 2. Consultar perfiles de public.profiles
+    let query = client
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (role && role !== 'all') {
+      query = query.eq('role', role);
+    }
+
+    const { data: users, error } = await query;
+    if (error) {
+      this.logger.error(`Error al consultar usuarios: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudo consultar el listado de usuarios.');
+    }
+
+    const enrichedUsers: RegisteredUser[] = await Promise.all(
+      (users || []).map(async (u: any) => {
+        const email = userEmailMap.get(u.id) || u.email || '';
+        let rating_average: number | null = null;
+        let rating_count = 0;
+        try {
+          const { data: summary } = await client.rpc('get_profile_rating_summary', { p_profile: u.id });
+          if (summary) {
+            rating_average = summary.average !== null && summary.average !== undefined ? Number(summary.average) : null;
+            rating_count = Number(summary.count || 0);
+          }
+        } catch {
+          // ignore rating fetch errors
+        }
+
+        let is_blocked = !!u.is_blocked;
+        let block_reason = u.block_reason || null;
+        let blocked_at = u.blocked_at || null;
+
+        // Auto-bloquear si es conductor y su promedio es menor a 3.0
+        if (!is_blocked && u.role === 'conductor' && rating_average !== null && rating_average < 3.0 && rating_count > 0) {
+          is_blocked = true;
+          block_reason = `Promedio de calificaciones inferior a 3.0 (${rating_average} estrellas)`;
+          blocked_at = new Date().toISOString();
+          try {
+            await client.from('profiles').update({
+              is_blocked: true,
+              block_reason,
+              blocked_at,
+            }).eq('id', u.id);
+          } catch {
+            // ignore if columns are not yet created in Supabase
+          }
+        }
+
+        return {
+          id: u.id,
+          first_name: u.first_name || '',
+          last_name: u.last_name || '',
+          email,
+          role: u.role,
+          phone: u.phone || '',
+          is_active: !!u.is_active,
+          is_blocked,
+          block_reason,
+          blocked_at,
+          created_at: u.created_at || new Date().toISOString(),
+          rating_average,
+          rating_count,
+        };
+      })
+    );
+
+    // 3. Filtrar en memoria por búsqueda para incluir nombre, apellido, correo o teléfono
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      return enrichedUsers.filter(u =>
+        u.first_name.toLowerCase().includes(q) ||
+        u.last_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.phone.toLowerCase().includes(q)
+      );
+    }
+
+    return enrichedUsers;
+  }
+
+  /**
+   * Bloquea manualmente la cuenta de un usuario
+   */
+  async blockUser(userId: string, reason?: string): Promise<{ success: boolean; message: string }> {
+    const client = this.supabaseService.getClient();
+    const finalReason = reason?.trim() || 'Bloqueado por el administrador';
+    const { error } = await client
+      .from('profiles')
+      .update({
+        is_blocked: true,
+        block_reason: finalReason,
+        blocked_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      this.logger.error(`Error al bloquear usuario ${userId}: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudo bloquear la cuenta del usuario.');
+    }
+    return { success: true, message: 'La cuenta ha sido bloqueada correctamente.' };
+  }
+
+  /**
+   * Desbloquea la cuenta de un usuario
+   */
+  async unblockUser(userId: string): Promise<{ success: boolean; message: string }> {
+    const client = this.supabaseService.getClient();
+    const { error } = await client
+      .from('profiles')
+      .update({
+        is_blocked: false,
+        block_reason: null,
+        blocked_at: null,
+      })
+      .eq('id', userId);
+
+    if (error) {
+      this.logger.error(`Error al desbloquear usuario ${userId}: ${error.message}`);
+      throw new ServiceUnavailableException('No se pudo desbloquear la cuenta del usuario.');
+    }
+    return { success: true, message: 'La cuenta ha sido desbloqueada correctamente.' };
+  }
+
+  /**
+   * Obtiene la lista de solicitudes de apelación / desbloqueo
+   */
+  async getAppeals(): Promise<any[]> {
+    const client = this.supabaseService.getClient();
+    let { data, error } = await client
+      .from('account_appeals')
+      .select('id, user_id, email, message, status, admin_note, created_at, reviewed_at, reviewed_by, profiles(first_name, last_name, role)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      // Fallback sin embedding por si la FK aún no refrescó en el schema cache de PostgREST
+      const simple = await client
+        .from('account_appeals')
+        .select('id, user_id, email, message, status, admin_note, created_at, reviewed_at, reviewed_by')
+        .order('created_at', { ascending: false });
+
+      if (simple.error) {
+        this.logger.warn(`No se pudieron consultar apelaciones: ${simple.error.message}`);
+        return [];
+      }
+      data = simple.data as any;
+    }
+
+    if (!data || data.length === 0) return [];
+
+    // Enriquecer con perfiles si no vinieron
+    const userIds = [...new Set(data.map((a: any) => a.user_id).filter(Boolean))];
+    if (userIds.length > 0) {
+      const { data: profiles } = await client
+        .from('profiles')
+        .select('id, first_name, last_name, role')
+        .in('id', userIds);
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      return data.map((a: any) => ({
+        ...a,
+        profiles: a.profiles || profileMap.get(a.user_id) || undefined,
+      }));
+    }
+
+    return data;
+  }
+
+  /**
+   * Resuelve una apelación (aprobar o rechazar)
+   */
+  async resolveAppeal(
+    appealId: string,
+    action: 'approve' | 'reject',
+    adminNote?: string,
+    adminId?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const client = this.supabaseService.getClient();
+    const { data: appeal, error: fetchErr } = await client
+      .from('account_appeals')
+      .select('id, user_id, status')
+      .eq('id', appealId)
+      .maybeSingle();
+
+    if (fetchErr || !appeal) {
+      throw new NotFoundException('Solicitud de apelación no encontrada.');
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const { error: updateErr } = await client
+      .from('account_appeals')
+      .update({
+        status: newStatus,
+        admin_note: adminNote || null,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: adminId || null,
+      })
+      .eq('id', appealId);
+
+    if (updateErr) {
+      throw new ServiceUnavailableException('No se pudo actualizar la solicitud de apelación.');
+    }
+
+    if (action === 'approve') {
+      await this.unblockUser(appeal.user_id);
+    }
+
+    return {
+      success: true,
+      message: action === 'approve'
+        ? 'Solicitud aprobada y cuenta desbloqueada exitosamente.'
+        : 'Solicitud rechazada.',
     };
   }
 }

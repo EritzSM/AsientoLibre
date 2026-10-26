@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Delete,
   Get,
@@ -95,5 +95,49 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   async deletePromotion(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.adminService.deletePromotion(id);
+  }
+
+  /** GET /admin/users */
+  @Get('users')
+  async getUsers(
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+  ) {
+    return this.adminService.getUsers(search, role);
+  }
+
+  /** POST /admin/users/:id/block */
+  @Post('users/:id/block')
+  @HttpCode(HttpStatus.OK)
+  async blockUser(
+    @Param('id') id: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.adminService.blockUser(id, reason);
+  }
+
+  /** POST /admin/users/:id/unblock */
+  @Post('users/:id/unblock')
+  @HttpCode(HttpStatus.OK)
+  async unblockUser(@Param('id') id: string) {
+    return this.adminService.unblockUser(id);
+  }
+
+  /** GET /admin/appeals */
+  @Get('appeals')
+  async getAppeals() {
+    return this.adminService.getAppeals();
+  }
+
+  /** POST /admin/appeals/:id/resolve */
+  @Post('appeals/:id/resolve')
+  @HttpCode(HttpStatus.OK)
+  async resolveAppeal(
+    @Param('id') id: string,
+    @Body('action') action: 'approve' | 'reject',
+    @Body('note') note: string,
+    @Req() req: AdminRequest,
+  ) {
+    return this.adminService.resolveAppeal(id, action, note, req.actorId);
   }
 }

@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   UnauthorizedException,
   NotFoundException,
   Logger,
@@ -34,6 +35,8 @@ export interface AuthResponse {
     email: string;
     role: 'pasajero' | 'conductor' | 'admin';
     isActive: boolean;
+    isBlocked?: boolean;
+    blockReason?: string | null;
     skipVehicle?: boolean;
     vehicle?: {
       id?: string;
@@ -436,6 +439,65 @@ export class AuthService {
     const role = profile?.role || user.user_metadata?.role || 'pasajero';
     const isActive = profile?.is_active ?? false;
 
+    // Verificar si la cuenta está bloqueada o si es conductor con promedio menor a 3.0
+    let isBlocked = !!profile?.is_blocked;
+    let blockReason = profile?.block_reason || null;
+
+    if (!isBlocked && role === 'conductor') {
+      try {
+        const { data: ratingSummary } = await admin.rpc('get_profile_rating_summary', { p_profile: user.id });
+        if (
+          ratingSummary &&
+          ratingSummary.count > 0 &&
+          ratingSummary.average !== null &&
+          ratingSummary.average !== undefined &&
+          Number(ratingSummary.average) < 3.0
+        ) {
+          isBlocked = true;
+          blockReason = `Promedio de calificaciones inferior a 3.0 (${ratingSummary.average} estrellas)`;
+          await admin
+            .from('profiles')
+            .update({
+              is_blocked: true,
+              block_reason: blockReason,
+              blocked_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+        }
+      } catch (err) {
+        this.logger.warn(`Error al verificar rating para conductor en login: ${err}`);
+      }
+    }
+
+    if (isBlocked) {
+      this.logger.warn(`Intento de login con cuenta bloqueada: ${user.email} (Motivo: ${blockReason})`);
+
+      // Verificar si el usuario ya tiene una solicitud de desbloqueo pendiente
+      let hasPendingAppeal = false;
+      try {
+        const { data: existingAppeal } = await admin
+          .from('account_appeals')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .maybeSingle();
+        hasPendingAppeal = !!existingAppeal;
+      } catch {
+        // Si falla la consulta, no bloqueamos el flujo
+      }
+
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'ACCOUNT_BLOCKED',
+        isBlocked: true,
+        message: 'Tu cuenta ha sido bloqueada.',
+        reason: blockReason || 'Tu cuenta ha sido suspendida por la administración.',
+        email: user.email ?? loginDto.email,
+        userId: user.id,
+        hasPendingAppeal,
+      });
+    }
+
     return {
       message: isActive ? 'Inicio de sesión exitoso' : 'Inicio de sesión exitoso — correo pendiente de verificación',
       access_token: isActive ? session.access_token : null,
@@ -450,6 +512,7 @@ export class AuthService {
         email: user.email ?? loginDto.email,
         role,
         isActive,
+        isBlocked: false,
         vehicle: vehicle
           ? {
               brand: vehicle.brand,
@@ -497,6 +560,16 @@ export class AuthService {
       throw new ServiceUnavailableException('No se pudo consultar el perfil del usuario.');
     }
 
+    if (profile.is_blocked) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        error: 'ACCOUNT_BLOCKED',
+        isBlocked: true,
+        message: 'Tu cuenta ha sido bloqueada.',
+        reason: profile.block_reason || 'Tu cuenta ha sido suspendida.',
+      });
+    }
+
     return {
       id: user.id,
       firstName: profile?.first_name || user.user_metadata?.firstName || 'Usuario',
@@ -507,6 +580,8 @@ export class AuthService {
       email: user.email || '',
       role: profile?.role || user.user_metadata?.role || 'pasajero',
       isActive: profile?.is_active ?? false,
+      isBlocked: !!profile?.is_blocked,
+      blockReason: profile?.block_reason || null,
       vehicle: vehicle
           ? {
             id: vehicle.id,
@@ -517,6 +592,85 @@ export class AuthService {
             capacity: vehicle.capacity,
           }
         : undefined,
+    };
+  }
+
+  /**
+   * Envía una solicitud al administrador apelando el bloqueo de una cuenta.
+   */
+  async submitAppeal(email: string, message: string): Promise<{ success: boolean; message: string }> {
+    if (!email || !message?.trim()) {
+      throw new BadRequestException('El correo electrónico y el mensaje son obligatorios.');
+    }
+
+    const admin = this.supabaseService.getClient();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Buscar usuario en auth.users por correo
+    let userId: string | null = null;
+    try {
+      const { data: usersData } = await admin.auth.admin.listUsers();
+      const found = usersData?.users?.find(
+        (u) => u.email?.trim().toLowerCase() === cleanEmail,
+      );
+      if (found) {
+        userId = found.id;
+      }
+    } catch (err) {
+      this.logger.error(`Error buscando usuario en auth.admin para apelación: ${err}`);
+    }
+
+    if (!userId) {
+      throw new NotFoundException('No se encontró ninguna cuenta asociada a este correo electrónico.');
+    }
+
+    // 2. Consultar perfil en public.profiles
+    const { data: profile, error } = await admin
+      .from('profiles')
+      .select('id, is_blocked')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !profile) {
+      throw new NotFoundException('No se encontró el perfil de usuario asociado a este correo.');
+    }
+
+    if (!profile.is_blocked) {
+      throw new BadRequestException('Esta cuenta no se encuentra bloqueada.');
+    }
+
+    // 3. Verificar que no exista ya una solicitud pendiente para esta cuenta
+    const { data: existingPendingAppeal } = await admin
+      .from('account_appeals')
+      .select('id')
+      .eq('user_id', profile.id)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingPendingAppeal) {
+      throw new BadRequestException(
+        'Ya tienes una solicitud de desbloqueo en revisión. El administrador te notificará pronto. Solo podrás enviar una nueva solicitud si tu apelación es rechazada.',
+      );
+    }
+
+    // 4. Registrar la solicitud en account_appeals
+    const { error: insertError } = await admin
+      .from('account_appeals')
+      .insert({
+        user_id: profile.id,
+        email: cleanEmail,
+        message: message.trim(),
+        status: 'pending',
+      });
+
+    if (insertError) {
+      this.logger.error(`Error guardando apelación de cuenta: ${insertError.message}`);
+      throw new ServiceUnavailableException('No se pudo registrar la solicitud en este momento. Asegúrate de haber ejecutado la migración add_account_blocking.sql en Supabase.');
+    }
+
+    return {
+      success: true,
+      message: 'Tu solicitud ha sido enviada con éxito al administrador. Recibirás respuesta pronto.',
     };
   }
 

@@ -19,9 +19,12 @@ export class SupabaseAuthGuard implements CanActivate {
     const { data, error } = await this.supabase.getClient().auth.getUser(match[1]);
     if (error || !data.user) throw new UnauthorizedException('La sesión expiró o no es válida.');
     const { data: profile, error: profileError } = await this.supabase.getClient().from('profiles')
-      .select('is_active').eq('id', data.user.id).maybeSingle();
+      .select('is_active, is_blocked').eq('id', data.user.id).maybeSingle();
     if (profileError || !profile?.is_active) {
       throw new UnauthorizedException('Debes verificar tu correo antes de continuar.');
+    }
+    if (profile.is_blocked) {
+      throw new UnauthorizedException('Tu cuenta ha sido bloqueada. Por favor contacta al administrador.');
     }
     request.actorId = data.user.id;
     request.accessToken = match[1];

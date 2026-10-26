@@ -562,10 +562,33 @@ export class RoutesService {
     return this.rpc('confirm_trip_payment', { p_actor: actorId, p_payment: paymentId });
   }
 
-  rate(actorId: string, routeId: string, ratedId: string, score: number, comment?: string) {
-    return this.rpc('submit_route_rating', {
+  async rate(actorId: string, routeId: string, ratedId: string, score: number, comment?: string) {
+    const result = await this.rpc('submit_route_rating', {
       p_actor: actorId, p_route: routeId, p_rated: ratedId, p_score: score, p_comment: comment || null,
     });
+    await this.checkAndAutoBlockDriver(ratedId);
+    return result;
+  }
+
+  private async checkAndAutoBlockDriver(ratedId: string) {
+    try {
+      const client = this.supabase.getClient();
+      const { data: profile } = await client.from('profiles').select('id, role, is_blocked').eq('id', ratedId).maybeSingle();
+      if (!profile || profile.role !== 'conductor' || profile.is_blocked) {
+        return;
+      }
+      const summary = await this.ratingSummary(ratedId) as { average?: number | null; count?: number } | null;
+      if (summary && summary.count && summary.count > 0 && summary.average !== null && summary.average !== undefined && Number(summary.average) < 3.0) {
+        this.logger.warn(`Auto-bloqueando conductor ${ratedId} por promedio menor a 3.0 (promedio actual: ${summary.average})`);
+        await client.from('profiles').update({
+          is_blocked: true,
+          block_reason: `Promedio de calificaciones inferior a 3.0 (${summary.average} estrellas)`,
+          blocked_at: new Date().toISOString(),
+        }).eq('id', ratedId);
+      }
+    } catch (err) {
+      this.logger.error(`Error verificando auto-bloqueo para conductor ${ratedId}:`, err);
+    }
   }
 
   ratingSummary(actorId: string) {

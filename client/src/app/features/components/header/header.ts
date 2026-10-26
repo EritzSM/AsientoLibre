@@ -239,10 +239,34 @@ export async function initHeader(
   if (menu) menu.style.display = user ? "inline-block" : "none";
   if (bellWrapper) bellWrapper.style.display = user ? "flex" : "none";
 
+  const viajesActivosLink = document.getElementById('nav-viajes-activos');
+  if (viajesActivosLink) viajesActivosLink.hidden = !user;
+
+  const calendarioLink = document.getElementById('nav-calendario');
+  if (calendarioLink) calendarioLink.hidden = !user || user.role !== 'conductor';
+
+  const calendarioDd = document.getElementById('nav-calendario-dd');
+  if (calendarioDd) calendarioDd.hidden = !user || user.role !== 'conductor';
+
+  const historialLink = document.getElementById('nav-historial');
+  if (historialLink) historialLink.hidden = !user;
+
+  const favoritosLink = document.getElementById('nav-favoritos');
+  if (favoritosLink) favoritosLink.hidden = !user || user.role !== 'pasajero';
+
+  const favoritosDd = document.getElementById('nav-favoritos-dd');
+  if (favoritosDd) favoritosDd.hidden = !user || user.role !== 'pasajero';
+
   if (!user) return null;
 
   const favoritesLink = document.querySelector<HTMLElement>('#nav-rutas-favoritas-header');
   if (favoritesLink) favoritesLink.hidden = user.role !== 'pasajero';
+
+  const publishNavLink = document.getElementById('nav-publicar');
+  if (publishNavLink) publishNavLink.hidden = user.role !== 'conductor';
+
+  const searchNavLink = document.getElementById('nav-buscar');
+  if (searchNavLink) searchNavLink.hidden = user.role === 'conductor';
 
   // Cargar notificaciones para la campana de inmediato si hay usuario autenticado
   routesService.notifications()

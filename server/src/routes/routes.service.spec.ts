@@ -8,7 +8,10 @@ describe('consulta de rutas', () => {
     meeting_point: 'Portal norte',
     departure_at: '2099-12-31T02:30:00Z', seats: 4, available_seats: 2, price: 8500, note: null,
     status: 'published', confirmed_passengers: 1, created_at: '2099-01-01T00:00:00Z',
+    driver_finished_at: null,
   };
+
+  const notificationMock = { sendToUser: vi.fn().mockResolvedValue(undefined) } as unknown as ChangeNotificationService;
 
   it('presenta fecha/hora de Colombia aun cuando UTC corresponde al día siguiente', () => {
     expect(presentRoute(row)).toMatchObject({ date: '2099-12-30', time: '21:30', meetingPoint: 'Portal norte', driverName: 'Ana Ruiz', availableSeats: 2, confirmedPassengers: 1 });
@@ -21,7 +24,7 @@ describe('consulta de rutas', () => {
     const profileQuery = { select: vi.fn(), in: vi.fn().mockResolvedValue({ data: [{ id: 'driver', photo_url: 'https://example.test/photo.jpg' }], error: null }) };
     profileQuery.select.mockReturnValue(profileQuery);
     const from = vi.fn((table: string) => table === 'route_catalog' ? query : profileQuery);
-    const service = new RoutesService({ getClient: () => ({ from }) } as unknown as SupabaseService);
+    const service = new RoutesService({ getClient: () => ({ from }) } as unknown as SupabaseService, notificationMock);
     const result = await service.findAvailable({ origin: '100%_centro', destination: 'Chía', date: '2099-12-30' });
     expect(from).toHaveBeenCalledWith('route_catalog');
     expect(query.eq).toHaveBeenCalledWith('status', 'published');
@@ -36,7 +39,7 @@ describe('consulta de rutas', () => {
 
   it('consulta únicamente el resumen anónimo del perfil autenticado', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { average: 4.5, count: 2 }, error: null });
-    const service = new RoutesService({ getClient: () => ({ rpc }) } as unknown as SupabaseService);
+    const service = new RoutesService({ getClient: () => ({ rpc }) } as unknown as SupabaseService, notificationMock);
 
     await expect(service.ratingSummary('profile-id')).resolves.toEqual({ average: 4.5, count: 2 });
     expect(rpc).toHaveBeenCalledWith('get_profile_rating_summary', { p_profile: 'profile-id' });
@@ -98,7 +101,7 @@ describe('consulta de rutas', () => {
       if (table === 'profiles') return profileQueryCount++ === 0 ? passengerQuery : photosQuery;
       throw new Error(`Tabla inesperada: ${table}`);
     });
-    const service = new RoutesService({ getClient: () => ({ from }) } as unknown as SupabaseService);
+    const service = new RoutesService({ getClient: () => ({ from }) } as unknown as SupabaseService, notificationMock);
 
     await expect(service.favorites('passenger-id')).resolves.toEqual([expect.objectContaining({
       id: 'favorite-1', origin: 'BogotÃ¡', destination: 'ChÃ­a',
