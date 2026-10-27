@@ -634,6 +634,15 @@ export class AdminService {
       this.logger.error(`Error al bloquear usuario ${userId}: ${error.message}`);
       throw new ServiceUnavailableException('No se pudo bloquear la cuenta del usuario.');
     }
+    try {
+      await this.changeNotification.notifyAccountStatus(userId, 'blocked', finalReason);
+    } catch (notificationError: unknown) {
+      this.logger.error(
+        `No se pudo notificar el bloqueo del usuario ${userId}: ${
+          notificationError instanceof Error ? notificationError.message : String(notificationError)
+        }`,
+      );
+    }
     return { success: true, message: 'La cuenta ha sido bloqueada correctamente.' };
   }
 
@@ -654,6 +663,15 @@ export class AdminService {
     if (error) {
       this.logger.error(`Error al desbloquear usuario ${userId}: ${error.message}`);
       throw new ServiceUnavailableException('No se pudo desbloquear la cuenta del usuario.');
+    }
+    try {
+      await this.changeNotification.notifyAccountStatus(userId, 'unblocked');
+    } catch (notificationError: unknown) {
+      this.logger.error(
+        `No se pudo notificar el desbloqueo del usuario ${userId}: ${
+          notificationError instanceof Error ? notificationError.message : String(notificationError)
+        }`,
+      );
     }
     return { success: true, message: 'La cuenta ha sido desbloqueada correctamente.' };
   }

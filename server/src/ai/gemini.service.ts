@@ -181,7 +181,6 @@ Responde ÚNICAMENTE en JSON con esta estructura:
 Reglas de Negocio para Licencia de Conducción:
 - LIC-01: Licencia vencida (fecha de vencimiento anterior a ${today}) → verdict "rechazado". Si la fecha de vencimiento es posterior o igual a ${today}, la licencia está VIGENTE.
 - LIC-02: Categoría no válida para transporte de personas (requiere al menos B1, B2, C1, C2 o C3; una categoría exclusiva de moto como A1/A2 no es válida si el vehículo registrado es automóvil) → verdict "rechazado".
-- DOC-01: Número de identificación en la licencia diferente a "${conductorNationalId}" → verdict "rechazado".
 - FRA-01: Evidencia clara de documento manipulado → verdict "revision_manual".
 - IMG-01: Imagen borrosa, ilegible o incompleta → verdict "revision_manual".
 

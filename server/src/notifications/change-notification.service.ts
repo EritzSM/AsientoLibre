@@ -275,6 +275,31 @@ export class ChangeNotificationService {
     }
   }
 
+  async notifyAccountStatus(
+    userId: string,
+    status: 'blocked' | 'unblocked',
+    reason?: string,
+  ): Promise<void> {
+    const isBlocked = status === 'blocked';
+    const title = isBlocked
+      ? '🚫 Tu cuenta ha sido bloqueada'
+      : '✅ Tu cuenta ha sido desbloqueada';
+    const message = isBlocked
+      ? `Tu cuenta de Asiento Libre ha sido bloqueada por la administración.${reason ? ` Motivo: ${reason}` : ''} Si consideras que se trata de un error, puedes contactar al equipo de soporte.`
+      : 'Tu cuenta de Asiento Libre ha sido desbloqueada por la administración. Ya puedes volver a utilizar la plataforma.';
+
+    await this.sendToUser(userId, {
+      type: `account_${status}`,
+      title,
+      message,
+      link: `${this.frontendUrl}/profile.html`,
+      metadata: {
+        accountStatus: status,
+        ...(reason ? { reason } : {}),
+      },
+    });
+  }
+
   private toLocalTime(isoUtc: string): string {
     return new Date(isoUtc).toLocaleString('es-CO', {
       timeZone: 'America/Bogota',
