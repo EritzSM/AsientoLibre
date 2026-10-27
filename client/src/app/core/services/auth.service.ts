@@ -172,7 +172,6 @@ class AuthService {
 	async updateProfile(data: {
 		firstName: string;
 		lastName: string;
-		nationalId: string;
 		phone: string;
 		role?: 'pasajero' | 'conductor';
 	}): Promise<{ success: boolean; message: string }> {

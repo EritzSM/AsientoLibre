@@ -69,7 +69,6 @@ describe('AuthService profile management', () => {
     await expect(service.updateProfile(actorId, {
       firstName: '  Elena ',
       lastName: ' Ruiz  ',
-      nationalId: ' 12345 ',
       phone: ' 3001234567 ',
       role: 'conductor',
     })).resolves.toEqual({ success: true, message: 'Perfil actualizado exitosamente.' });
@@ -77,7 +76,6 @@ describe('AuthService profile management', () => {
     expect(update).toHaveBeenCalledWith({
       first_name: 'Elena',
       last_name: 'Ruiz',
-      national_id: '12345',
       phone: '3001234567',
       role: 'conductor',
     });

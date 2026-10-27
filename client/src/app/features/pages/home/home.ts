@@ -24,6 +24,8 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let notificationRequest = false;
 const seenNotificationIds = new Set<string>();
 let notificationsInitialized = false;
+const ROUTES_PER_PAGE = 6;
+let currentRoutesPage = 1;
 const priceFormatter = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 
 function toast(message: string): void {
@@ -273,11 +275,79 @@ async function refreshAllComponents(silent = true): Promise<void> {
   await Promise.allSettled(tasks);
 }
 
+function renderRoutesPagination(totalPages: number): void {
+  const container = $<HTMLElement>('#routes-pagination');
+  if (!container) return;
+  if (totalPages <= 1) {
+    container.hidden = true;
+    container.replaceChildren();
+    return;
+  }
+  container.hidden = false;
+
+  const total = publicRoutes.length;
+  const startIdx = (currentRoutesPage - 1) * ROUTES_PER_PAGE + 1;
+  const endIdx = Math.min(currentRoutesPage * ROUTES_PER_PAGE, total);
+
+  let pagesHtml = '';
+  for (let p = 1; p <= totalPages; p++) {
+    pagesHtml += `<button type="button" class="pagination-page-btn ${p === currentRoutesPage ? 'active' : ''}" data-page="${p}" aria-label="Página ${p}" ${p === currentRoutesPage ? 'aria-current="page"' : ''}>${p}</button>`;
+  }
+
+  container.innerHTML = `
+    <div class="pagination-info">
+      Mostrando <strong>${startIdx}–${endIdx}</strong> de <strong>${total}</strong> viajes disponibles
+    </div>
+    <div class="pagination-controls">
+      <button type="button" class="pagination-nav-btn" id="routes-prev-page" data-page="${currentRoutesPage - 1}" ${currentRoutesPage <= 1 ? 'disabled' : ''} aria-label="Página anterior">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        Anterior
+      </button>
+      <div class="pagination-pages">
+        ${pagesHtml}
+      </div>
+      <button type="button" class="pagination-nav-btn" id="routes-next-page" data-page="${currentRoutesPage + 1}" ${currentRoutesPage >= totalPages ? 'disabled' : ''} aria-label="Página siguiente">
+        Siguiente
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  `;
+}
+
 function renderPublicRoutes(): void {
   const list = $('#routes-list');
-  list.innerHTML = publicRoutes.map((route) => routeCardHtml(route)).join('');
+  const paginationEl = $<HTMLElement>('#routes-pagination');
+  const total = publicRoutes.length;
+
+  if (total === 0) {
+    list.replaceChildren();
+    $('#empty-state').hidden = false;
+    if (paginationEl) paginationEl.hidden = true;
+    return;
+  }
+
+  $('#empty-state').hidden = true;
+
+  const totalPages = Math.ceil(total / ROUTES_PER_PAGE) || 1;
+  if (currentRoutesPage > totalPages) {
+    currentRoutesPage = totalPages;
+  }
+
+  const startIdx = (currentRoutesPage - 1) * ROUTES_PER_PAGE;
+  const pageRoutes = publicRoutes.slice(startIdx, startIdx + ROUTES_PER_PAGE);
+
+  list.innerHTML = pageRoutes.map((route) => routeCardHtml(route)).join('');
   bindAvatarFallbacks(list);
-  $('#empty-state').hidden = publicRoutes.length > 0;
+
+  renderRoutesPagination(totalPages);
+}
+
+function goToRoutesPage(page: number): void {
+  const totalPages = Math.ceil(publicRoutes.length / ROUTES_PER_PAGE);
+  if (totalPages === 0) return;
+  currentRoutesPage = Math.min(Math.max(page, 1), totalPages);
+  renderPublicRoutes();
+  $('#buscar').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadRoutes(silent = false): Promise<void> {
@@ -296,6 +366,7 @@ async function loadRoutes(silent = false): Promise<void> {
     if (version !== searchVersion) return;
     publicRoutes = routes;
     if (!silent) {
+      currentRoutesPage = 1;
       renderPublicRoutes();
     }
   } catch (error) {
@@ -590,6 +661,14 @@ async function init(): Promise<void> {
   $('#routes-list').addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-reserve]');
     if (button?.dataset.reserve) openReservation(button.dataset.reserve);
+  });
+
+  $('#routes-pagination').addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-page]');
+    const page = Number(button?.dataset.page);
+    if (button && Number.isInteger(page) && !button.disabled) {
+      goToRoutesPage(page);
+    }
   });
 
   document.addEventListener('click', async (event) => {

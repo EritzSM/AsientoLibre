@@ -12,6 +12,19 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 #profile-phone-hint,
 #profile-password-hint { font-size: 0.85rem; color: var(--text-muted); margin: 6px 0 0; }
 
+#profile-national-id:disabled {
+  color: var(--text-muted);
+  background: #f4f7f8;
+  cursor: not-allowed;
+}
+
+.field-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 :root {
   --navy: #0B1E3B;
   --navy-soft: #3E4A63;
@@ -1074,4 +1087,3 @@ body {
 @media (max-width: 640px) {
   .driver-toast { top: 16px; right: 16px; left: 16px; max-width: none; min-width: 0; }
 }
-

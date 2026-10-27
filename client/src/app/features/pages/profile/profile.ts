@@ -299,13 +299,12 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
   const data = new FormData(form);
   const firstName = String(data.get("firstName") ?? "").trim();
   const lastName = String(data.get("lastName") ?? "").trim();
-  const nationalId = String(data.get("nationalId") ?? "").trim();
   const phone = String(data.get("phone") ?? "").trim();
   const newEmail = String(data.get("email") ?? "").trim().toLowerCase();
   const selectedRole = (String(data.get("role") ?? "").trim() || currentUser.role) as 'pasajero' | 'conductor';
 
-  if (!firstName || !lastName || !nationalId || !newEmail) {
-    showToast("Nombre, apellido, documento y correo electrónico son obligatorios.");
+  if (!firstName || !lastName || !newEmail) {
+    showToast("Nombre, apellido y correo electrónico son obligatorios.");
     return;
   }
 
@@ -330,7 +329,6 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
       await authService.updateProfile({
         firstName,
         lastName,
-        nationalId,
         phone,
         role: selectedRole,
       });
@@ -339,7 +337,6 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         ...currentUser,
         firstName,
         lastName,
-        nationalId,
         phone,
         role: selectedRole,
         vehicle: selectedRole === 'conductor' ? currentUser.vehicle : undefined,
@@ -357,7 +354,6 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
       await authService.updateProfile({
         firstName,
         lastName,
-        nationalId,
         phone,
         role: selectedRole,
       });
@@ -366,7 +362,6 @@ async function handlePersonalDataSubmit(event: Event, currentUser: AuthUser): Pr
         ...currentUser,
         firstName,
         lastName,
-        nationalId,
         phone,
         role: selectedRole,
         vehicle: selectedRole === 'conductor' ? currentUser.vehicle : undefined,

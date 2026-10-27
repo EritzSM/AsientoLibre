@@ -782,7 +782,6 @@ export class AuthService {
     data: {
       firstName: string;
       lastName: string;
-      nationalId: string;
       phone: string;
       role?: 'pasajero' | 'conductor';
     },
@@ -790,7 +789,6 @@ export class AuthService {
     const updatePayload: Record<string, any> = {
       first_name: data.firstName.trim(),
       last_name: data.lastName.trim(),
-      national_id: data.nationalId.trim(),
       phone: data.phone.trim() || null,
     };
     if (data.role) {

@@ -13,11 +13,6 @@ export class UpdateProfileDto {
   @MaxLength(80)
   lastName: string;
 
-  @IsString({ message: 'La identificación debe ser una cadena' })
-  @IsNotEmpty({ message: 'La identificación es obligatoria' })
-  @MaxLength(40)
-  nationalId: string;
-
   @IsString({ message: 'El teléfono debe ser una cadena' })
   @Matches(/^$|^\d{7,15}$/, {
     message: 'El teléfono debe contener únicamente entre 7 y 15 dígitos',

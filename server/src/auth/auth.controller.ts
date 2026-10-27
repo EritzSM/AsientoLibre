@@ -167,7 +167,6 @@ export class AuthController {
     return this.authService.updateProfile(req.actorId, {
       firstName: dto.firstName,
       lastName: dto.lastName,
-      nationalId: dto.nationalId,
       phone: dto.phone,
       role: dto.role,
     });

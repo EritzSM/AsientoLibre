@@ -209,8 +209,9 @@
                 <div class="field">
                   <label for="profile-national-id">Documento de identidad (Cédula / ID)</label>
                   <div class="input-container">
-                    <input id="profile-national-id" name="nationalId" type="text" required maxlength="40" />
+                    <input id="profile-national-id" name="nationalId" type="text" maxlength="40" disabled aria-describedby="profile-national-id-help" />
                   </div>
+                  <small id="profile-national-id-help" class="field-help">La cédula no se puede modificar.</small>
                 </div>
                 <div class="field">
                   <label for="profile-email">Correo electrónico</label>
