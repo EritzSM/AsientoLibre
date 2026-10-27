@@ -1358,3 +1358,515 @@ body.admin-body {
   border-left: 3px solid var(--teal-accent);
 }
 
+
+/* =========================================================
+   Navegación por Secciones — Sistema de Paneles
+   ========================================================= */
+
+/* --- Botones de navegación en el header --- */
+.admin-section-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  position: relative;
+}
+
+.admin-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--admin-text-main);
+  border-color: var(--admin-border);
+}
+
+.admin-nav-btn.active {
+  background: rgba(23, 191, 172, 0.12);
+  color: var(--teal-accent);
+  border-color: rgba(23, 191, 172, 0.3);
+  font-weight: 600;
+}
+
+.admin-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: #EF4444;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 20px;
+  line-height: 1;
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+/* --- Paneles de Sección --- */
+.admin-section-panel {
+  display: none;
+  animation: sectionFadeIn 0.3s ease;
+}
+
+.admin-section-panel.active {
+  display: block;
+}
+
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- Barra superior de sección (breadcrumb) --- */
+.admin-section-topbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.admin-section-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.breadcrumb-home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--teal-accent);
+  font-size: 0.875rem;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.breadcrumb-home-btn:hover {
+  background: rgba(23, 191, 172, 0.1);
+}
+
+.breadcrumb-sep {
+  color: var(--admin-text-faint);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.breadcrumb-current {
+  color: var(--admin-text-muted);
+  font-weight: 500;
+}
+
+/* --- Título de sección (h2 en lugar de h1) --- */
+.section-page-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px 0;
+  background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- Accesos Rápidos (Quick Access Cards) --- */
+.admin-quick-access {
+  margin-top: 40px;
+}
+
+.quick-access-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+  margin: 0 0 16px 0;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+
+.quick-access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.quick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--admin-surface-card);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-md);
+  padding: 22px 22px 18px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.2s ease;
+  position: relative;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.quick-card:hover {
+  background: var(--admin-surface-hover);
+  border-color: rgba(23, 191, 172, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.quick-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(23, 191, 172, 0.1);
+  border: 1px solid rgba(23, 191, 172, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal-accent);
+  margin-bottom: 4px;
+  transition: all 0.2s ease;
+}
+
+.quick-card:hover .quick-card-icon {
+  background: rgba(23, 191, 172, 0.2);
+  box-shadow: 0 0 16px var(--teal-glow);
+}
+
+.quick-card-label {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--admin-text-main);
+}
+
+.quick-card-desc {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  line-height: 1.4;
+}
+
+.quick-card-arrow {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  font-size: 1.1rem;
+  color: var(--admin-text-faint);
+  transition: all 0.2s ease;
+}
+
+.quick-card:hover .quick-card-arrow {
+  color: var(--teal-accent);
+  transform: translateX(4px);
+}
+
+/* Responsive: ocultar nav en mobile */
+@media (max-width: 900px) {
+  .admin-section-nav {
+    display: none;
+  }
+}
+
+/* Link del admin-nav que ya existía pero removido */
+.admin-nav-link {
+  display: none;
+}
+
+/* =========================================================
+   Home Dashboard — Nuevo diseño (Banner + Grid 2 cols)
+   ========================================================= */
+
+/* --- Banner de Estado --- */
+.home-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(19, 34, 62, 0.6);
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+}
+
+.home-status-banner.status-ok {
+  border-color: rgba(23, 191, 172, 0.35);
+  background: rgba(23, 191, 172, 0.06);
+}
+
+.home-status-banner.status-warning {
+  border-color: rgba(245, 167, 66, 0.4);
+  background: rgba(245, 167, 66, 0.07);
+}
+
+.status-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.status-ok .status-banner-icon {
+  background: rgba(23, 191, 172, 0.15);
+  color: var(--teal-accent);
+  border: 1px solid rgba(23, 191, 172, 0.3);
+}
+
+.status-warning .status-banner-icon {
+  background: rgba(245, 167, 66, 0.15);
+  color: #F5A742;
+  border: 1px solid rgba(245, 167, 66, 0.3);
+}
+
+.status-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-banner-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--admin-text-main);
+}
+
+.status-banner-desc {
+  font-size: 0.83rem;
+  color: var(--admin-text-muted);
+}
+
+/* --- Dashboard Grid (2 columnas) --- */
+.home-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .home-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Cards del Home --- */
+.home-card {
+  background: rgba(19, 34, 62, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.home-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.home-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--admin-text-main);
+  margin: 0 0 20px 0;
+  letter-spacing: -0.01em;
+}
+
+.home-card-header .home-card-title {
+  margin-bottom: 0;
+}
+
+.home-card-total {
+  font-size: 0.82rem;
+  color: var(--admin-text-faint);
+  font-weight: 500;
+}
+
+/* --- Barra de progreso de documentos --- */
+.docs-progress-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  margin-bottom: 24px;
+  gap: 2px;
+}
+
+.docs-bar-segment {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+}
+
+.bar-pending {
+  background: linear-gradient(90deg, #F5A742, #F59E0B);
+}
+
+.bar-approved {
+  background: linear-gradient(90deg, #17BFAC, #10B981);
+}
+
+.bar-rejected {
+  background: linear-gradient(90deg, #F87171, #EF4444);
+}
+
+/* --- Métricas de documentos --- */
+.docs-metrics-row {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.docs-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 80px;
+}
+
+.docs-metric-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dot-pending  { background: #F5A742; }
+.dot-approved { background: #17BFAC; }
+.dot-rejected { background: #F87171; }
+
+.docs-metric-label {
+  font-size: 0.78rem;
+  color: var(--admin-text-muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docs-metric-values {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.docs-metric-num {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.docs-metric-pct {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  font-weight: 500;
+}
+
+/* --- Card Comunidad --- */
+.community-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.community-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+}
+
+.community-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.community-item-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-users {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38BDF8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.icon-blocked {
+  background: rgba(239, 68, 68, 0.13);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.icon-appeals {
+  background: rgba(23, 191, 172, 0.13);
+  color: var(--teal-accent);
+  border: 1px solid rgba(23, 191, 172, 0.25);
+}
+
+.community-item-label {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--admin-text-muted);
+}
+
+.community-item-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #fff;
+  min-width: 28px;
+  text-align: right;
+}

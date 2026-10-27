@@ -22,6 +22,70 @@ let currentUserSearch = '';
 let targetUserIdToBlock: string | null = null;
 let allAppeals: AccountAppeal[] = [];
 
+// =========================================================
+// Navegación por Secciones
+// =========================================================
+type SectionId = 'home' | 'documents' | 'users' | 'appeals' | 'promotions';
+
+function navigateToSection(section: SectionId): void {
+  // Ocultar todos los paneles
+  document.querySelectorAll<HTMLDivElement>('.admin-section-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+
+  // Mostrar el panel activo
+  const target = $<HTMLDivElement>(`#section-${section}`);
+  if (target) target.classList.add('active');
+
+  // Actualizar botones de nav activos
+  document.querySelectorAll<HTMLButtonElement>('.admin-nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === section);
+  });
+
+  // Scroll al top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function bindSectionNavigation(): void {
+  // Botones del header
+  document.querySelectorAll<HTMLButtonElement>('.admin-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const section = btn.dataset.section as SectionId;
+      if (section) navigateToSection(section);
+    });
+  });
+
+  // Cards de acceso rápido en el home
+  document.querySelectorAll<HTMLButtonElement>('.quick-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const section = card.dataset.section as SectionId;
+      if (section) navigateToSection(section);
+    });
+  });
+
+  // Botones breadcrumb "Inicio"
+  document.querySelectorAll<HTMLButtonElement>('.breadcrumb-home-btn').forEach(btn => {
+    btn.addEventListener('click', () => navigateToSection('home'));
+  });
+
+  // Logo / título del header — volver al home
+  const homeLink = $<HTMLAnchorElement>('#admin-home-link');
+  if (homeLink) {
+    homeLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigateToSection('home');
+    });
+  }
+}
+
+function updateAppealsBadge(): void {
+  const badge = $<HTMLSpanElement>('#nav-badge-appeals');
+  if (!badge) return;
+  const pending = allAppeals.filter(a => a.status === 'pending').length;
+  badge.textContent = String(pending);
+  badge.hidden = pending === 0;
+}
+
 function $<T extends HTMLElement>(selector: string): T | null {
   return document.querySelector<T>(selector);
 }
@@ -250,7 +314,66 @@ function renderStats(stats: AdminStats): void {
   if (elTotalUsers) elTotalUsers.textContent = String(stats.total_users ?? allUsers.length);
   if (elBlocked) elBlocked.textContent = String(stats.total_blocked ?? 0);
   if (elAppeals) elAppeals.textContent = String(stats.pending_appeals ?? 0);
+
+  // ---- Actualizar dashboard home ----
+  const total = (stats.pending_documents + stats.approved_documents + stats.rejected_documents + (stats.manual_review_documents ?? 0));
+  const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+
+  const pctPending  = pct(stats.pending_documents + (stats.manual_review_documents ?? 0));
+  const pctApproved = pct(stats.approved_documents);
+  const pctRejected = pct(stats.rejected_documents);
+
+  // Total docs counter
+  const docsTotal = $<HTMLSpanElement>('#home-docs-total');
+  if (docsTotal) docsTotal.textContent = String(total);
+
+  // Progress bar widths
+  const barPending  = $<HTMLDivElement>('#home-bar-pending');
+  const barApproved = $<HTMLDivElement>('#home-bar-approved');
+  const barRejected = $<HTMLDivElement>('#home-bar-rejected');
+  if (barPending)  barPending.style.width  = `${pctPending}%`;
+  if (barApproved) barApproved.style.width = `${pctApproved}%`;
+  if (barRejected) barRejected.style.width = `${pctRejected}%`;
+
+  // Percentage labels
+  const pPending  = $<HTMLSpanElement>('#home-pct-pending');
+  const pApproved = $<HTMLSpanElement>('#home-pct-approved');
+  const pRejected = $<HTMLSpanElement>('#home-pct-rejected');
+  if (pPending)  pPending.textContent  = `${pctPending}%`;
+  if (pApproved) pApproved.textContent = `${pctApproved}%`;
+  if (pRejected) pRejected.textContent = `${pctRejected}%`;
+
+  // Status banner
+  const banner = $<HTMLDivElement>('#home-status-banner');
+  const bannerIcon = $<HTMLDivElement>('#home-status-icon');
+  const bannerTitle = $<HTMLSpanElement>('#home-status-title');
+  const bannerDesc  = $<HTMLSpanElement>('#home-status-desc');
+  const hasPendingDocs    = stats.pending_documents > 0 || (stats.manual_review_documents ?? 0) > 0;
+  const hasPendingAppeals = (stats.pending_appeals ?? 0) > 0;
+
+  if (banner && bannerTitle && bannerDesc && bannerIcon) {
+    if (hasPendingDocs || hasPendingAppeals) {
+      const parts: string[] = [];
+      if (hasPendingDocs) parts.push(`${stats.pending_documents + (stats.manual_review_documents ?? 0)} documento(s) pendientes`);
+      if (hasPendingAppeals) parts.push(`${stats.pending_appeals} apelación(es) pendientes`);
+      banner.className = 'home-status-banner status-warning';
+      bannerTitle.textContent = 'Hay tareas pendientes';
+      bannerDesc.textContent  = parts.join(' · ');
+      bannerIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>`;
+    } else {
+      banner.className = 'home-status-banner status-ok';
+      bannerTitle.textContent = 'Todo al día';
+      bannerDesc.textContent  = 'No hay documentos ni apelaciones pendientes de revisión.';
+      bannerIcon.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>`;
+    }
+  }
 }
+
 
 // =========================================================
 // Gestión de Usuarios Registrados
@@ -430,6 +553,7 @@ async function loadAppeals(): Promise<void> {
   try {
     allAppeals = await adminService.getAppeals();
     renderAppeals();
+    updateAppealsBadge();
   } catch (err) {
     console.error("Error al cargar apelaciones:", err);
   }
@@ -1100,6 +1224,7 @@ function bindEvents(): void {
 
 async function initAdmin(): Promise<void> {
   await checkAdminAuth();
+  bindSectionNavigation();
   bindEvents();
   await Promise.all([
     loadDashboardData(),

@@ -1,7 +1,11 @@
 services:
+  # ==============================================================================
+  # Backend API (NestJS + Express)
+  # ==============================================================================
   - type: web
     name: asiento-libre-api
     runtime: node
+    plan: free
     rootDir: server
     buildCommand: npm ci && npm run build
     startCommand: npm run start:prod
@@ -9,15 +13,39 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: CORS_ORIGINS
-        sync: false
+      - key: NODE_VERSION
+        value: 22.14.0
+      # Configuración de Supabase (Base de datos en la nube)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
+      # Orígenes permitidos y URLs públicas
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      # Correo transaccional (Brevo - opcional)
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: Asiento Libre
+      # Inteligencia artificial (Google Gemini - opcional)
+      - key: GEMINI_API_KEY
+        sync: false
+      # Notificaciones Push Firebase (opcional)
+      - key: FIREBASE_PROJECT_ID
+        sync: false
 
+  # ==============================================================================
+  # Frontend Web (Vite + TypeScript SPA/MPA)
+  # ==============================================================================
   - type: web
     name: asiento-libre-web
     runtime: static
@@ -25,8 +53,50 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
       - key: VITE_API_URL
         sync: false
+      # Firebase Web Push (opcional)
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_FIREBASE_VAPID_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /login
+        destination: /login.html
+      - type: rewrite
+        source: /admin
+        destination: /admin.html
+      - type: rewrite
+        source: /profile
+        destination: /profile.html
+      - type: rewrite
+        source: /favoritos
+        destination: /favoritos.html
+      - type: rewrite
+        source: /historial
+        destination: /historial.html
+      - type: rewrite
+        source: /calendario
+        destination: /calendario.html
+      - type: rewrite
+        source: /viajes-activos
+        destination: /viajes-activos.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
     headers:
       - path: /*
         name: X-Content-Type-Options
